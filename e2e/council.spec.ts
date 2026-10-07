@@ -44,6 +44,7 @@ test('Hana convenes the council anonymously and reaches a verdict', async ({ pag
   await expect(verdict).toBeVisible({ timeout: 20_000 })
   await expect(verdict).toContainText('smallest honest version')
   await expect(verdict.getByText('Next action')).toBeVisible()
+  await expect(verdict.getByTestId('verdict-quotes')).toContainText('Letter 1')
   await expect(verdict.getByText('for', { exact: true }).first()).toBeVisible()
   await expect(page.getByTestId('streaming')).toHaveCount(0)
   // Viewport shot, not fullPage: a sticky header stitches into fullPage captures.

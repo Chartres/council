@@ -40,6 +40,10 @@ const VERDICT = {
     'The council leans yes, on one condition: run the smallest honest version first and name the date you decide.',
   next_action: 'This week, build the one-page version and show it to three people who are not your friends.',
   votes: { socrates: 'mixed', 'marcus-aurelius': 'for', seneca: 'for' },
+  quotes: [
+    { persona: 'seneca', text: 'While we are postponing, life speeds by.', locator: 'Letter 1' },
+    { persona: 'marcus-aurelius', text: 'Do every act of your life as if it were the last.', locator: 'Book II' },
+  ],
 }
 
 let anonUsed = false
