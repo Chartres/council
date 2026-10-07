@@ -1,0 +1,36 @@
+// 30 committed questions. The day's question is date-keyed (src/domain/daily.ts), so
+// everyone in the world gets the same one — the Wordle mechanic the share card rests on.
+// Keep them answerable by a council in six turns: a real decision, no trivia.
+
+export const DAILY_QUESTIONS: string[] = [
+  'Should I quit the job that pays well and bores me?',
+  'Is it better to finish something mediocre or restart something good?',
+  'How much money is enough to stop worrying about money?',
+  'Should I tell a friend a hard truth they did not ask for?',
+  'Is ambition for my children love, or is it fear?',
+  'When is loyalty to an old plan just stubbornness?',
+  'Should I say yes to work I can do but do not respect?',
+  'Is it wrong to want to be remembered?',
+  'How do I know the difference between rest and avoidance?',
+  'Should I forgive someone who has not apologised?',
+  'Is it worth moving countries to be slightly happier?',
+  'Should I keep a promise I made before I understood the cost?',
+  'How do I decide when nobody can tell me the right answer?',
+  'Is comparing myself to others ever useful?',
+  'Should I spend savings on a year of trying my own thing?',
+  'When does helping someone start to harm them?',
+  'Is a habit I hate but benefit from worth keeping?',
+  'Should I return to a craft I abandoned ten years ago?',
+  'How much of my day should belong to other people?',
+  'Is it cowardice to avoid an argument I would win?',
+  'Should I take the promotion that removes me from the work?',
+  'Is it better to be respected or to be useful?',
+  'How do I tell a calling from a fantasy?',
+  'Should I buy the thing I have wanted for years?',
+  'When is it right to walk away from a long collaboration?',
+  'Is privacy worth giving up for convenience?',
+  'Should I write the thing nobody asked me to write?',
+  'How do I act when I am certain and everyone disagrees?',
+  'Is being busy a decision or a condition?',
+  'What should I stop doing this month?',
+]

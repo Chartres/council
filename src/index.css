@@ -1,0 +1,134 @@
+@import 'tailwindcss';
+
+/*
+  "Candle-lit study" — ink, marble and one candle.
+  A late-evening reading room: near-black warm ink, cool marble type, a single
+  tallow-amber accent for anything live. Restrained: no gradients in the content
+  layer, no glow except on the candle itself. Rationale in DESIGN.md.
+*/
+@theme {
+  /* Warm ink — the room */
+  --color-ink-950: #100e0b;
+  --color-ink-900: #171410;
+  --color-ink-850: #1e1a15;
+  --color-ink-800: #26211a;
+  --color-ink-700: #342d23;
+  --color-ink-600: #4a4133;
+
+  /* Marble — paper, type, veining */
+  --color-marble-50: #f8f5ee;
+  --color-marble-100: #ece7db;
+  --color-marble-200: #d8d1c2;
+  --color-marble-300: #b9b1a0;
+  --color-marble-400: #968d7c;
+  --color-marble-500: #776f61;
+
+  /* Candle — the single accent */
+  --color-candle-200: #f7e3b8;
+  --color-candle-300: #efce8d;
+  --color-candle-400: #e0b263;
+  --color-candle-500: #c08f3d;
+
+  /* Verdict semantics, muted to the room's light */
+  --color-laurel-400: #9ab896;
+  --color-laurel-500: #6d8f6b;
+  --color-clay-400: #cf9179;
+  --color-clay-500: #a8674f;
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'EB Garamond', 'Iowan Old Style', Georgia, serif;
+
+  /* Soft, hand-cut corners — a bound page, not a chrome card. */
+  --radius-card: 4px;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-ink-950);
+  color: var(--color-marble-100);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  /* One candle, off to the left, low. Nothing else lights the room. */
+  background-image: radial-gradient(
+    820px 560px at 18% 4%,
+    rgba(224, 178, 99, 0.09),
+    transparent 62%
+  );
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+
+/* Hosts that wrap a fragment inject this reset; a standalone build must ship it
+   itself (mobile-ux.md, spotify-pareto pass). */
+[hidden] {
+  display: none !important;
+}
+
+#root {
+  overflow-x: clip;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-candle-500) 32%, transparent);
+  color: var(--color-marble-50);
+}
+
+/* Marble veining — one hairline, used on panel edges only. */
+.vellum {
+  background-color: var(--color-ink-900);
+  box-shadow: inset 0 1px 0 rgba(248, 245, 238, 0.04);
+}
+
+/* The candle glow, for the live surface only (streaming turn, primary action). */
+.lit {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--color-candle-500) 40%, transparent),
+    0 0 30px -14px color-mix(in srgb, var(--color-candle-400) 85%, transparent);
+}
+
+*:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--color-ink-950),
+    0 0 0 4px var(--color-candle-400);
+}
+
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: 0;
+}
+
+/* A persona turn arriving: the text fades up once, then stays still. */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.rise {
+  animation: rise 320ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
