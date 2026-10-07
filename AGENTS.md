@@ -27,11 +27,14 @@ Gate: typecheck · test · build must pass (CI is `.github/workflows/ci.yml`, st
 
 E2E never calls a real model: `scripts/stub-gateway.mjs` speaks the gateway contract with canned
 turns, and `playwright.config.ts` builds the app with `VITE_GATEWAY_URL=http://localhost:8787`.
-Stub controls: `POST /__reset` clears the one anonymous allowance; an idea containing `QUOTA`
-returns 429, one containing `CAP` returns 503; `STUB_PASSWORD=x` makes it demand
-`x-council-key: x` (401 `{reason:"password"}` without it) and `STUB_TIER` sets the session tier.
-Playwright runs with the password on and seeds `council:key` through `storageState`, so every
-journey goes through the real header path; `e2e/gate.spec.ts` clears it to meet the door.
+Stub controls: `POST /__reset` clears the one anonymous allowance and the `ROTATE` trigger below;
+`GET /v1/council/key` answers 204/401 the same way every other route does; an idea containing
+`QUOTA` returns 429, one containing `CAP` returns 503, one containing `ROTATE` returns 401
+`{reason:"password"}` once (simulating a password rotated mid-session) then behaves normally;
+`STUB_PASSWORD=x` makes it demand `x-council-key: x` (401 `{reason:"password"}` without it) and
+`STUB_TIER` sets the session tier. Playwright runs with the password on and seeds `council:key`
+through `storageState`, so every journey goes through the real header path; `e2e/gate.spec.ts`
+clears it to meet the door.
 
 Perf/size asks name a number (bundle kB, p95 ms, suite seconds), re-measure each round, stop at
 target. Multi-finding reviews use the clean-room split (flywheel `skills/flywheel/references/sweep.md`).

@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { gateState, KEY_STORAGE, loadKey, saveKey } from './key'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { checkKey, gateState, KEY_STORAGE, loadKey, saveKey } from './key'
 
 describe('the council key', () => {
   it('round-trips through localStorage and treats an empty string as missing', () => {
@@ -29,5 +29,34 @@ describe('gateState', () => {
     for (const failure of ['sign_in', 'quota', 'cap', 'gateway'] as const) {
       expect(gateState('tallow-candle', failure)).toBe('ready')
     }
+  })
+})
+
+describe('checkKey', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('sends the typed key and reads ok off a 204', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }))
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(checkKey('tallow-candle', 'https://llm.example/')).resolves.toBe('ok')
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://llm.example/v1/council/key',
+      expect.objectContaining({ headers: { 'x-council-key': 'tallow-candle' } }),
+    )
+  })
+
+  it('reads wrong off a 401', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 401 })))
+    await expect(checkKey('nope', 'https://llm.example')).resolves.toBe('wrong')
+  })
+
+  it('reads gateway off any other status', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 500 })))
+    await expect(checkKey('x', 'https://llm.example')).resolves.toBe('gateway')
+  })
+
+  it('reads gateway off a network failure instead of throwing', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
+    await expect(checkKey('x', 'https://llm.example')).resolves.toBe('gateway')
   })
 })

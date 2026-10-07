@@ -7,9 +7,12 @@
 //   PORT=9000 node scripts/stub-gateway.mjs
 //
 // Deterministic controls for tests:
-//   POST /__reset              forget the anonymous allowance
+//   POST /__reset              forget the anonymous allowance and the ROTATE trigger below
+//   GET  /v1/council/key       204 if the header matches (or the gateway is ungated), else 401
 //   idea containing "QUOTA"    → 429 {reason:"quota"}
 //   idea containing "CAP"      → 503 {reason:"cap"}
+//   idea containing "ROTATE"   → 401 {reason:"password"} once (simulates a rotated
+//                                 password on an otherwise-right key), then normal
 //   STUB_PASSWORD=x            require header `x-council-key: x`, else 401 {reason:"password"}
 //   STUB_TIER=premium          report the premium tier on the session event
 // ponytail: module-level state, single process. Fine for one Playwright worker;
@@ -40,6 +43,7 @@ const VERDICT = {
 }
 
 let anonUsed = false
+let rotateConsumed = false
 
 const cors = (req, res) => {
   const origin = req.headers.origin
@@ -48,7 +52,7 @@ const cors = (req, res) => {
     res.setHeader('access-control-allow-credentials', 'true')
   }
   res.setHeader('access-control-allow-headers', 'content-type, authorization, accept, x-council-key')
-  res.setHeader('access-control-allow-methods', 'POST, OPTIONS')
+  res.setHeader('access-control-allow-methods', 'POST, GET, OPTIONS')
   res.setHeader('access-control-expose-headers', 'x-session-id')
 }
 
@@ -102,11 +106,19 @@ createServer(async (req, res) => {
   if (req.url === '/health') return res.writeHead(200).end('ok')
   if (req.url === '/__reset') {
     anonUsed = false
+    rotateConsumed = false
     return res.writeHead(200, { 'content-type': 'application/json' }).end('{"ok":true}')
   }
 
   // The private-beta door, ahead of everything else the gateway knows.
   if (PASSWORD && req.headers['x-council-key'] !== PASSWORD) return fail(res, 401, 'password')
+
+  // The panel checks the password here before it ever closes. The delay mirrors a
+  // real round trip, long enough for a test (or a person) to see the "Checking…" state.
+  if (req.url === '/v1/council/key' && req.method === 'GET') {
+    await sleep(TURN_DELAY_MS)
+    return res.writeHead(204).end()
+  }
 
   const body = await readBody(req)
   const signedIn = (req.headers.authorization ?? '').startsWith('Bearer ')
@@ -114,6 +126,11 @@ createServer(async (req, res) => {
 
   if (idea.includes('QUOTA')) return fail(res, 429, 'quota')
   if (idea.includes('CAP')) return fail(res, 503, 'cap')
+  // A right key that the gateway now treats as wrong — one shot, then it behaves.
+  if (idea.includes('ROTATE') && !rotateConsumed) {
+    rotateConsumed = true
+    return fail(res, 401, 'password')
+  }
 
   if (req.url === '/v1/council/session') {
     if (!signedIn) {
