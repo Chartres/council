@@ -34,6 +34,10 @@ test('Hana convenes the council anonymously and reaches a verdict', async ({ pag
   // Turns arrive one by one, each attributed.
   await expect(page.getByText('Socrates').first()).toBeVisible()
   await expect(page.getByText('Before we judge it', { exact: false })).toBeVisible()
+  await expect(page.getByText('Half of what you listed', { exact: false })).toBeVisible()
+  await expect(page.getByTestId('streaming')).toBeVisible()
+  // Let the 320 ms fade-up settle — a mid-animation shot is not evidence (taste.md).
+  await page.waitForTimeout(400)
   await page.screenshot({ path: 'e2e/shots/session-streaming.png' })
 
   const verdict = page.getByTestId('verdict')

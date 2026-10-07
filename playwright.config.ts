@@ -18,6 +18,8 @@ export default defineConfig({
       url: 'http://localhost:8787/health',
       reuseExistingServer: !process.env.CI,
       timeout: 30_000,
+      // Slow enough that a mid-debate screenshot is actually mid-debate.
+      env: { STUB_TURN_DELAY_MS: '300' },
     },
     {
       command: 'npm run build && npm run preview -- --port 4173',
