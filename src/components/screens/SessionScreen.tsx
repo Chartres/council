@@ -96,6 +96,27 @@ export function SessionScreen() {
             {verdict.next_action}
           </p>
 
+          {verdict.quotes && verdict.quotes.length > 0 && (
+            <div className="mt-4 border-t border-ink-700 pt-3" data-testid="verdict-quotes">
+              <p className="font-display text-xs uppercase tracking-widest text-candle-400">
+                From the texts
+              </p>
+              <ul className="mt-2 space-y-2">
+                {verdict.quotes.map((q, i) => (
+                  <li key={i} className="flex gap-2">
+                    <Monogram id={q.persona} size={24} />
+                    <p className="font-serif text-[0.95rem] leading-relaxed text-marble-200">
+                      “{q.text}”{' '}
+                      <span className="text-xs text-marble-400">
+                        — {personaName(q.persona)}, {q.locator}
+                      </span>
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <ul className="mt-4 flex flex-wrap gap-2 border-t border-ink-700 pt-3">
             {Object.entries(verdict.votes).map(([id, vote]) => (
               <li key={id} className="flex items-center gap-2 rounded-card bg-ink-850 px-2 py-1">

@@ -17,6 +17,8 @@ export interface Verdict {
   summary: string
   next_action: string
   votes: Record<string, Vote>
+  /** Two or three verbatim lines from the quote banks that bear on the recommendation. */
+  quotes?: { persona: string; text: string; locator: string }[]
 }
 
 export interface Turn {
