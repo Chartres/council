@@ -10,6 +10,8 @@
 //   POST /__reset              forget the anonymous allowance
 //   idea containing "QUOTA"    → 429 {reason:"quota"}
 //   idea containing "CAP"      → 503 {reason:"cap"}
+//   STUB_PASSWORD=x            require header `x-council-key: x`, else 401 {reason:"password"}
+//   STUB_TIER=premium          report the premium tier on the session event
 // ponytail: module-level state, single process. Fine for one Playwright worker;
 // a shared fixture would need a per-test key in the request instead.
 
@@ -17,6 +19,8 @@ import { createServer } from 'node:http'
 
 const PORT = Number(process.env.PORT ?? 8787)
 const TURN_DELAY_MS = Number(process.env.STUB_TURN_DELAY_MS ?? 60)
+const PASSWORD = process.env.STUB_PASSWORD || null
+const TIER = process.env.STUB_TIER ?? 'free'
 
 const SCRIPT = [
   { persona: 'socrates', text: 'Before we judge it, say plainly what you expect to be different in a year. You have described an activity, not an outcome.' },
@@ -43,7 +47,7 @@ const cors = (req, res) => {
     res.setHeader('access-control-allow-origin', origin)
     res.setHeader('access-control-allow-credentials', 'true')
   }
-  res.setHeader('access-control-allow-headers', 'content-type, authorization, accept')
+  res.setHeader('access-control-allow-headers', 'content-type, authorization, accept, x-council-key')
   res.setHeader('access-control-allow-methods', 'POST, OPTIONS')
   res.setHeader('access-control-expose-headers', 'x-session-id')
 }
@@ -76,7 +80,7 @@ async function streamCouncil(res, sessionId, personas) {
     'x-session-id': sessionId,
   })
   const send = (event) => res.write(`data: ${JSON.stringify(event)}\n\n`)
-  send({ type: 'session', session_id: sessionId })
+  send({ type: 'session', session_id: sessionId, tier: TIER, model: 'stub' })
   for (const turn of SCRIPT) {
     await sleep(TURN_DELAY_MS)
     send({ type: 'turn', ...turn })
@@ -100,6 +104,9 @@ createServer(async (req, res) => {
     anonUsed = false
     return res.writeHead(200, { 'content-type': 'application/json' }).end('{"ok":true}')
   }
+
+  // The private-beta door, ahead of everything else the gateway knows.
+  if (PASSWORD && req.headers['x-council-key'] !== PASSWORD) return fail(res, 401, 'password')
 
   const body = await readBody(req)
   const signedIn = (req.headers.authorization ?? '').startsWith('Bearer ')
