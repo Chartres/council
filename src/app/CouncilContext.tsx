@@ -132,6 +132,7 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
                   summary: event.summary,
                   next_action: event.next_action,
                   votes: event.votes,
+                  quotes: event.quotes,
                 },
               })
               break
