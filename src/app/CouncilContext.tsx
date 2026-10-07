@@ -17,10 +17,12 @@ import {
   replyToSession,
   type CouncilEvent,
   type FailureReason,
+  type Tier,
   type Turn,
   type Verdict,
 } from '@/domain/council'
 import { loadLocal, loadRemote, saveLocal, saveRemote, type SavedIdea } from '@/domain/ideas'
+import { gateState, loadKey, saveKey, type GateState } from '@/domain/key'
 
 export type View = 'home' | 'session' | 'ideas'
 
@@ -33,6 +35,7 @@ export interface SessionState {
   personas: string[]
   turns: Turn[]
   verdict: Verdict | null
+  tier: Tier | null
   streaming: boolean
   failure: FailureReason | null
 }
@@ -47,6 +50,9 @@ interface CouncilContextValue {
   reply: (message: string) => void
   ideas: SavedIdea[]
   open: (idea: SavedIdea) => void
+  /** 'ask' until the private-beta password is stored and accepted. */
+  gate: GateState
+  submitKey: (value: string) => void
 }
 
 const CouncilContext = createContext<CouncilContextValue | null>(null)
@@ -59,6 +65,7 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
   const [picked, setPicked] = useState<string[]>(DEFAULT_PERSONA_IDS)
   const [session, setSession] = useState<SessionState | null>(null)
   const [ideas, setIdeas] = useState<SavedIdea[]>(() => loadLocal())
+  const [councilKey, setCouncilKey] = useState<string | null>(() => loadKey())
   // The streaming loop must not race a second convene; one generator at a time.
   const abort = useRef<AbortController | null>(null)
 
@@ -100,7 +107,7 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
         for await (const event of events) {
           switch (event.type) {
             case 'session':
-              commit({ sessionId: event.session_id })
+              commit({ sessionId: event.session_id, tier: event.tier ?? state.tier })
               break
             case 'turn':
               commit({ turns: [...state.turns, { persona: event.persona, text: event.text }] })
@@ -153,6 +160,7 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
         personas: picked,
         turns: [],
         verdict: null,
+        tier: null,
         streaming: true,
         failure: null,
       }
@@ -162,12 +170,12 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
       void consume(
         openSession(
           { idea, personas: picked, anon: !token },
-          { gatewayUrl: GATEWAY_URL, token, signal: controller.signal },
+          { gatewayUrl: GATEWAY_URL, token, councilKey, signal: controller.signal },
         ),
         base,
       )
     },
-    [consume, picked, token],
+    [consume, councilKey, picked, token],
   )
 
   const reply = useCallback(
@@ -181,12 +189,12 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
       void consume(
         replyToSession(
           { session_id: session.sessionId, message },
-          { gatewayUrl: GATEWAY_URL, token, signal: controller.signal },
+          { gatewayUrl: GATEWAY_URL, token, councilKey, signal: controller.signal },
         ),
         base,
       )
     },
-    [consume, session, token],
+    [consume, councilKey, session, token],
   )
 
   const open = useCallback((idea: SavedIdea) => {
@@ -199,15 +207,38 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
       personas: Object.keys(idea.verdict?.votes ?? {}),
       turns: idea.transcript ?? [],
       verdict: idea.verdict,
+      tier: null,
       streaming: false,
       failure: null,
     })
     setView('session')
   }, [])
 
+  // A rejected password drops the half-opened session: she re-enters it and convenes again.
+  const submitKey = useCallback((value: string) => {
+    const trimmed = value.trim()
+    if (!trimmed) return
+    saveKey(trimmed)
+    setCouncilKey(trimmed)
+    setSession(null)
+    setView('home')
+  }, [])
+
   return (
     <CouncilContext.Provider
-      value={{ view, go: setView, picked, togglePersona, session, convene, reply, ideas, open }}
+      value={{
+        view,
+        go: setView,
+        picked,
+        togglePersona,
+        session,
+        convene,
+        reply,
+        ideas,
+        open,
+        gate: gateState(councilKey, session?.failure ?? null),
+        submitKey,
+      }}
     >
       {children}
     </CouncilContext.Provider>

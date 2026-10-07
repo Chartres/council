@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useCouncil } from '@/app/CouncilContext'
+import { MicButton } from '@/components/MicButton'
 import { Monogram } from '@/components/Monogram'
 import { DISCLOSURE, MAX_PERSONAS, MONTESSORI_NOTE, PERSONAS, personaName } from '@/content/personas'
 import { dailyQuestion, todayKey } from '@/domain/daily'
@@ -22,14 +23,17 @@ export function HomeScreen() {
         <label htmlFor="idea" className="block font-display text-2xl text-marble-100">
           What are you working on?
         </label>
-        <textarea
-          id="idea"
-          rows={4}
-          value={idea}
-          onChange={(e) => setIdea(e.target.value)}
-          placeholder="A business, a project, a decision you keep turning over."
-          className="mt-2 w-full resize-y rounded-card border border-ink-700 bg-ink-900 px-3 py-3 text-base leading-relaxed text-marble-100 placeholder:text-marble-500 focus:border-candle-500"
-        />
+        <div className="mt-2 flex items-end gap-2">
+          <textarea
+            id="idea"
+            rows={4}
+            value={idea}
+            onChange={(e) => setIdea(e.target.value)}
+            placeholder="A business, a project, a decision you keep turning over."
+            className="min-w-0 flex-1 resize-y rounded-card border border-ink-700 bg-ink-900 px-3 py-3 text-base leading-relaxed text-marble-100 placeholder:text-marble-500 focus:border-candle-500"
+          />
+          <MicButton value={idea} onChange={setIdea} label="your idea" />
+        </div>
 
         <details className="mt-3 rounded-card border border-ink-800 bg-ink-900/60">
           <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 py-2">

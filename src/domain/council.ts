@@ -2,10 +2,11 @@
 // (flywheel/docs/expansion/council-build.md "Gateway contract"):
 //   POST /v1/council/session  { idea, personas[1..4], turns?, anon? }
 //   POST /v1/council/reply    { session_id, message }
-// Both answer with an SSE stream of:
-//   {type:"turn", persona, text} … {type:"verdict", summary, next_action, votes}
-//   … {type:"done", usage:{cost_cents}}
-// Error bodies: 401 {reason:"sign_in"} · 429 {reason:"quota"} · 503 {reason:"cap"}
+// Both require the private-beta header `x-council-key` and answer with an SSE stream of:
+//   {type:"session", session_id, tier, model} {type:"turn", persona, text}
+//   … {type:"verdict", summary, next_action, votes} … {type:"done", usage:{cost_cents}}
+// Error bodies: 401 {reason:"password"|"sign_in"} · 429 {reason:"quota"} · 503 {reason:"cap"}
+// Two reasons share 401, so the body wins over the status when it names one.
 //
 // EventSource cannot POST, so this is fetch + a hand-rolled SSE reader. That also
 // keeps the dependency list at zero for the streaming path.
@@ -23,14 +24,16 @@ export interface Turn {
   text: string
 }
 
+export type Tier = 'free' | 'premium'
+
 export type CouncilEvent =
-  | ({ type: 'session'; session_id: string })
+  | { type: 'session'; session_id: string; tier?: Tier; model?: string }
   | ({ type: 'turn' } & Turn)
   | ({ type: 'verdict' } & Verdict)
   | { type: 'done'; usage?: { cost_cents?: number } }
   | { type: 'error'; reason: string; message?: string }
 
-export type FailureReason = 'sign_in' | 'quota' | 'cap' | 'gateway'
+export type FailureReason = 'password' | 'sign_in' | 'quota' | 'cap' | 'gateway'
 
 export class CouncilError extends Error {
   constructor(
@@ -75,23 +78,31 @@ export interface StreamOptions {
   gatewayUrl: string
   /** Supabase access token; omitted for the one anonymous session. */
   token?: string | null
+  /** The private-beta password (`council:key`); the gateway 401s without it. */
+  councilKey?: string | null
   signal?: AbortSignal
+}
+
+/** The headers every gateway call carries. Exported so the injection has a test. */
+export function gatewayHeaders({ token, councilKey }: Pick<StreamOptions, 'token' | 'councilKey'>) {
+  return {
+    'content-type': 'application/json',
+    accept: 'text/event-stream',
+    ...(token ? { authorization: `Bearer ${token}` } : {}),
+    ...(councilKey ? { 'x-council-key': councilKey } : {}),
+  }
 }
 
 async function* stream(
   path: string,
   body: unknown,
-  { gatewayUrl, token, signal }: StreamOptions,
+  { gatewayUrl, token, councilKey, signal }: StreamOptions,
 ): AsyncGenerator<CouncilEvent> {
   let res: Response
   try {
     res = await fetch(`${gatewayUrl.replace(/\/$/, '')}${path}`, {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'text/event-stream',
-        ...(token ? { authorization: `Bearer ${token}` } : {}),
-      },
+      headers: gatewayHeaders({ token, councilKey }),
       // The anonymous allowance is a signed httpOnly cookie set by the Worker.
       credentials: 'include',
       body: JSON.stringify(body),
@@ -102,12 +113,9 @@ async function* stream(
   }
 
   if (!res.ok) {
-    const reason = REASONS[res.status]
     const payload = (await res.json().catch(() => null)) as { reason?: string } | null
-    throw new CouncilError(
-      reason ?? (payload?.reason as FailureReason) ?? 'gateway',
-      `Gateway returned ${res.status}`,
-    )
+    const named = payload?.reason && payload.reason in FAILURE_COPY ? (payload.reason as FailureReason) : null
+    throw new CouncilError(named ?? REASONS[res.status] ?? 'gateway', `Gateway returned ${res.status}`)
   }
 
   // The contract leaves session_id's channel open; accept either a header or an event.
@@ -149,6 +157,7 @@ export function voteSplit(votes: Record<string, Vote>): { for: number; against: 
 }
 
 export const FAILURE_COPY: Record<FailureReason, string> = {
+  password: 'That password was not accepted. Check it with Pavol and try again.',
   sign_in: 'Your free session is used up. Sign in to keep this idea and convene again.',
   quota: 'You have reached today’s limit of three councils. Come back tomorrow.',
   cap: 'The council is closed for this month — the running budget is spent. It reopens on the 1st.',

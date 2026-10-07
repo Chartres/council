@@ -28,7 +28,10 @@ Gate: typecheck · test · build must pass (CI is `.github/workflows/ci.yml`, st
 E2E never calls a real model: `scripts/stub-gateway.mjs` speaks the gateway contract with canned
 turns, and `playwright.config.ts` builds the app with `VITE_GATEWAY_URL=http://localhost:8787`.
 Stub controls: `POST /__reset` clears the one anonymous allowance; an idea containing `QUOTA`
-returns 429, one containing `CAP` returns 503.
+returns 429, one containing `CAP` returns 503; `STUB_PASSWORD=x` makes it demand
+`x-council-key: x` (401 `{reason:"password"}` without it) and `STUB_TIER` sets the session tier.
+Playwright runs with the password on and seeds `council:key` through `storageState`, so every
+journey goes through the real header path; `e2e/gate.spec.ts` clears it to meet the door.
 
 Perf/size asks name a number (bundle kB, p95 ms, suite seconds), re-measure each round, stop at
 target. Multi-finding reviews use the clean-room split (flywheel `skills/flywheel/references/sweep.md`).
@@ -38,8 +41,11 @@ target. Multi-finding reviews use the clean-room split (flywheel `skills/flywhee
 npm run stub         # terminal 1 — the fake gateway on :8787
 VITE_GATEWAY_URL=http://localhost:8787 npm run dev   # terminal 2 — http://localhost:5173
 ```
-Primary journeys: home → type an idea → convene → turns stream in → verdict card → reply box;
-today's question → convene → share the split; My ideas → reopen a past council.
+Run the dev gateway with `STUB_PASSWORD=tallow-candle npm run stub` to see the door.
+Primary journeys: password → home → type (or dictate) an idea → convene → turns stream in →
+verdict card → reply box; today's question → convene → share the split; My ideas → reopen a
+past council. Voice is browser-only (Web Speech API in, `speechSynthesis` out): no server,
+no cost, and both controls are absent where the API is missing.
 Phone first: check at 390 px. The fold gate (`e2e/fold.spec.ts`) asserts the idea field sits in
 the top 120 px, no x-overflow at 320/375/430, and 44 px nav targets.
 
@@ -47,6 +53,7 @@ the top 120 px, no x-overflow at 320/375/430, and 44 px nav targets.
 | Var | What breaks without it |
 |---|---|
 | `VITE_GATEWAY_URL` | no council — every convene fails with the gateway message |
+| the private-beta password (typed, stored in `council:key`) | the gateway 401s `{reason:"password"}`; the app shows the door instead of the home screen |
 | `VITE_SUPABASE_URL` + `VITE_SUPABASE_PUBLISHABLE_KEY` | sign-in and cloud history off; app still works anonymously with localStorage |
 
 The client never holds an Anthropic key. All model work happens in the gateway Worker

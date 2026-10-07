@@ -45,8 +45,16 @@ primary button) is the same pair inverted.
   it is a place you are in, not a tab.
 - **The share card carries no private text.** Date, question, vote split. Asserted in
   `e2e/council.spec.ts` by reading the clipboard.
+- **The door is the whole app.** In private beta the password panel replaces the screens and
+  the tab bar — an app greyed out behind a dialog is worse than no app.
+- **Which council sat, never which model.** One quiet marble-500 line under the verdict:
+  "Free council" or "Premium council". Model names are the gateway's business.
+- **Voice is a button, not a mode.** The mic sits beside the field it fills; "Listen" sits
+  beside "← New idea". Both vanish where the Web Speech API is missing — no explanation, no
+  disabled control. One voice per persona, derived from the id so it never changes.
 
 ## Screenshots
 
 `e2e/shots/` — `home`, `session-streaming`, `verdict`, `daily-card`, `daily-share`,
-`sign-in-gate`, `fold-phone`, all at 390 px, committed and meant to be looked at.
+`sign-in-gate`, `password-gate`, `password-rejected`, `voice-dictation`, `voice-listening`,
+`fold-phone`, all at 390 px, committed and meant to be looked at.

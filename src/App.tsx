@@ -4,12 +4,13 @@ import { AuthProvider } from '@/auth/AuthContext'
 import { track } from '@/analytics'
 import { BottomNav } from '@/components/BottomNav'
 import { Header } from '@/components/Header'
+import { PasswordPanel } from '@/components/PasswordPanel'
 import { HomeScreen } from '@/components/screens/HomeScreen'
 import { IdeasScreen } from '@/components/screens/IdeasScreen'
 import { SessionScreen } from '@/components/screens/SessionScreen'
 
 function Shell() {
-  const { view } = useCouncil()
+  const { view, gate, session } = useCouncil()
   useEffect(() => {
     track('page_view', { view: 'home' })
   }, [])
@@ -27,7 +28,9 @@ function Shell() {
         className="flex-1"
         style={{ paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom))' }}
       >
-        {view === 'session' ? (
+        {gate === 'ask' ? (
+          <PasswordPanel rejected={session?.failure === 'password'} />
+        ) : view === 'session' ? (
           <SessionScreen />
         ) : view === 'ideas' ? (
           <IdeasScreen />
@@ -35,7 +38,7 @@ function Shell() {
           <HomeScreen />
         )}
       </main>
-      {view !== 'session' && <BottomNav />}
+      {gate === 'ready' && view !== 'session' && <BottomNav />}
     </div>
   )
 }

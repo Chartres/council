@@ -1,10 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { useCouncil } from '@/app/CouncilContext'
+import { ListenToggle, useListen, useNarration } from '@/components/Listen'
+import { MicButton } from '@/components/MicButton'
 import { Monogram } from '@/components/Monogram'
 import { SignInPanel } from '@/components/SignInPanel'
 import { DISCLOSURE, personaName } from '@/content/personas'
-import { FAILURE_COPY, voteSplit, type Vote } from '@/domain/council'
+import { FAILURE_COPY, voteSplit, type Turn, type Vote } from '@/domain/council'
 import { dailyShareText, shareText } from '@/domain/daily'
+
+const NO_TURNS: Turn[] = [] // stable identity so the narration effect does not loop
+const TIER_LABEL = { free: 'Free council', premium: 'Premium council' } as const
 
 const VOTE_LABEL: Record<Vote, string> = { for: 'for', against: 'against', mixed: 'mixed' }
 const VOTE_CLASS: Record<Vote, string> = {
@@ -17,14 +22,17 @@ export function SessionScreen() {
   const { session, reply, go } = useCouncil()
   const [message, setMessage] = useState('')
   const [shareState, setShareState] = useState<'idle' | 'shared' | 'copied' | 'failed'>('idle')
+  const [listen, setListen] = useListen()
   const end = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     end.current?.scrollIntoView({ block: 'end', behavior: 'smooth' })
   }, [session?.turns.length, session?.verdict])
 
+  useNarration(session?.turns ?? NO_TURNS, session?.verdict ?? null, listen)
+
   if (!session) return null
-  const { turns, verdict, streaming, failure, question, dailyKey, idea } = session
+  const { turns, verdict, streaming, failure, question, dailyKey, idea, tier } = session
   const split = verdict ? voteSplit(verdict.votes) : null
 
   const sendReply = (e: React.FormEvent) => {
@@ -37,13 +45,16 @@ export function SessionScreen() {
 
   return (
     <div className="mx-auto max-w-xl px-4 pb-6">
-      <button
-        type="button"
-        onClick={() => go('home')}
-        className="mt-2 min-h-11 text-sm text-marble-400 hover:text-candle-300"
-      >
-        ← New idea
-      </button>
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={() => go('home')}
+          className="min-h-11 text-sm text-marble-400 hover:text-candle-300"
+        >
+          ← New idea
+        </button>
+        <ListenToggle on={listen} onChange={setListen} />
+      </div>
 
       <h1 className="mt-1 font-display text-xl leading-snug text-marble-100 text-balance">
         {question ?? idea}
@@ -127,6 +138,13 @@ export function SessionScreen() {
         </section>
       )}
 
+      {/* Which council sat, never which model (DESIGN.md: no model names in the UI). */}
+      {tier && (
+        <p className="mt-3 text-xs text-marble-500" data-testid="tier">
+          {TIER_LABEL[tier]}
+        </p>
+      )}
+
       {failure === 'sign_in' && (
         <div className="mt-6">
           <SignInPanel reason={FAILURE_COPY.sign_in} />
@@ -148,14 +166,17 @@ export function SessionScreen() {
           <label htmlFor="reply" className="block text-sm text-marble-300">
             Answer the council
           </label>
-          <textarea
-            id="reply"
-            rows={3}
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="Push back, add a constraint, ask them to go further."
-            className="mt-1 w-full resize-y rounded-card border border-ink-700 bg-ink-900 px-3 py-3 text-base leading-relaxed text-marble-100 placeholder:text-marble-500 focus:border-candle-500"
-          />
+          <div className="mt-1 flex items-end gap-2">
+            <textarea
+              id="reply"
+              rows={3}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder="Push back, add a constraint, ask them to go further."
+              className="min-w-0 flex-1 resize-y rounded-card border border-ink-700 bg-ink-900 px-3 py-3 text-base leading-relaxed text-marble-100 placeholder:text-marble-500 focus:border-candle-500"
+            />
+            <MicButton value={message} onChange={setMessage} label="your reply" />
+          </div>
           <button
             type="submit"
             disabled={!message.trim()}
