@@ -23,6 +23,27 @@ export function saveKey(key: string): void {
   }
 }
 
+export type KeyCheck = 'ok' | 'wrong' | 'gateway'
+
+/**
+ * Ask the gateway itself whether a typed password is right, before the app ever
+ * opens on it. 204 (including the ungated case) is ok, 401 {reason:"password"} is
+ * wrong, anything else (network failure, non-2xx) is a gateway problem, not a
+ * password one — the caller shows the existing gateway-error copy for that.
+ */
+export async function checkKey(key: string, gatewayUrl: string): Promise<KeyCheck> {
+  try {
+    const res = await fetch(`${gatewayUrl.replace(/\/$/, '')}/v1/council/key`, {
+      headers: { 'x-council-key': key },
+    })
+    if (res.status === 204) return 'ok'
+    if (res.status === 401) return 'wrong'
+    return 'gateway'
+  } catch {
+    return 'gateway'
+  }
+}
+
 export type GateState = 'ask' | 'ready'
 
 /**

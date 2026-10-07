@@ -10,7 +10,7 @@ import { IdeasScreen } from '@/components/screens/IdeasScreen'
 import { SessionScreen } from '@/components/screens/SessionScreen'
 
 function Shell() {
-  const { view, gate, session } = useCouncil()
+  const { view, gate } = useCouncil()
   useEffect(() => {
     track('page_view', { view: 'home' })
   }, [])
@@ -29,7 +29,7 @@ function Shell() {
         style={{ paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom))' }}
       >
         {gate === 'ask' ? (
-          <PasswordPanel rejected={session?.failure === 'password'} />
+          <PasswordPanel />
         ) : view === 'session' ? (
           <SessionScreen />
         ) : view === 'ideas' ? (

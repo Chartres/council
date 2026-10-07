@@ -22,9 +22,14 @@ import {
   type Verdict,
 } from '@/domain/council'
 import { loadLocal, loadRemote, saveLocal, saveRemote, type SavedIdea } from '@/domain/ideas'
-import { gateState, loadKey, saveKey, type GateState } from '@/domain/key'
+import { checkKey, gateState, loadKey, saveKey, type GateState } from '@/domain/key'
 
 export type View = 'home' | 'session' | 'ideas'
+
+/** What to resume automatically once a rotated password is re-entered and accepted. */
+type PendingAction =
+  | { kind: 'convene'; idea: string; dailyKey?: string; question?: string }
+  | { kind: 'reply'; message: string }
 
 export interface SessionState {
   localId: string
@@ -53,6 +58,10 @@ interface CouncilContextValue {
   /** 'ask' until the private-beta password is stored and accepted. */
   gate: GateState
   submitKey: (value: string) => void
+  /** True while the panel's submit is checking the typed password against the gateway. */
+  checkingKey: boolean
+  /** Set when the gateway has just rejected a typed/rotated key; null otherwise. */
+  keyError: 'password' | 'gateway' | null
 }
 
 const CouncilContext = createContext<CouncilContextValue | null>(null)
@@ -66,6 +75,11 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<SessionState | null>(null)
   const [ideas, setIdeas] = useState<SavedIdea[]>(() => loadLocal())
   const [councilKey, setCouncilKey] = useState<string | null>(() => loadKey())
+  const [checkingKey, setCheckingKey] = useState(false)
+  const [keyError, setKeyError] = useState<'password' | 'gateway' | null>(null)
+  // What to resume once a rotated password is re-entered and accepted; null for a
+  // plain first-visit ask, which just opens the home screen instead.
+  const [pendingResume, setPendingResume] = useState<PendingAction | null>(null)
   // The streaming loop must not race a second convene; one generator at a time.
   const abort = useRef<AbortController | null>(null)
 
@@ -97,7 +111,7 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
   )
 
   const consume = useCallback(
-    async (events: AsyncGenerator<CouncilEvent>, base: SessionState) => {
+    async (events: AsyncGenerator<CouncilEvent>, base: SessionState, pending: PendingAction) => {
       let state = base
       const commit = (next: Partial<SessionState>) => {
         state = { ...state, ...next }
@@ -137,6 +151,11 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
         if (e instanceof CouncilError) {
           track('council_blocked', { reason: e.reason })
           commit({ streaming: false, failure: e.reason })
+          // The key that opened the panel was fine a moment ago and just got rotated.
+          // Reopen the door (gateState reacts to failure:'password') but keep the idea
+          // text and personas already captured in `pending`/session state, and remember
+          // what to re-run once the new password checks out.
+          if (e.reason === 'password') setPendingResume(pending)
         } else {
           logError(e, { where: 'council-stream' })
           commit({ streaming: false, failure: 'gateway' })
@@ -146,8 +165,11 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
     [persist],
   )
 
-  const convene = useCallback(
-    ({ idea, dailyKey, question }: { idea: string; dailyKey?: string; question?: string }) => {
+  // Takes the key explicitly rather than reading `councilKey` state, so a resume right
+  // after a password re-check can use the just-verified value without waiting a render
+  // for the state update to land.
+  const runConvene = useCallback(
+    (idea: string, dailyKey: string | undefined, question: string | undefined, key: string | null) => {
       abort.current?.abort()
       const controller = new AbortController()
       abort.current = controller
@@ -170,16 +192,23 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
       void consume(
         openSession(
           { idea, personas: picked, anon: !token },
-          { gatewayUrl: GATEWAY_URL, token, councilKey, signal: controller.signal },
+          { gatewayUrl: GATEWAY_URL, token, councilKey: key, signal: controller.signal },
         ),
         base,
+        { kind: 'convene', idea, dailyKey, question },
       )
     },
-    [consume, councilKey, picked, token],
+    [consume, picked, token],
   )
 
-  const reply = useCallback(
-    (message: string) => {
+  const convene = useCallback(
+    ({ idea, dailyKey, question }: { idea: string; dailyKey?: string; question?: string }) =>
+      runConvene(idea, dailyKey, question, councilKey),
+    [runConvene, councilKey],
+  )
+
+  const runReply = useCallback(
+    (message: string, key: string | null) => {
       if (!session?.sessionId) return
       const controller = new AbortController()
       abort.current = controller
@@ -189,13 +218,16 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
       void consume(
         replyToSession(
           { session_id: session.sessionId, message },
-          { gatewayUrl: GATEWAY_URL, token, councilKey, signal: controller.signal },
+          { gatewayUrl: GATEWAY_URL, token, councilKey: key, signal: controller.signal },
         ),
         base,
+        { kind: 'reply', message },
       )
     },
-    [consume, councilKey, session, token],
+    [consume, session, token],
   )
+
+  const reply = useCallback((message: string) => runReply(message, councilKey), [runReply, councilKey])
 
   const open = useCallback((idea: SavedIdea) => {
     setSession({
@@ -214,15 +246,36 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
     setView('session')
   }, [])
 
-  // A rejected password drops the half-opened session: she re-enters it and convenes again.
-  const submitKey = useCallback((value: string) => {
-    const trimmed = value.trim()
-    if (!trimmed) return
-    saveKey(trimmed)
-    setCouncilKey(trimmed)
-    setSession(null)
-    setView('home')
-  }, [])
+  // Checked against the gateway before the panel ever closes, so a wrong password
+  // never costs the idea text a convene/reply would otherwise have carried in. A
+  // pending resume (password rotated mid-session) re-runs with the preserved text;
+  // a plain first-visit entry just opens the home screen.
+  const submitKey = useCallback(
+    async (value: string) => {
+      const trimmed = value.trim()
+      if (!trimmed) return
+      setCheckingKey(true)
+      setKeyError(null)
+      const result = await checkKey(trimmed, GATEWAY_URL)
+      setCheckingKey(false)
+      if (result === 'wrong') return setKeyError('password')
+      if (result === 'gateway') return setKeyError('gateway')
+
+      saveKey(trimmed)
+      setCouncilKey(trimmed)
+      const pending = pendingResume
+      setPendingResume(null)
+      if (pending?.kind === 'convene') {
+        runConvene(pending.idea, pending.dailyKey, pending.question, trimmed)
+      } else if (pending?.kind === 'reply') {
+        runReply(pending.message, trimmed)
+      } else {
+        setSession(null)
+        setView('home')
+      }
+    },
+    [pendingResume, runConvene, runReply],
+  )
 
   return (
     <CouncilContext.Provider
@@ -238,6 +291,8 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
         open,
         gate: gateState(councilKey, session?.failure ?? null),
         submitKey,
+        checkingKey,
+        keyError,
       }}
     >
       {children}

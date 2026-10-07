@@ -2,10 +2,15 @@ import { useState } from 'react'
 import { useCouncil } from '@/app/CouncilContext'
 import { FAILURE_COPY } from '@/domain/council'
 
-/** The private-beta door. One field, no account — the gateway checks the password. */
-export function PasswordPanel({ rejected }: { rejected?: boolean }) {
-  const { submitKey } = useCouncil()
+/**
+ * The private-beta door. One field, no account — the gateway checks the password
+ * (`GET /v1/council/key`) before this panel ever closes, so a wrong guess never
+ * costs the idea text an in-flight convene/reply would otherwise have carried.
+ */
+export function PasswordPanel() {
+  const { submitKey, checkingKey, keyError } = useCouncil()
   const [value, setValue] = useState('')
+  const disabled = !value.trim() || checkingKey
 
   return (
     <div className="mx-auto max-w-xl px-4 pt-3 pb-6">
@@ -38,18 +43,23 @@ export function PasswordPanel({ rejected }: { rejected?: boolean }) {
           />
           <button
             type="submit"
-            disabled={!value.trim()}
+            disabled={disabled}
             className={`mt-3 min-h-12 w-full rounded-card px-4 py-3 font-display text-lg font-semibold ${
-              value.trim()
-                ? 'lit bg-candle-400 text-ink-950 hover:bg-candle-300'
-                : 'border border-ink-700 bg-transparent text-marble-500'
+              disabled
+                ? 'border border-ink-700 bg-transparent text-marble-500'
+                : 'lit bg-candle-400 text-ink-950 hover:bg-candle-300'
             }`}
           >
-            Enter
+            {checkingKey ? 'Checking…' : 'Enter'}
           </button>
-          {rejected && (
+          {keyError === 'password' && (
             <p className="mt-2 text-sm text-clay-400" role="alert" data-testid="password-rejected">
               {FAILURE_COPY.password}
+            </p>
+          )}
+          {keyError === 'gateway' && (
+            <p className="mt-2 text-sm text-clay-400" role="alert" data-testid="password-gateway-error">
+              {FAILURE_COPY.gateway}
             </p>
           )}
         </form>
