@@ -1,9 +1,10 @@
 import { useCouncil, type View } from '@/app/CouncilContext'
 
-// Two jobs, two tabs (mobile-ux "tabs = journeys"): convene a council, revisit one.
+// Tabs = journeys (mobile-ux): sit with the group (v4), its journal, and v3's quick
+// verdict with its history.
 const TABS: { view: View; label: string; icon: React.ReactNode }[] = [
   {
-    view: 'home',
+    view: 'start',
     label: 'Council',
     icon: (
       <>
@@ -13,6 +14,16 @@ const TABS: { view: View; label: string; icon: React.ReactNode }[] = [
         <path d="M4 20c0-3 3.6-5 8-5s8 2 8 5" strokeLinecap="round" />
       </>
     ),
+  },
+  {
+    view: 'journal',
+    label: 'Journal',
+    icon: <path d="M6 3h11a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6zM6 3v18M10 8h5M10 12h5" strokeLinejoin="round" />,
+  },
+  {
+    view: 'home',
+    label: 'Quick verdict',
+    icon: <path d="M12 3v3M5 9h14M7 9l-3 7a4 4 0 0 0 6 0zM17 9l-3 7a4 4 0 0 0 6 0zM12 6v15M8 21h8" strokeLinejoin="round" />,
   },
   {
     view: 'ideas',
@@ -31,7 +42,7 @@ export function BottomNav() {
     >
       <ul className="mx-auto flex max-w-xl">
         {TABS.map((tab) => {
-          const active = view === tab.view
+          const active = view === tab.view || (tab.view === 'home' && view === 'session')
           return (
             <li key={tab.view} className="flex-1">
               <button

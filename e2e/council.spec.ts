@@ -17,7 +17,7 @@ test.beforeEach(async ({ request }) => {
 })
 
 test('Hana convenes the council anonymously and reaches a verdict', async ({ page }) => {
-  await page.goto('/')
+  await page.goto('/quick')
   await expect(page.getByLabel('What are you working on?')).toBeVisible()
   await expect(
     page.getByText('A fictional interpretation of historical thinkers', { exact: false }).first(),
@@ -56,7 +56,7 @@ test('Hana convenes the council anonymously and reaches a verdict', async ({ pag
 })
 
 test('the sign-in gate appears when she convenes a second time', async ({ page }) => {
-  await page.goto('/')
+  await page.goto('/quick')
   await page.getByLabel('What are you working on?').fill('First idea of the evening.')
   await page.getByRole('button', { name: 'Convene the council' }).click()
   await expect(page.getByTestId('verdict')).toBeVisible({ timeout: 20_000 })
@@ -74,7 +74,7 @@ test('the sign-in gate appears when she convenes a second time', async ({ page }
 test('today’s question can be convened on and shared without leaking her text', async ({
   page,
 }) => {
-  await page.goto('/')
+  await page.goto('/quick')
   const card = page.getByTestId('daily-card')
   await expect(card).toBeVisible()
   const today = new Date()

@@ -44,6 +44,84 @@ daily question, so "My ideas" can badge it and the share card can be rebuilt wit
 the date from `created_at` (which is UTC, while the daily question is keyed to the visitor's own
 calendar day).
 
+## 1b. Council v4 — sessions, journal, commitments (+ RLS)
+
+The app is the writer of record: it generates the row ids (uuid) and upserts under the
+user's JWT. The gateway's reminder cron reads `council_commitments` with the service role
+and stamps `email_sent_at`; nothing else server-side writes these tables.
+
+```sql
+create table if not exists public.council_sessions (
+  id          uuid primary key,
+  user_id     uuid not null references auth.users (id) on delete cascade,
+  roster      text not null check (roster in ('business', 'classics')),
+  advisers    text[] not null,
+  intake      jsonb,
+  transcript  jsonb not null default '[]'::jsonb,
+  created_at  timestamptz not null default now(),
+  ended_at    timestamptz
+);
+create index if not exists council_sessions_user_created_idx
+  on public.council_sessions (user_id, created_at desc);
+
+create table if not exists public.council_journal (
+  id              uuid primary key,
+  user_id         uuid not null references auth.users (id) on delete cascade,
+  session_id      uuid references public.council_sessions (id) on delete set null,
+  decision        text not null,
+  reasoning       text not null default '',
+  assumptions     text[] not null default '{}',
+  next_action     text not null default '',
+  owner           text not null default '',
+  review_trigger  text not null default '',
+  confidence      smallint check (confidence between 0 and 100),
+  status          text not null default 'accepted'
+                  check (status in ('proposal', 'accepted', 'done', 'dropped')),
+  created_at      timestamptz not null default now()
+);
+create index if not exists council_journal_user_created_idx
+  on public.council_journal (user_id, created_at desc);
+
+create table if not exists public.council_commitments (
+  id             uuid primary key,
+  user_id        uuid not null references auth.users (id) on delete cascade,
+  journal_id     uuid not null references public.council_journal (id) on delete cascade,
+  what           text not null,
+  due_date       date not null,
+  remind         boolean not null default false,
+  email_sent_at  timestamptz,
+  outcome        text check (outcome in ('done', 'later', 'drop')),
+  outcome_at     timestamptz,
+  created_at     timestamptz not null default now()
+);
+create index if not exists council_commitments_user_due_idx
+  on public.council_commitments (user_id, due_date);
+-- The reminder cron's query: due today, opted in, not yet emailed.
+create index if not exists council_commitments_reminder_idx
+  on public.council_commitments (due_date) where remind and email_sent_at is null;
+
+alter table public.council_sessions    enable row level security;
+alter table public.council_journal     enable row level security;
+alter table public.council_commitments enable row level security;
+
+-- Own-row only, all four verbs, on all three tables.
+do $$
+declare t text;
+begin
+  foreach t in array array['council_sessions', 'council_journal', 'council_commitments'] loop
+    execute format('create policy %I on public.%I for select using (auth.uid() = user_id)', t || '_select_own', t);
+    execute format('create policy %I on public.%I for insert with check (auth.uid() = user_id)', t || '_insert_own', t);
+    execute format('create policy %I on public.%I for update using (auth.uid() = user_id) with check (auth.uid() = user_id)', t || '_update_own', t);
+    execute format('create policy %I on public.%I for delete using (auth.uid() = user_id)', t || '_delete_own', t);
+  end loop;
+end $$;
+```
+
+`email_sent_at` is writable by the owner under these policies; the cron's "never more than
+one email" rule keys on it, so the worst a user can do is re-arm their own reminder.
+`outcome = 'later'` keeps a commitment open (it is the "not yet — another round" answer).
+The created_at column on commitments is one beyond the spec's list, for ordering.
+
 ## 2. Auth identity (`flywheel/docs/standards/auth-identity.md`)
 
 - Add `https://council.dravec.org` (and `https://council.pages.dev` if used, plus

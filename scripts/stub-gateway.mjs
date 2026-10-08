@@ -17,6 +17,17 @@
 //   STUB_TIER=premium          default tier on the session event when no x-council-tier header
 //   GET /v1/admin/usage        plausible running totals (admin-only on the real gateway)
 //   header x-council-tier      echoed back as the session event's tier/model (admin only)
+//
+// v4 (flywheel/docs/expansion/council-v4.md "Flow"):
+//   POST /v1/council/start     facilitator opener ("Last time…" when body.memory has
+//                              anything, else an intake recap), 2 contributions, floor
+//   POST /v1/council/turn      2–3 contributions + floor; the 3rd turn/control of a
+//                              session also streams a proposal
+//   POST /v1/council/control   pause | back_to:<id> | let:<a>,<b> | disagree | concrete |
+//                              test | wrap_up — same stream shape, counts as a turn
+//   POST /v1/council/capture   → { entry }  (canned, or the proposal named by proposal_id)
+//   POST /v1/council/commit    → { commitment }  (echo, keeps the client's id)
+//   GET  /v1/council/journal   → { entries, commitments } captured/committed this process
 // ponytail: module-level state, single process. Fine for one Playwright worker;
 // a shared fixture would need a per-test key in the request instead.
 
@@ -48,6 +59,132 @@ const VERDICT = {
     { persona: 'seneca', text: 'While we are postponing, life speeds by.', locator: 'Letter 1' },
     { persona: 'marcus-aurelius', text: 'Do every act of your life as if it were the last.', locator: 'Book II' },
   ],
+}
+
+// ---- v4 canned content ----
+const LINES = {
+  drucker: [
+    'Start with the customer. Whose circumstances improve if this works, and how would they notice in the first month?',
+    'You are describing an activity. What contribution deserves the investment — what result would you defend to your board?',
+    'Then measure the one change that customer would recognise, not the volume of work you produce.',
+  ],
+  jobs: [
+    'Show me what someone actually sees on day one. If it takes a paragraph to explain, it is not ready.',
+    'Cut it to the one thing people would miss if it vanished tomorrow. Everything else is noise for now.',
+    'Make a version you can put in someone’s hands this week. Their face will tell you more than a survey.',
+  ],
+  grove: [
+    'Who owns this, by name, and what is the one dependency that can stall it? Write both down before anything else.',
+    'Pick an output metric and a leading indicator. If the indicator does not move in four weeks, you change course.',
+    'Run it as a two-week experiment with one owner. Decide now what evidence would make you stop.',
+  ],
+  socrates: [
+    'When you say "success", do you mean more customers or better ones? Those lead to different plans.',
+    'You assume they want this. What have you seen them do — not say — that supports it?',
+    'If the experiment fails, what will you have learned that you do not know today?',
+  ],
+}
+const GENERIC = [
+  'Name the part of this that is yours to decide, and begin there.',
+  'Count the cost in hours before you count the upside.',
+  'Do the smallest honest version first and set the date you will judge it.',
+]
+const FLOORS = [
+  'Which of these is closest to the real constraint for you?',
+  'What would you put in front of a customer first?',
+  'Does that experiment fit the time and authority you have?',
+  'What would make you stop?',
+]
+const CONFIDENCE = { 1: 70, 2: 65 } // by turn index: the 2nd and 3rd turns carry a pill
+const PROPOSAL = {
+  decision: 'Run a two-week pilot with five existing customers before building anything new.',
+  reasoning: 'The group agreed the open question is demand, not capability; a pilot answers it cheaply.',
+  assumptions: ['Five customers will give two weeks of honest use', 'The pilot can run without engineering time'],
+  next_action: 'Email five customers and book the pilot kickoff',
+  owner: 'You',
+  review_trigger: 'End of week two, or sooner if fewer than three say yes',
+  confidence: 65,
+}
+const v4 = new Map() // session_id → { advisers, turns }
+const captured = { entries: [], commitments: [] }
+
+const cap = (id) => id.charAt(0).toUpperCase() + id.slice(1)
+const line = (id, n) => (LINES[id] ?? GENERIC)[n % 3]
+
+async function streamV4(res, sessionId, events, tier) {
+  res.writeHead(200, {
+    'content-type': 'text/event-stream',
+    'cache-control': 'no-cache',
+    connection: 'keep-alive',
+    'x-session-id': sessionId,
+  })
+  const send = (event) => res.write(`data: ${JSON.stringify(event)}\n\n`)
+  send({ type: 'session', session_id: sessionId, tier, model: MODEL_BY_TIER[tier] ?? MODEL_BY_TIER.free })
+  for (const ev of events) {
+    await sleep(TURN_DELAY_MS)
+    send(ev)
+  }
+  const costCents = tier === 'premium' ? 9 : 3
+  recordUsage(MODEL_BY_TIER[tier] ?? MODEL_BY_TIER.free, costCents)
+  send({ type: 'done', usage: { cost_cents: costCents } })
+  res.end()
+}
+
+function opener(body) {
+  const names = { business: 'Drucker, Jobs, Grove and Socrates', classics: 'the classics' }
+  const memory = body.memory
+  if (memory && (memory.entries?.length || memory.commitments?.length)) {
+    const c = memory.commitments?.[0]
+    const e = memory.entries?.[0]
+    return (
+      `Last time we talked about ${e ? e.decision.replace(/\.$/, '') : 'your plan'}` +
+      (c ? `; you said you'd ${c.what} by ${c.due_date} — how did it go?` : '. Where does it stand?')
+    )
+  }
+  const intake = body.intake ?? {}
+  if (intake.goal) return `Here is what I understood: you want to ${intake.goal.replace(/\.$/, '')}. Correct me as we go. Let us hear from the group.`
+  return `Welcome. The group today: ${names[body.roster] ?? 'your advisers'} — simulations, not the real people. Tell us what you are working on as we go.`
+}
+
+/** 2–3 contributions + floor (+ proposal on the 3rd), shaped by the control command. */
+function turnEvents(session, command) {
+  const n = session.turns++
+  const [a, b, c] = [0, 1, 2].map((i) => session.advisers[(n * 2 + i) % session.advisers.length])
+  const said = (id, k = n) => ({ type: 'contribution', speaker: id, text: line(id, k), ...(CONFIDENCE[k] ? { confidence: CONFIDENCE[k] } : {}) })
+  let events
+  const [verb, arg = ''] = (command ?? '').split(':')
+  switch (verb) {
+    case 'pause':
+      events = [{ type: 'facilitator', text: 'Paused. Take your time — say when you want to pick it up, or steer us somewhere else.' }]
+      break
+    case 'back_to':
+      events = [{ type: 'facilitator', text: `Back to ${cap(arg)}'s point.` }, said(arg, n + 1)]
+      break
+    case 'let': {
+      const [x, y] = arg.split(',')
+      events = [{ type: 'facilitator', text: `${cap(x)} and ${cap(y)}, take it between you.` }, said(x), said(y), said(x, n + 1)]
+      break
+    }
+    case 'disagree':
+      events = [{ type: 'facilitator', text: 'Good — say where it breaks for you and the group will follow.' }, said(a, 1)]
+      break
+    case 'concrete':
+      events = [said(session.advisers.includes('jobs') ? 'jobs' : a, 2), said(b, 2)]
+      break
+    case 'test':
+      events = [said(session.advisers.includes('grove') ? 'grove' : a, 2), said(b, 1)]
+      break
+    case 'wrap_up':
+      return [
+        { type: 'facilitator', text: 'Let us close. One decision stands out; it is below as a proposal for your journal.' },
+        { type: 'proposal', id: `p-${session.id}-wrap`, ...PROPOSAL },
+      ]
+    default:
+      events = n % 2 ? [said(a), said(b), said(c)] : [said(a), said(b)]
+  }
+  if (session.turns === 3) events.push({ type: 'proposal', id: `p-${session.id}-3`, ...PROPOSAL })
+  events.push({ type: 'floor', question: FLOORS[n % FLOORS.length] })
+  return events
 }
 
 let anonUsed = false
@@ -140,6 +277,9 @@ createServer(async (req, res) => {
   if (req.url === '/__reset') {
     anonUsed = false
     rotateConsumed = false
+    v4.clear()
+    captured.entries = []
+    captured.commitments = []
     usage = {
       day_cents: 0,
       week_cents: 0,
@@ -168,6 +308,12 @@ createServer(async (req, res) => {
     return res.end(JSON.stringify({ ...usage, month_cap_cents: MONTH_CAP_CENTS }))
   }
 
+  if (req.url === '/v1/council/journal' && req.method === 'GET') {
+    if (!(req.headers.authorization ?? '').startsWith('Bearer ')) return fail(res, 401, 'sign_in')
+    res.writeHead(200, { 'content-type': 'application/json' })
+    return res.end(JSON.stringify(captured))
+  }
+
   const body = await readBody(req)
   const signedIn = (req.headers.authorization ?? '').startsWith('Bearer ')
   const idea = String(body.idea ?? '')
@@ -190,6 +336,66 @@ createServer(async (req, res) => {
       anonUsed = true
     }
     return streamCouncil(res, `stub-${Date.now()}`, body.personas, tier)
+  }
+
+  if (req.url === '/v1/council/start') {
+    if (!signedIn) {
+      if (anonUsed) return fail(res, 401, 'sign_in')
+      anonUsed = true
+    }
+    if (!Array.isArray(body.advisers) || !body.advisers.length) return fail(res, 400, 'bad_request')
+    const id = `stub-${Date.now()}`
+    const session = { id, advisers: body.advisers.slice(0, 4), turns: 0 }
+    v4.set(id, session)
+    const [a, b] = [session.advisers[0], session.advisers[1] ?? session.advisers[0]]
+    session.turns = 1
+    return streamV4(
+      res,
+      id,
+      [
+        { type: 'facilitator', text: opener(body) },
+        { type: 'contribution', speaker: a, text: line(a, 0) },
+        { type: 'contribution', speaker: b, text: line(b, 0) },
+        { type: 'floor', question: FLOORS[0] },
+      ],
+      tier,
+    )
+  }
+
+  if (['/v1/council/turn', '/v1/council/control', '/v1/council/capture', '/v1/council/commit'].includes(req.url)) {
+    const session = v4.get(body.session_id)
+    if (!session) return fail(res, 404, 'no_session')
+    if (req.url === '/v1/council/turn') {
+      if (!String(body.message ?? '').trim()) return fail(res, 400, 'bad_request')
+      return streamV4(res, session.id, turnEvents(session), tier)
+    }
+    if (req.url === '/v1/council/control') {
+      if (!body.command) return fail(res, 400, 'bad_request')
+      return streamV4(res, session.id, turnEvents(session, String(body.command)), tier)
+    }
+    res.writeHead(200, { 'content-type': 'application/json' })
+    if (req.url === '/v1/council/capture') {
+      const entry = {
+        id: body.proposal_id ?? `cap-${Date.now()}`,
+        session_id: session.id,
+        date: new Date().toISOString().slice(0, 10),
+        ...(body.proposal_id
+          ? PROPOSAL
+          : { ...PROPOSAL, decision: body.text || 'Talk to Sven before committing budget to the pilot.', next_action: 'Talk to Sven about the pilot budget', confidence: 55 }),
+      }
+      captured.entries.push(entry)
+      return res.end(JSON.stringify({ entry }))
+    }
+    const commitment = {
+      id: body.id ?? `c-${Date.now()}`,
+      journal_id: body.entry_id,
+      what: body.what ?? PROPOSAL.next_action,
+      due_date: body.due_date,
+      remind: Boolean(body.remind),
+      outcome: null,
+    }
+    captured.commitments.push(commitment)
+    return res.end(JSON.stringify({ commitment }))
   }
 
   if (req.url === '/v1/council/reply') {
