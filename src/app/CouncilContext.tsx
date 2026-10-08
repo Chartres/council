@@ -27,7 +27,22 @@ import { checkKey, gateState, loadKey, saveKey, type GateState } from '@/domain/
 import { loadTier, saveTier } from '@/domain/tier'
 import { fetchUsage, type Usage } from '@/domain/usage'
 
-export type View = 'home' | 'session' | 'ideas'
+// v4 (start → intake → conversation, journal) is the main flow at `/`; v3's quick
+// verdict lives on at `/quick` with its session screen and "My ideas".
+export type View = 'start' | 'intake' | 'conversation' | 'journal' | 'home' | 'session' | 'ideas'
+
+const VIEW_PATH: Partial<Record<View, string>> = {
+  start: '/',
+  journal: '/journal',
+  home: '/quick',
+  ideas: '/ideas',
+}
+
+/** Unknown paths (including `/start` and the `/c/:id` deep link) land on the start screen. */
+export function viewFromPath(pathname: string): View {
+  const hit = Object.entries(VIEW_PATH).find(([, path]) => path === pathname.replace(/(.)\/$/, '$1'))
+  return (hit?.[0] as View | undefined) ?? 'start'
+}
 
 /** What to resume automatically once a rotated password is re-entered and accepted. */
 type PendingAction =
@@ -74,6 +89,10 @@ interface CouncilContextValue {
   setTier: (tier: Tier) => void
   /** Admin-only cost indicator; null until the first successful fetch. */
   usage: Usage | null
+  /** The stored private-beta password, for the v4 calls. */
+  councilKey: string | null
+  /** A v4 call got 401 {reason:"password"}: reopen the door. */
+  lockDoor: () => void
 }
 
 const CouncilContext = createContext<CouncilContextValue | null>(null)
@@ -82,7 +101,8 @@ const GATEWAY_URL = (import.meta.env.VITE_GATEWAY_URL as string | undefined) ?? 
 
 export function CouncilProvider({ children }: { children: ReactNode }) {
   const { user, token } = useAuth()
-  const [view, setView] = useState<View>('home')
+  const [view, setView] = useState<View>(() => viewFromPath(window.location.pathname))
+  const [locked, setLocked] = useState(false)
   const [picked, setPicked] = useState<string[]>(DEFAULT_PERSONA_IDS)
   const [session, setSession] = useState<SessionState | null>(null)
   const [ideas, setIdeas] = useState<SavedIdea[]>(() => loadLocal())
@@ -97,6 +117,20 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
   const [pendingResume, setPendingResume] = useState<PendingAction | null>(null)
   // The streaming loop must not race a second convene; one generator at a time.
   const abort = useRef<AbortController | null>(null)
+
+  // Tab views own a path; in-session views (intake, conversation, session) keep the
+  // one they were entered from. Back/forward follow the path.
+  const go = useCallback((next: View) => {
+    const path = VIEW_PATH[next]
+    if (path && window.location.pathname !== path) window.history.pushState(null, '', path)
+    setView(next)
+  }, [])
+
+  useEffect(() => {
+    const onPop = () => setView(viewFromPath(window.location.pathname))
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
 
   useEffect(() => {
     if (!supabase || !user) return
@@ -226,7 +260,7 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
         failure: null,
       }
       setSession(base)
-      setView('session')
+      go('session')
       track('council_convened', { personas: picked.length, daily: Boolean(dailyKey) })
       void consume(
         openSession(
@@ -295,7 +329,7 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
       streaming: false,
       failure: null,
     })
-    setView('session')
+    go('session')
   }, [])
 
   // Checked against the gateway before the panel ever closes, so a wrong password
@@ -315,25 +349,26 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
 
       saveKey(trimmed)
       setCouncilKey(trimmed)
+      setLocked(false)
       const pending = pendingResume
       setPendingResume(null)
       if (pending?.kind === 'convene') {
         runConvene(pending.idea, pending.dailyKey, pending.question, trimmed)
       } else if (pending?.kind === 'reply') {
         runReply(pending.message, trimmed)
-      } else {
+      } else if (view === 'session') {
         setSession(null)
-        setView('home')
+        go('home')
       }
     },
-    [pendingResume, runConvene, runReply],
+    [pendingResume, runConvene, runReply, view, go],
   )
 
   return (
     <CouncilContext.Provider
       value={{
         view,
-        go: setView,
+        go,
         picked,
         togglePersona,
         session,
@@ -341,7 +376,7 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
         reply,
         ideas,
         open,
-        gate: gateState(councilKey, session?.failure ?? null),
+        gate: gateState(councilKey, session?.failure ?? (locked ? 'password' : null)),
         submitKey,
         checkingKey,
         keyError,
@@ -349,6 +384,8 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
         tier,
         setTier,
         usage,
+        councilKey,
+        lockDoor: () => setLocked(true),
       }}
     >
       {children}

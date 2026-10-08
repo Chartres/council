@@ -8,6 +8,11 @@
 > by an AI model from public-domain sources, not the real person.
 
 ## What it is
+- The main flow is a facilitated conversation: pick a roster (Business — simulations inspired by
+  Peter Drucker, Steve Jobs, Andy Grove, plus Socrates — or the seven Classics), answer a short
+  optional intake, then talk with the group and steer it. Decisions you accept go into a journal,
+  with an optional dated commitment and an opt-in email reminder.
+- The quick verdict (https://council.dravec.org/quick) is the original one-shot debate.
 - A council of seven thinkers: Socrates, Marcus Aurelius, Seneca (on by default), plus Buddha,
   Confucius, Benjamin Franklin and Maria Montessori. Up to four sit at once.
 - Each session ends in a verdict card: a summary, one next action, and each thinker's vote

@@ -15,7 +15,7 @@ test.beforeEach(async ({ request }) => {
 })
 
 test('a first visitor is asked for the password, wrong then right', async ({ page }) => {
-  await page.goto('/')
+  await page.goto('/quick')
   const panel = page.getByTestId('password-panel')
   await expect(panel).toBeVisible()
   await expect(panel).toContainText('private beta')
@@ -56,7 +56,7 @@ test('a first visitor is asked for the password, wrong then right', async ({ pag
 test('a password rotated mid-session reopens the door without losing the idea', async ({
   page,
 }) => {
-  await page.goto('/')
+  await page.goto('/quick')
   await page.getByLabel('Password', { exact: true }).fill(STUB_PASSWORD)
   await page.getByRole('button', { name: 'Enter' }).click()
   await expect(page.getByLabel('What are you working on?')).toBeVisible({ timeout: 20_000 })

@@ -2,16 +2,17 @@ import { expect, test } from '@playwright/test'
 
 // Fold discipline (Flywheel Standard, mobile-ux.md): no chrome row spent on a single
 // control. The landing screen's first primary control must sit in the top 120 css px
-// on a phone. Here that control is the idea field, not a button — the "Convene"
-// button is deliberately below it, where the thumb lands after typing.
-test('phone fold: the idea field starts near the top', async ({ page }) => {
+// on a phone. On `/` (v4) that is the roster switch; on `/quick` (v3) the idea field.
+test('phone fold: the first control starts near the top', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.goto('/')
-  const first = page.locator('main :is(textarea, button, input)').first()
-  await expect(first).toBeVisible()
-  const box = await first.boundingBox()
-  expect(box).not.toBeNull()
-  expect(box!.y).toBeLessThan(120)
+  for (const path of ['/quick', '/']) {
+    await page.goto(path)
+    const first = page.locator('main :is(textarea, button, input, select)').first()
+    await expect(first).toBeVisible()
+    const box = await first.boundingBox()
+    expect(box, path).not.toBeNull()
+    expect(box!.y, path).toBeLessThan(120)
+  }
   await page.screenshot({ path: 'e2e/shots/fold-phone.png' })
 })
 

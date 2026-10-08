@@ -102,7 +102,7 @@ export function gatewayHeaders({
   }
 }
 
-async function* stream(
+export async function* stream(
   path: string,
   body: unknown,
   { gatewayUrl, token, councilKey, tier, signal }: StreamOptions,
@@ -143,6 +143,32 @@ async function* stream(
     buffer = rest
     for (const event of events) yield event
   }
+}
+
+/** Plain JSON call (v4 capture/commit/journal) with the same headers and failure mapping. */
+export async function callJson<T>(
+  path: string,
+  body: unknown,
+  { gatewayUrl, token, councilKey, tier, signal }: StreamOptions,
+): Promise<T> {
+  let res: Response
+  try {
+    res = await fetch(`${gatewayUrl.replace(/\/$/, '')}${path}`, {
+      method: body === undefined ? 'GET' : 'POST',
+      headers: { ...gatewayHeaders({ token, councilKey, tier }), accept: 'application/json' },
+      credentials: 'include',
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal,
+    })
+  } catch (e) {
+    throw new CouncilError('gateway', e instanceof Error ? e.message : 'Network error')
+  }
+  const payload = (await res.json().catch(() => null)) as (T & { reason?: string }) | null
+  if (!res.ok || !payload) {
+    const named = payload?.reason && payload.reason in FAILURE_COPY ? (payload.reason as FailureReason) : null
+    throw new CouncilError(named ?? REASONS[res.status] ?? 'gateway', `Gateway returned ${res.status}`)
+  }
+  return payload
 }
 
 export function openSession(

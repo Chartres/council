@@ -8,7 +8,8 @@ Taste rules that apply to every flywheel product live in the hub: `flywheel/docs
 > verdict with one next action.
 > Stack/template: Vite + React 19 + TS + Tailwind 4 (web-static) · Track: commercial
 > Portfolio record: `flywheel/data/products/council.json`
-> Product spec (binding): `flywheel/docs/expansion/council-build.md`
+> Product spec (binding): `flywheel/docs/expansion/council-v4.md` (v4, the main flow at `/`);
+> `flywheel/docs/expansion/council-build.md` (v3 quick verdict, kept at `/quick`)
 
 ## Build
 ```bash
@@ -34,7 +35,18 @@ Stub controls: `POST /__reset` clears the one anonymous allowance and the `ROTAT
 `STUB_PASSWORD=x` makes it demand `x-council-key: x` (401 `{reason:"password"}` without it) and
 `STUB_TIER` sets the default session tier (overridden per-request by `x-council-tier`, the
 admin-only free/premium switch — see below). `GET /v1/admin/usage` returns running cost/session
-totals. Playwright runs with the password on and seeds `council:key` through `storageState`, so
+totals.
+
+v4 routes (stub, canned): `POST /v1/council/start` streams a facilitator opener ("Last
+time…" when `memory` has entries/commitments, an intake recap when `intake.goal` is set,
+else a welcome), two contributions and a `floor` question; `/turn` and `/control` stream
+2–3 contributions + floor, and the session's 3rd turn (start counts) also streams a
+`proposal`; `/control` understands `pause`, `back_to:<id>`, `let:<a>,<b>`, `disagree`,
+`concrete`, `test`, `wrap_up`; `/capture` returns `{entry}`; `/commit` echoes
+`{commitment}` keeping the client's id; `GET /journal` returns what this process captured
+(signed-in only). `/start` shares the one anonymous allowance with v3's `/session`. Event
+shapes are documented at the top of `src/domain/mastermind.ts` — the gateway codes to the
+same list. Playwright runs with the password on and seeds `council:key` through `storageState`, so
 every journey goes through the real header path; `e2e/gate.spec.ts` clears it to meet the door.
 
 ### Admin bar (cost + tier switch)
@@ -61,7 +73,13 @@ npm run stub         # terminal 1 — the fake gateway on :8787
 VITE_GATEWAY_URL=http://localhost:8787 npm run dev   # terminal 2 — http://localhost:5173
 ```
 Run the dev gateway with `STUB_PASSWORD=tallow-candle npm run stub` to see the door.
-Primary journeys: password → home → type (or dictate) an idea → convene → turns stream in →
+Primary journeys (v4, `/`): roster (Business/Classics) → pick ≤4 → Begin → 7-step intake
+(skippable, mic per step, "same context?" when a last intake exists) → conversation (speaker
+cards, floor question, reply box, control chips) → proposal → Accept → journal → commitment
+with a due date and an opt-in email reminder → Journal tab (outcomes, export). Returning: the
+"Last time" card on `/` and a "Last time…" opener. Reminder emails link to
+`/c/:commitmentId?outcome=done|later|drop`.
+v3 journeys (`/quick`): password → home → type (or dictate) an idea → convene → turns stream in →
 verdict card → reply box; today's question → convene → share the split; My ideas → reopen a
 past council. Voice is browser-only (Web Speech API in, `speechSynthesis` out): no server,
 no cost, and both controls are absent where the API is missing.
@@ -83,7 +101,10 @@ The client never holds an Anthropic key. All model work happens in the gateway W
 - **Web** → Cloudflare Pages → `https://council.dravec.org`. Deploy is the Pages Git integration
   on `main` (hub workflow *Connect Pages*, `gh workflow run connect-pages.yml -f slug=council`).
   Nothing in this repo deploys.
-- Supabase: `council_ideas` table + RLS — SQL in `docs/SUPABASE.md`, applied by the integrator.
+- Supabase: `council_ideas` (v3) and `council_sessions` / `council_journal` /
+  `council_commitments` (v4) + own-row RLS — SQL in `docs/SUPABASE.md`, applied by the
+  integrator. Signed in, the app writes these rows itself (supabase-js, user JWT, client
+  uuids); anonymous, the journal is `council:journal` in localStorage.
 - Auth identity: Site URL / redirect allowlist must include `https://council.dravec.org`
   (`flywheel/scripts/fleet-auth-check.mjs` `required_origins`); the app passes
   `emailRedirectTo: window.location.origin`.

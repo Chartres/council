@@ -48,7 +48,7 @@ const NO_SPEECH = `
 
 test('she dictates her idea and listens to the debate', async ({ page }) => {
   await page.addInitScript(FAKE_SPEECH)
-  await page.goto('/')
+  await page.goto('/quick')
 
   const mic = page.getByTestId('mic')
   await expect(mic).toBeVisible()
@@ -87,7 +87,7 @@ test('she dictates her idea and listens to the debate', async ({ page }) => {
 
 test('no mic and no Listen toggle where the API is missing', async ({ page }) => {
   await page.addInitScript(NO_SPEECH)
-  await page.goto('/')
+  await page.goto('/quick')
   await expect(page.getByLabel('What are you working on?')).toBeVisible()
   await expect(page.getByTestId('mic')).toHaveCount(0)
 

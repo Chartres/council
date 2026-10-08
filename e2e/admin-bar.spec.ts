@@ -24,7 +24,7 @@ test.describe('admin build', () => {
   test('the admin bar appears, shows usage, and the tier toggle is reflected after a session', async ({
     page,
   }) => {
-    await page.goto(ADMIN + '/')
+    await page.goto(ADMIN + '/quick')
     const bar = page.getByTestId('admin-bar')
     await expect(bar).toBeVisible()
     await expect(bar).toContainText('month:')
@@ -46,7 +46,7 @@ test.describe('admin build', () => {
   })
 
   test('the free/premium toggle changes the tier and model a session reports', async ({ page }) => {
-    await page.goto(ADMIN + '/')
+    await page.goto(ADMIN + '/quick')
     await page.getByTestId('tier-toggle').click()
     await expect(page.getByTestId('tier-toggle')).toHaveText('premium')
 
@@ -59,7 +59,7 @@ test.describe('admin build', () => {
 
 test('a non-admin session never sees the bar', async ({ page }) => {
   // The default (non-admin) build and storage state, from playwright.config.ts.
-  await page.goto('/')
+  await page.goto('/quick')
   await expect(page.getByLabel('What are you working on?')).toBeVisible()
   await expect(page.getByTestId('admin-bar')).toHaveCount(0)
 })

@@ -53,8 +53,18 @@ primary button) is the same pair inverted.
   beside "← New idea". Both vanish where the Web Speech API is missing — no explanation, no
   disabled control. One voice per persona, derived from the id so it never changes.
 
+- **v4: the conversation is the content.** Facilitator lines are small italic marble; an
+  adviser is monogram + name (+ a quiet confidence pill when given); the floor question is
+  the one candle-coloured line. Controls are chips under the reply box, never a toolbar.
+- **Proposals are cards, decisions are the user's.** Nothing reaches the journal until
+  "Accept → journal"; the decision and next action are editable before that. A reminder is
+  an unchecked box — opt-in per commitment, never a default.
+- **"Simulation inspired by …"** sits under each non-public-domain adviser's name in the
+  picker, and the Business roster carries its own disclosure line.
+
 ## Screenshots
 
 `e2e/shots/` — `home`, `session-streaming`, `verdict`, `daily-card`, `daily-share`,
 `sign-in-gate`, `password-gate`, `password-rejected`, `voice-dictation`, `voice-listening`,
-`fold-phone`, all at 390 px, committed and meant to be looked at.
+`fold-phone`, and v4's `v4-start`, `v4-intake`, `v4-conversation`, `v4-commit`, `v4-journal`,
+`v4-last-time`, `v4-last-time-opener`, all at 390 px, committed and meant to be looked at.
