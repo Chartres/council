@@ -32,9 +32,25 @@ Stub controls: `POST /__reset` clears the one anonymous allowance and the `ROTAT
 `QUOTA` returns 429, one containing `CAP` returns 503, one containing `ROTATE` returns 401
 `{reason:"password"}` once (simulating a password rotated mid-session) then behaves normally;
 `STUB_PASSWORD=x` makes it demand `x-council-key: x` (401 `{reason:"password"}` without it) and
-`STUB_TIER` sets the session tier. Playwright runs with the password on and seeds `council:key`
-through `storageState`, so every journey goes through the real header path; `e2e/gate.spec.ts`
-clears it to meet the door.
+`STUB_TIER` sets the default session tier (overridden per-request by `x-council-tier`, the
+admin-only free/premium switch — see below). `GET /v1/admin/usage` returns running cost/session
+totals. Playwright runs with the password on and seeds `council:key` through `storageState`, so
+every journey goes through the real header path; `e2e/gate.spec.ts` clears it to meet the door.
+
+### Admin bar (cost + tier switch)
+Visible only to the emails in `ADMIN_EMAILS` (`src/domain/admin.ts`): a 44 px bar under the
+header with today/week/month LLM cost and session counts (`GET /v1/admin/usage`, refreshed on
+mount and after each session's `done`) and a free/premium toggle (`council:tier` in
+localStorage, sent as `x-council-tier` on `/v1/council/session` and `/reply` — admins only, a
+non-admin session never sends this header). The `session` SSE event's `tier`/`model` are shown
+next to the toggle once a session starts.
+
+`VITE_E2E_ADMIN=1` is a build-time escape hatch (`isAdmin` in `src/domain/admin.ts`) so Playwright
+can reach the bar without a real Supabase session. **Never set it in the Cloudflare Pages build
+env** — it is simply absent there, which is what makes it a no-op in production.
+`playwright.config.ts` builds a *second*, separate preview (`dist-e2e-admin/`, port 4174) with
+this var baked in, so the plain build at :4173 — and every other spec — never carries it;
+`e2e/admin-bar.spec.ts` is the only file that points at :4174.
 
 Perf/size asks name a number (bundle kB, p95 ms, suite seconds), re-measure each round, stop at
 target. Multi-finding reviews use the clean-room split (flywheel `skills/flywheel/references/sweep.md`).
@@ -58,6 +74,7 @@ the top 120 px, no x-overflow at 320/375/430, and 44 px nav targets.
 | `VITE_GATEWAY_URL` | no council — every convene fails with the gateway message |
 | the private-beta password (typed, stored in `council:key`) | the gateway 401s `{reason:"password"}`; the app shows the door instead of the home screen |
 | `VITE_SUPABASE_URL` + `VITE_SUPABASE_PUBLISHABLE_KEY` | sign-in and cloud history off; app still works anonymously with localStorage |
+| `VITE_E2E_ADMIN` | test-only; grants the admin bar with no real session. Never set outside `e2e/admin-bar.spec.ts`'s own build |
 
 The client never holds an Anthropic key. All model work happens in the gateway Worker
 (`flywheel/gateway/`, `llm.dravec.org`).

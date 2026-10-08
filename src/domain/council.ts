@@ -82,29 +82,36 @@ export interface StreamOptions {
   token?: string | null
   /** The private-beta password (`council:key`); the gateway 401s without it. */
   councilKey?: string | null
+  /** Admin-only free/premium switch; never sent for a non-admin session. */
+  tier?: Tier | null
   signal?: AbortSignal
 }
 
 /** The headers every gateway call carries. Exported so the injection has a test. */
-export function gatewayHeaders({ token, councilKey }: Pick<StreamOptions, 'token' | 'councilKey'>) {
+export function gatewayHeaders({
+  token,
+  councilKey,
+  tier,
+}: Pick<StreamOptions, 'token' | 'councilKey' | 'tier'>) {
   return {
     'content-type': 'application/json',
     accept: 'text/event-stream',
     ...(token ? { authorization: `Bearer ${token}` } : {}),
     ...(councilKey ? { 'x-council-key': councilKey } : {}),
+    ...(tier ? { 'x-council-tier': tier } : {}),
   }
 }
 
 async function* stream(
   path: string,
   body: unknown,
-  { gatewayUrl, token, councilKey, signal }: StreamOptions,
+  { gatewayUrl, token, councilKey, tier, signal }: StreamOptions,
 ): AsyncGenerator<CouncilEvent> {
   let res: Response
   try {
     res = await fetch(`${gatewayUrl.replace(/\/$/, '')}${path}`, {
       method: 'POST',
-      headers: gatewayHeaders({ token, councilKey }),
+      headers: gatewayHeaders({ token, councilKey, tier }),
       // The anonymous allowance is a signed httpOnly cookie set by the Worker.
       credentials: 'include',
       body: JSON.stringify(body),

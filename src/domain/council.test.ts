@@ -54,6 +54,12 @@ describe('gatewayHeaders', () => {
     expect(headers).not.toHaveProperty('x-council-key')
     expect(headers).not.toHaveProperty('authorization')
   })
+
+  it('sends x-council-tier only when a tier is given (admin-only switch)', () => {
+    expect(gatewayHeaders({ tier: 'premium' })).toHaveProperty('x-council-tier', 'premium')
+    expect(gatewayHeaders({ tier: null })).not.toHaveProperty('x-council-tier')
+    expect(gatewayHeaders({})).not.toHaveProperty('x-council-tier')
+  })
 })
 
 describe('the gateway call', () => {
