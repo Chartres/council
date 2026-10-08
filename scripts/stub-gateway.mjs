@@ -14,7 +14,9 @@
 //   idea containing "ROTATE"   → 401 {reason:"password"} once (simulates a rotated
 //                                 password on an otherwise-right key), then normal
 //   STUB_PASSWORD=x            require header `x-council-key: x`, else 401 {reason:"password"}
-//   STUB_TIER=premium          report the premium tier on the session event
+//   STUB_TIER=premium          default tier on the session event when no x-council-tier header
+//   GET /v1/admin/usage        plausible running totals (admin-only on the real gateway)
+//   header x-council-tier      echoed back as the session event's tier/model (admin only)
 // ponytail: module-level state, single process. Fine for one Playwright worker;
 // a shared fixture would need a per-test key in the request instead.
 
@@ -24,6 +26,8 @@ const PORT = Number(process.env.PORT ?? 8787)
 const TURN_DELAY_MS = Number(process.env.STUB_TURN_DELAY_MS ?? 60)
 const PASSWORD = process.env.STUB_PASSWORD || null
 const TIER = process.env.STUB_TIER ?? 'free'
+const MONTH_CAP_CENTS = Number(process.env.STUB_MONTH_CAP_CENTS ?? 3000)
+const MODEL_BY_TIER = { free: 'claude-haiku-5', premium: 'claude-sonnet-5-5' }
 
 const SCRIPT = [
   { persona: 'socrates', text: 'Before we judge it, say plainly what you expect to be different in a year. You have described an activity, not an outcome.' },
@@ -48,6 +52,25 @@ const VERDICT = {
 
 let anonUsed = false
 let rotateConsumed = false
+let usage = {
+  day_cents: 0,
+  week_cents: 0,
+  month_cents: 0,
+  sessions_day: 0,
+  sessions_week: 0,
+  sessions_month: 0,
+  by_model: {},
+}
+
+function recordUsage(model, cents) {
+  usage.day_cents += cents
+  usage.week_cents += cents
+  usage.month_cents += cents
+  usage.sessions_day += 1
+  usage.sessions_week += 1
+  usage.sessions_month += 1
+  usage.by_model[model] = (usage.by_model[model] ?? 0) + cents
+}
 
 const cors = (req, res) => {
   const origin = req.headers.origin
@@ -55,7 +78,10 @@ const cors = (req, res) => {
     res.setHeader('access-control-allow-origin', origin)
     res.setHeader('access-control-allow-credentials', 'true')
   }
-  res.setHeader('access-control-allow-headers', 'content-type, authorization, accept, x-council-key')
+  res.setHeader(
+    'access-control-allow-headers',
+    'content-type, authorization, accept, x-council-key, x-council-tier',
+  )
   res.setHeader('access-control-allow-methods', 'POST, GET, OPTIONS')
   res.setHeader('access-control-expose-headers', 'x-session-id')
 }
@@ -80,7 +106,8 @@ const fail = (res, status, reason) => {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-async function streamCouncil(res, sessionId, personas) {
+async function streamCouncil(res, sessionId, personas, tier) {
+  const model = MODEL_BY_TIER[tier] ?? MODEL_BY_TIER.free
   res.writeHead(200, {
     'content-type': 'text/event-stream',
     'cache-control': 'no-cache',
@@ -88,7 +115,7 @@ async function streamCouncil(res, sessionId, personas) {
     'x-session-id': sessionId,
   })
   const send = (event) => res.write(`data: ${JSON.stringify(event)}\n\n`)
-  send({ type: 'session', session_id: sessionId, tier: TIER, model: 'stub' })
+  send({ type: 'session', session_id: sessionId, tier, model })
   for (const turn of SCRIPT) {
     await sleep(TURN_DELAY_MS)
     send({ type: 'turn', ...turn })
@@ -100,7 +127,9 @@ async function streamCouncil(res, sessionId, personas) {
   )
   send({ ...VERDICT, votes: Object.keys(votes).length ? votes : VERDICT.votes })
   await sleep(TURN_DELAY_MS)
-  send({ type: 'done', usage: { cost_cents: 3 } })
+  const costCents = tier === 'premium' ? 9 : 3
+  recordUsage(model, costCents)
+  send({ type: 'done', usage: { cost_cents: costCents } })
   res.end()
 }
 
@@ -111,6 +140,15 @@ createServer(async (req, res) => {
   if (req.url === '/__reset') {
     anonUsed = false
     rotateConsumed = false
+    usage = {
+      day_cents: 0,
+      week_cents: 0,
+      month_cents: 0,
+      sessions_day: 0,
+      sessions_week: 0,
+      sessions_month: 0,
+      by_model: {},
+    }
     return res.writeHead(200, { 'content-type': 'application/json' }).end('{"ok":true}')
   }
 
@@ -124,9 +162,18 @@ createServer(async (req, res) => {
     return res.writeHead(204).end()
   }
 
+  // Admin-only on the real gateway (Supabase JWT + beta password checked above).
+  if (req.url === '/v1/admin/usage' && req.method === 'GET') {
+    res.writeHead(200, { 'content-type': 'application/json' })
+    return res.end(JSON.stringify({ ...usage, month_cap_cents: MONTH_CAP_CENTS }))
+  }
+
   const body = await readBody(req)
   const signedIn = (req.headers.authorization ?? '').startsWith('Bearer ')
   const idea = String(body.idea ?? '')
+  // Admin-only free/premium switch; a header with neither value falls back to STUB_TIER.
+  const headerTier = req.headers['x-council-tier']
+  const tier = headerTier === 'premium' || headerTier === 'free' ? headerTier : TIER
 
   if (idea.includes('QUOTA')) return fail(res, 429, 'quota')
   if (idea.includes('CAP')) return fail(res, 503, 'cap')
@@ -142,12 +189,12 @@ createServer(async (req, res) => {
       if (anonUsed) return fail(res, 401, 'sign_in')
       anonUsed = true
     }
-    return streamCouncil(res, `stub-${Date.now()}`, body.personas)
+    return streamCouncil(res, `stub-${Date.now()}`, body.personas, tier)
   }
 
   if (req.url === '/v1/council/reply') {
     if (!body.session_id) return fail(res, 400, 'bad_request')
-    return streamCouncil(res, body.session_id, body.personas)
+    return streamCouncil(res, body.session_id, body.personas, tier)
   }
 
   res.writeHead(404).end()

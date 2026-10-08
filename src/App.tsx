@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { CouncilProvider, useCouncil } from '@/app/CouncilContext'
 import { AuthProvider } from '@/auth/AuthContext'
 import { track } from '@/analytics'
+import { AdminBar } from '@/components/AdminBar'
 import { BottomNav } from '@/components/BottomNav'
 import { Header } from '@/components/Header'
 import { PasswordPanel } from '@/components/PasswordPanel'
@@ -10,7 +11,7 @@ import { IdeasScreen } from '@/components/screens/IdeasScreen'
 import { SessionScreen } from '@/components/screens/SessionScreen'
 
 function Shell() {
-  const { view, gate } = useCouncil()
+  const { view, gate, isAdmin } = useCouncil()
   useEffect(() => {
     track('page_view', { view: 'home' })
   }, [])
@@ -24,6 +25,7 @@ function Shell() {
       }}
     >
       <Header />
+      {gate === 'ready' && isAdmin && <AdminBar />}
       <main
         className="flex-1"
         style={{ paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom))' }}

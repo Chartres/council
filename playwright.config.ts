@@ -23,6 +23,12 @@ export default defineConfig({
           origin: 'http://localhost:4173',
           localStorage: [{ name: 'council:key', value: STUB_PASSWORD }],
         },
+        {
+          // A second build with the admin escape hatch baked in (see e2e/admin-bar.spec.ts);
+          // kept off the main build so the fold/gate/council journeys never see an admin.
+          origin: 'http://localhost:4174',
+          localStorage: [{ name: 'council:key', value: STUB_PASSWORD }],
+        },
       ],
     },
   },
@@ -42,6 +48,16 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
       timeout: 180_000,
       env: { VITE_GATEWAY_URL: 'http://localhost:8787' },
+    },
+    {
+      // VITE_E2E_ADMIN only ever lives here — never in a real deploy env — so admin.ts's
+      // escape hatch stays a no-op in production. Separate outDir/port so this build
+      // never leaks into the plain one above (e2e/fold.spec.ts needs the bar absent).
+      command: 'vite build --outDir dist-e2e-admin && vite preview --outDir dist-e2e-admin --port 4174',
+      url: 'http://localhost:4174',
+      reuseExistingServer: !process.env.CI,
+      timeout: 180_000,
+      env: { VITE_GATEWAY_URL: 'http://localhost:8787', VITE_E2E_ADMIN: '1' },
     },
   ],
 })

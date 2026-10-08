@@ -11,6 +11,7 @@ import { conversion, logError, track } from '@/analytics'
 import { useAuth } from '@/auth/AuthContext'
 import { supabase } from '@/auth/supabase'
 import { DEFAULT_PERSONA_IDS, nextPicked } from '@/content/personas'
+import { isAdmin } from '@/domain/admin'
 import {
   CouncilError,
   openSession,
@@ -23,6 +24,8 @@ import {
 } from '@/domain/council'
 import { loadLocal, loadRemote, saveLocal, saveRemote, type SavedIdea } from '@/domain/ideas'
 import { checkKey, gateState, loadKey, saveKey, type GateState } from '@/domain/key'
+import { loadTier, saveTier } from '@/domain/tier'
+import { fetchUsage, type Usage } from '@/domain/usage'
 
 export type View = 'home' | 'session' | 'ideas'
 
@@ -41,6 +44,8 @@ export interface SessionState {
   turns: Turn[]
   verdict: Verdict | null
   tier: Tier | null
+  /** Echoed back by the gateway; admin-only display (SessionScreen never shows it). */
+  model: string | null
   streaming: boolean
   failure: FailureReason | null
 }
@@ -62,6 +67,13 @@ interface CouncilContextValue {
   checkingKey: boolean
   /** Set when the gateway has just rejected a typed/rotated key; null otherwise. */
   keyError: 'password' | 'gateway' | null
+  /** True for the committed admin emails (or the VITE_E2E_ADMIN test escape hatch). */
+  isAdmin: boolean
+  /** Admin-only free/premium switch, persisted in `council:tier`. */
+  tier: Tier
+  setTier: (tier: Tier) => void
+  /** Admin-only cost indicator; null until the first successful fetch. */
+  usage: Usage | null
 }
 
 const CouncilContext = createContext<CouncilContextValue | null>(null)
@@ -77,6 +89,9 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
   const [councilKey, setCouncilKey] = useState<string | null>(() => loadKey())
   const [checkingKey, setCheckingKey] = useState(false)
   const [keyError, setKeyError] = useState<'password' | 'gateway' | null>(null)
+  const admin = isAdmin(user?.email)
+  const [tier, setTierState] = useState<Tier>(() => loadTier())
+  const [usage, setUsage] = useState<Usage | null>(null)
   // What to resume once a rotated password is re-entered and accepted; null for a
   // plain first-visit ask, which just opens the home screen instead.
   const [pendingResume, setPendingResume] = useState<PendingAction | null>(null)
@@ -89,6 +104,23 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
       if (rows.length) setIdeas(rows)
     })
   }, [user])
+
+  const setTier = useCallback((next: Tier) => {
+    saveTier(next)
+    setTierState(next)
+  }, [])
+
+  // Admin-only; refreshed on mount and after each session's `done` (see `consume`).
+  const refreshUsage = useCallback(() => {
+    if (!admin) return
+    void fetchUsage({ gatewayUrl: GATEWAY_URL, token, councilKey }).then((next) => {
+      if (next) setUsage(next)
+    })
+  }, [admin, token, councilKey])
+
+  useEffect(() => {
+    refreshUsage()
+  }, [refreshUsage])
 
   const togglePersona = useCallback((id: string) => {
     setPicked((current) => nextPicked(current, id))
@@ -121,7 +153,11 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
         for await (const event of events) {
           switch (event.type) {
             case 'session':
-              commit({ sessionId: event.session_id, tier: event.tier ?? state.tier })
+              commit({
+                sessionId: event.session_id,
+                tier: event.tier ?? state.tier,
+                model: event.model ?? state.model,
+              })
               break
             case 'turn':
               commit({ turns: [...state.turns, { persona: event.persona, text: event.text }] })
@@ -137,6 +173,7 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
               })
               break
             case 'done':
+              refreshUsage()
               break
             case 'error':
               commit({ failure: (event.reason as FailureReason) ?? 'gateway' })
@@ -163,7 +200,7 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
         }
       }
     },
-    [persist],
+    [persist, refreshUsage],
   )
 
   // Takes the key explicitly rather than reading `councilKey` state, so a resume right
@@ -184,6 +221,7 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
         turns: [],
         verdict: null,
         tier: null,
+        model: null,
         streaming: true,
         failure: null,
       }
@@ -193,13 +231,19 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
       void consume(
         openSession(
           { idea, personas: picked, anon: !token },
-          { gatewayUrl: GATEWAY_URL, token, councilKey: key, signal: controller.signal },
+          {
+            gatewayUrl: GATEWAY_URL,
+            token,
+            councilKey: key,
+            tier: admin ? tier : null,
+            signal: controller.signal,
+          },
         ),
         base,
         { kind: 'convene', idea, dailyKey, question },
       )
     },
-    [consume, picked, token],
+    [consume, picked, token, admin, tier],
   )
 
   const convene = useCallback(
@@ -219,13 +263,19 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
       void consume(
         replyToSession(
           { session_id: session.sessionId, message },
-          { gatewayUrl: GATEWAY_URL, token, councilKey: key, signal: controller.signal },
+          {
+            gatewayUrl: GATEWAY_URL,
+            token,
+            councilKey: key,
+            tier: admin ? tier : null,
+            signal: controller.signal,
+          },
         ),
         base,
         { kind: 'reply', message },
       )
     },
-    [consume, session, token],
+    [consume, session, token, admin, tier],
   )
 
   const reply = useCallback((message: string) => runReply(message, councilKey), [runReply, councilKey])
@@ -241,6 +291,7 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
       turns: idea.transcript ?? [],
       verdict: idea.verdict,
       tier: null,
+      model: null,
       streaming: false,
       failure: null,
     })
@@ -294,6 +345,10 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
         submitKey,
         checkingKey,
         keyError,
+        isAdmin: admin,
+        tier,
+        setTier,
+        usage,
       }}
     >
       {children}
