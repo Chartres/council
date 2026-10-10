@@ -26,7 +26,7 @@ export function SignInPanel({ reason }: { reason?: string }) {
   return (
     <section
       aria-label="Sign in"
-      className="vellum rounded-card border border-ink-700 p-4"
+      className="py-1"
       data-testid="sign-in-panel"
     >
       <h2 className="font-display text-xl text-candle-200">Keep this idea</h2>

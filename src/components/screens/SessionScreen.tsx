@@ -84,7 +84,7 @@ export function SessionScreen() {
         <section
           aria-label="Verdict"
           data-testid="verdict"
-          className="vellum lit mt-7 rounded-card border border-candle-500/40 p-4"
+          className="mt-7 border-t border-candle-500/40 pt-4"
         >
           <p className="font-display text-xs uppercase tracking-widest text-candle-400">Verdict</p>
           <p className="mt-2 text-[0.98rem] leading-relaxed text-marble-100">{verdict.summary}</p>
@@ -141,7 +141,7 @@ export function SessionScreen() {
                     await shareText(dailyShareText(dailyKey, question ?? idea, verdict)),
                   )
                 }
-                className="mt-2 min-h-11 w-full rounded-card border border-candle-500/60 px-4 py-2 font-semibold text-candle-200 hover:bg-candle-400/10"
+                className="mt-2 min-h-11 font-semibold text-candle-300 hover:text-candle-200"
               >
                 Share today’s split
               </button>
@@ -174,7 +174,7 @@ export function SessionScreen() {
 
       {failure && failure !== 'sign_in' && (
         <p
-          className="mt-6 rounded-card border border-ink-700 bg-ink-900 p-4 text-sm text-marble-200"
+          className="mt-6 border-l-2 border-clay-500 pl-3 text-sm text-marble-200"
           role="alert"
           data-testid="failure"
         >

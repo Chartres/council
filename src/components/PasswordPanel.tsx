@@ -17,7 +17,7 @@ export function PasswordPanel() {
       <section
         aria-label="Council password"
         data-testid="password-panel"
-        className="vellum rounded-card border border-ink-700 p-4"
+        className="pt-3"
       >
         <h1 className="font-display text-2xl text-marble-100">Enter the council password</h1>
         <p className="mt-2 text-sm leading-relaxed text-marble-300">
@@ -47,7 +47,7 @@ export function PasswordPanel() {
             className={`mt-3 min-h-12 w-full rounded-card px-4 py-3 font-display text-lg font-semibold ${
               disabled
                 ? 'border border-ink-700 bg-transparent text-marble-500'
-                : 'lit bg-candle-400 text-ink-950 hover:bg-candle-300'
+                : 'bg-candle-400 text-ink-950 hover:bg-candle-300'
             }`}
           >
             {checkingKey ? 'Checking…' : 'Enter'}

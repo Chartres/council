@@ -35,7 +35,7 @@ export function HomeScreen() {
           <MicButton value={idea} onChange={setIdea} label="your idea" />
         </div>
 
-        <details className="mt-3 rounded-card border border-ink-800 bg-ink-900/60">
+        <details className="mt-3">
           <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 py-2">
             <span className="flex gap-1">
               {picked.map((id) => (
@@ -49,7 +49,7 @@ export function HomeScreen() {
               {picked.length}/{MAX_PERSONAS}
             </span>
           </summary>
-          <ul className="border-t border-ink-800 p-2">
+          <ul className="py-1">
             {PERSONAS.map((p) => {
               const on = picked.includes(p.id)
               const full = !on && picked.length >= MAX_PERSONAS
@@ -100,7 +100,7 @@ export function HomeScreen() {
           disabled={!idea.trim()}
           className={`mt-3 min-h-12 w-full rounded-card px-4 py-3 font-display text-lg font-semibold ${
             idea.trim()
-              ? 'lit bg-candle-400 text-ink-950 hover:bg-candle-300'
+              ? 'bg-candle-400 text-ink-950 hover:bg-candle-300'
               : 'border border-ink-700 bg-transparent text-marble-500'
           }`}
         >
@@ -113,7 +113,7 @@ export function HomeScreen() {
       <section
         aria-label="Today’s question"
         data-testid="daily-card"
-        className="vellum mt-6 rounded-card border border-ink-700 p-4"
+        className="mt-6 border-t border-ink-800 pt-4"
       >
         <p className="font-display text-xs uppercase tracking-widest text-candle-400">
           Today’s question · {day}
@@ -127,7 +127,7 @@ export function HomeScreen() {
         <button
           type="button"
           onClick={() => convene({ idea: question, dailyKey: day, question })}
-          className="mt-3 min-h-11 w-full rounded-card border border-candle-500/60 px-4 py-2 font-semibold text-candle-200 hover:bg-candle-400/10"
+          className="mt-2 min-h-11 font-semibold text-candle-300 hover:text-candle-200"
         >
           Convene on this
         </button>
