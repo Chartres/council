@@ -153,5 +153,21 @@ The account menu's **Export everything** reads the user's own rows from `council
 `council-export-<date>.json`. **Delete everything** calls `supabase.rpc('council_delete_me')`, a
 `SECURITY DEFINER` function that deletes the caller's rows and their `auth.users` row (the
 `on delete cascade` foreign keys cover the tables). The app then clears its localStorage
-(keeping only the beta password) and reloads signed out. The function is created by the
-integrator alongside the gateway v4.1 change; until it exists the app shows "Nothing was deleted".
+(keeping only the beta password) and reloads signed out. Applied 2026-10-10 via the Management
+API:
+
+```sql
+create or replace function public.council_delete_me() returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then raise exception 'not signed in'; end if;
+  delete from public.council_commitments where user_id = auth.uid();
+  delete from public.council_journal where user_id = auth.uid();
+  delete from public.council_sessions where user_id = auth.uid();
+  delete from public.council_ideas where user_id = auth.uid();
+  delete from public.progress where user_id = auth.uid() and app = 'council';
+  delete from auth.users where id = auth.uid();
+end $$;
+revoke all on function public.council_delete_me() from public;
+grant execute on function public.council_delete_me() to authenticated;
+```
