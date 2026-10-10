@@ -11,14 +11,32 @@
 //   {type:"facilitator", text}
 //   {type:"contribution", speaker, text, confidence?, grounding?}
 //   {type:"floor", question}
-//   {type:"proposal", id, decision, reasoning, assumptions[], next_action, owner, review_trigger, confidence}
+//   {type:"proposal", id, decision, reasoning, assumptions[], next_action, owner, review_trigger, confidence, map}
 //   {type:"done", usage?} · {type:"error", reason}
 // Same headers, private-beta key and failure bodies as v3 (council.ts).
 
+import { toMermaid } from './map'
 import { stream, callJson, type StreamOptions, type Tier } from './council'
 import type { RosterId } from '@/content/personas'
 
 // ---------- types ----------
+
+/** The council map (council-v4.2.md): ≤10 nodes, ≤14 edges, labels ≤60 chars (gateway `cleanMap`). */
+export interface MapNode {
+  id: string
+  kind: 'question' | 'claim' | 'proposal' | 'action' | 'assumption'
+  label: string
+  speaker?: string
+}
+export interface MapEdge {
+  from: string
+  to: string
+  kind: 'supports' | 'challenges' | 'leads_to' | 'rests_on'
+}
+export interface CouncilMap {
+  nodes: MapNode[]
+  edges: MapEdge[]
+}
 
 export interface JournalEntry {
   id: string
@@ -31,6 +49,8 @@ export interface JournalEntry {
   review_trigger: string
   /** 0–100, or null when the group gave none. */
   confidence: number | null
+  /** Null when the group gave none; absent on entries saved before v4.2. */
+  map: CouncilMap | null
   status: 'proposal' | 'accepted' | 'done' | 'dropped'
   created_at: string
 }
@@ -241,18 +261,20 @@ export function exportJournal(journal: JournalState): string {
     for (const c of journal.commitments.filter((x) => x.journal_id === e.id)) {
       lines.push(`  Commitment: ${c.what} by ${c.due_date}${c.outcome ? ` — ${c.outcome}` : ''}`)
     }
+    if (e.map) lines.push('```mermaid', toMermaid(e.map), '```')
   }
   return lines.join('\n')
 }
 
 /** Gateway output is untrusted shape: coerce what the UI joins, formats or compares. */
-export function normalizeEntry<T extends Partial<JournalEntry>>(raw: T): T & Pick<JournalEntry, 'assumptions' | 'confidence'> {
+export function normalizeEntry<T extends Partial<JournalEntry>>(raw: T): T & Pick<JournalEntry, 'assumptions' | 'confidence' | 'map'> {
   const a = raw.assumptions as unknown
   const c = Number(raw.confidence)
   return {
     ...raw,
     assumptions: Array.isArray(a) ? a.map(String) : a ? [String(a)] : [],
     confidence: raw.confidence === null || raw.confidence === undefined || Number.isNaN(c) ? null : Math.round(c),
+    map: Array.isArray(raw.map?.nodes) && Array.isArray(raw.map?.edges) ? raw.map : null,
   }
 }
 

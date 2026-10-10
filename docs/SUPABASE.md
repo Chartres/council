@@ -122,6 +122,14 @@ one email" rule keys on it, so the worst a user can do is re-arm their own remin
 `outcome = 'later'` keeps a commitment open (it is the "not yet — another round" answer).
 The created_at column on commitments is one beyond the spec's list, for ordering.
 
+v4.2 (the council map, applied 2026-10-10 via the Management API): each journal row keeps
+the proposal's concept graph, `{nodes, edges}` as the gateway's `cleanMap` emits it, or null.
+
+```sql
+alter table public.council_journal add column if not exists map jsonb;
+notify pgrst, 'reload schema';
+```
+
 ## 2. Auth identity (`flywheel/docs/standards/auth-identity.md`)
 
 - Add `https://council.dravec.org` (and `https://council.pages.dev` if used, plus

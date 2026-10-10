@@ -64,6 +64,12 @@ test('Business roster → intake → three turns with controls → capture → c
   await expect(proposal).toBeVisible({ timeout: 20_000 })
   await expect(proposal).toContainText('two-week pilot')
   await expect(page.getByTestId('streaming')).toHaveCount(0, { timeout: 20_000 })
+  // v4.2: the council map comes first on the card.
+  await expect(proposal.getByTestId('council-map')).toBeVisible()
+  await expect(proposal.getByTestId('council-map')).toHaveAttribute('aria-label', /Grove challenges the proposal/)
+  await proposal.getByTestId('council-map').evaluate((el) => el.scrollIntoView({ block: 'center' }))
+  await settle(page)
+  await page.screenshot({ path: 'e2e/shots/council-map.png' })
 
   // "Go back to Grove's point" steers without typing; it lives under More.
   await page.getByRole('button', { name: 'More ›' }).click()
@@ -102,12 +108,30 @@ test('Business roster → intake → three turns with controls → capture → c
   const clip = await page.evaluate(() => navigator.clipboard.readText())
   expect(clip).toContain('Talk to Sven before committing budget')
   expect(clip).toContain('by 2026-10-15')
+  expect(clip).toContain('```mermaid\nflowchart TB')
+  // The only entry: its map is open.
+  await expect(page.getByTestId('journal-map').getByTestId('council-map')).toBeVisible()
   await page.screenshot({ path: 'e2e/shots/v4-journal.png' })
 
   // Anonymous: it was kept in this browser.
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('council:journal')!))
   expect(stored.commitments[0]).toMatchObject({ due_date: '2026-10-15', remind: true, outcome: null })
   expect(stored.lastIntake.goal).toBe('decide whether to pilot a premium tier')
+})
+
+test('council map at desktop width: one wrap-up, no overlap with the card', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Begin' }).click()
+  await page.getByRole('button', { name: 'Bring it to the group' }).click()
+  await expect(page.getByTestId('streaming')).toHaveCount(0, { timeout: 20_000 })
+  await page.getByRole('button', { name: 'Wrap up' }).click()
+  const map = page.getByTestId('proposal').getByTestId('council-map')
+  await expect(map).toBeVisible({ timeout: 20_000 })
+  await map.evaluate((el) => el.scrollIntoView({ block: 'center' }))
+  await settle(page)
+  await page.screenshot({ path: 'e2e/shots/council-map-desktop.png' })
+  expect(await noOverflow(page)).toBeLessThanOrEqual(1)
 })
 
 test('Classics roster, quick path: no intake, straight to the group, then wrap up', async ({ page }) => {

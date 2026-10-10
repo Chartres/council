@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useCouncil } from '@/app/CouncilContext'
 import { useMastermind } from '@/app/MastermindContext'
 import { useAuth } from '@/auth/AuthContext'
+import { CouncilMap } from '@/components/CouncilMap'
 import { OutcomeButtons } from '@/components/OutcomeButtons'
 import { humanDate } from '@/domain/dates'
 import { isOpen } from '@/domain/mastermind'
@@ -48,6 +49,14 @@ export function JournalScreen() {
                   {e.status} · {humanDate(e.created_at, { weekday: false })}
                   {e.confidence !== null && ` · ${e.confidence} % confident`}
                 </p>
+                {e.map && (
+                  <details open={entries.length === 1} className="mt-2" data-testid="journal-map">
+                    <summary className="text-btn cursor-pointer leading-[44px]">Map</summary>
+                    <div className="mt-2">
+                      <CouncilMap map={e.map} />
+                    </div>
+                  </details>
+                )}
                 {!journal.commitments.some((c) => c.journal_id === e.id) && (
                   <p className="t-body mt-2 text-marble-300">{sentence(e.next_action)}</p>
                 )}

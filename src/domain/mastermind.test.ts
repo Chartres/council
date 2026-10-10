@@ -24,6 +24,7 @@ const entry = (id: string, created_at: string, status: JournalEntry['status'] = 
   owner: 'me',
   review_trigger: 'Friday',
   confidence: 60,
+  map: null,
   status,
   created_at,
 })

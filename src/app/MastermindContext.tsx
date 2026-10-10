@@ -325,7 +325,7 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
       }
       if (item.captured) return save(item.entry)
       void capture({ session_id: c.sessionId, proposal_id: item.entry.id }, opts())
-        .then(({ entry }) => save(normalizeEntry({ ...item.entry, ...entry })))
+        .then(({ entry }) => save(normalizeEntry({ ...item.entry, ...entry, map: entry.map ?? item.entry.map })))
         .catch(fail)
     },
     [setItem, sb, user, persistSession, opts, fail],

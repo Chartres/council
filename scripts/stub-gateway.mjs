@@ -111,6 +111,21 @@ const PROPOSAL = {
   owner: 'You',
   review_trigger: 'End of week two, or sooner if fewer than three say yes',
   confidence: 65,
+  // Same shape as the gateway stub's map (flywheel gateway/src/llm.ts stubV4).
+  map: {
+    nodes: [
+      { id: 'q', kind: 'question', label: 'Will customers pay before it exists?' },
+      { id: 'c1', kind: 'claim', label: 'Pre-orders are the cheapest proof', speaker: 'drucker' },
+      { id: 'c2', kind: 'claim', label: 'Ten is too few to trust', speaker: 'grove' },
+      { id: 'p', kind: 'proposal', label: 'Two-week pre-order test, ten customers' },
+      { id: 'a', kind: 'action', label: 'Write the pre-order page today' },
+    ],
+    edges: [
+      { from: 'c1', to: 'p', kind: 'supports' },
+      { from: 'c2', to: 'p', kind: 'challenges' },
+      { from: 'p', to: 'a', kind: 'leads_to' },
+    ],
+  },
 }
 const v4 = new Map() // session_id → { advisers, turns }
 const INTAKE_KEYS = ['role', 'organization', 'goal', 'situation', 'success', 'constraints', 'working_style']
