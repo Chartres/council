@@ -77,4 +77,18 @@ describe('pickVoice', () => {
     expect(pickVoice([{ lang: 'sk-SK' }])).toBeUndefined()
     expect(pickVoice([])).toBeUndefined()
   })
+
+  it('ranks human-sounding voices above the robotic default', () => {
+    const voices = [
+      { lang: 'en-US', name: 'Fred' },
+      { lang: 'en-US', name: 'Samantha' },
+      { lang: 'en-US', name: 'Google US English' },
+      { lang: 'en-GB', name: 'Microsoft Sonia Online (Natural) - English (United Kingdom)' },
+      { lang: 'de-DE', name: 'Anna' },
+    ]
+    expect(pickVoice(voices)?.name).toMatch(/Natural/)
+    expect(pickVoice(voices.slice(0, 3))?.name).toBe('Google US English')
+    expect(pickVoice(voices.slice(0, 2))?.name).toBe('Samantha')
+    expect(pickVoice(voices.slice(0, 1))?.name).toBe('Fred')
+  })
 })
