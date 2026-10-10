@@ -17,7 +17,7 @@ export function FeedbackSheet() {
 
   if (state === 'sent' || state === 'quota')
     return (
-      <p role="status" className="text-sm text-marble-200" data-testid="feedback-done">
+      <p role="status" className="t-body" data-testid="feedback-done">
         {DONE[state]}
       </p>
     )
@@ -60,7 +60,7 @@ export function FeedbackSheet() {
       >
         {state === 'sending' ? 'Sending…' : 'Send'}
       </button>
-      {state === 'failed' && <p className="text-sm text-clay-400">Could not send it. Try again in a moment.</p>}
+      {state === 'failed' && <p className="t-body text-clay-400">Could not send it. Try again in a moment.</p>}
     </form>
   )
 }
