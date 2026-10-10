@@ -14,14 +14,15 @@
   --color-ink-800: #26211a;
   --color-ink-700: #342d23;
   --color-ink-600: #4a4133;
+  --color-ink-500: #5e5446; /* a control edge that must be seen (≈2.9:1 on ink-950) */
 
   /* Marble — paper, type, veining */
   --color-marble-50: #f8f5ee;
   --color-marble-100: #ece7db;
   --color-marble-200: #d8d1c2;
   --color-marble-300: #b9b1a0;
-  --color-marble-400: #968d7c;
-  --color-marble-500: #776f61;
+  --color-marble-400: #968d7c; /* the floor for any text, labels included (5.9:1) */
+  --color-marble-500: #776f61; /* rules and the monogram ring only — never text (3.9:1) */
 
   /* Candle — the single accent */
   --color-candle-200: #f7e3b8;
@@ -77,11 +78,152 @@ body {
 }
 
 
-*:focus-visible {
-  outline: none;
-  box-shadow:
-    0 0 0 2px var(--color-ink-950),
-    0 0 0 4px var(--color-candle-400);
+/* In the base layer so a field's own focus rule (below) can replace it. */
+@layer base {
+  *:focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 2px var(--color-ink-950),
+      0 0 0 4px var(--color-candle-400);
+  }
+}
+
+/*
+  Bold by scale, not colour (DESIGN.md "Type, contrast, accent, space").
+  Four type steps; a 15 px secondary size only for chips, text buttons and the
+  facilitator. Components layer, so a utility on the element still wins.
+*/
+@layer components {
+  .t-display {
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: 28px;
+    line-height: 32px;
+    letter-spacing: -0.01em;
+    color: var(--color-marble-50);
+  }
+  @media (min-width: 768px) {
+    .t-display {
+      font-size: 36px;
+      line-height: 40px;
+    }
+  }
+  .t-title {
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: 20px;
+    line-height: 26px;
+    color: var(--color-marble-50);
+  }
+  .t-body {
+    font-family: var(--font-sans);
+    font-size: 17px;
+    line-height: 26px;
+    color: var(--color-marble-200);
+  }
+  .t-label {
+    font-family: var(--font-sans);
+    font-weight: 500;
+    font-size: 13px;
+    line-height: 18px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-marble-400);
+  }
+
+  /* A field is a filled surface, never a hairline box; focus is a candle rule along its foot. */
+  .field {
+    display: block;
+    width: 100%;
+    border: 0;
+    border-radius: var(--radius-card);
+    background: var(--color-ink-850);
+    padding: 14px 16px;
+    font-size: 17px;
+    line-height: 26px;
+    color: var(--color-marble-100);
+  }
+  .field::placeholder,
+  .field textarea::placeholder {
+    color: var(--color-marble-400);
+  }
+  .field:focus-visible,
+  .field:focus-within {
+    outline: none;
+    box-shadow: inset 0 -2px 0 var(--color-candle-400);
+  }
+  .field textarea:focus-visible {
+    box-shadow: none;
+  }
+
+  /* The one action on a screen. */
+  .slab {
+    display: flex;
+    min-height: 52px;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-card);
+    background: var(--color-candle-400);
+    padding: 0 16px;
+    font-family: var(--font-display);
+    font-size: 19px;
+    font-weight: 600;
+    color: var(--color-ink-950);
+  }
+  .slab:hover {
+    background: var(--color-candle-300);
+  }
+  /* Unlit until there is something to send: an outline that clears 3:1, not a dimmed slab. */
+  .slab-off,
+  .slab:disabled {
+    border: 1px solid var(--color-ink-500);
+    background: transparent;
+    color: var(--color-marble-300);
+  }
+
+  .chip {
+    display: inline-flex;
+    min-height: 40px;
+    flex: none;
+    align-items: center;
+    border-radius: 9999px;
+    background: var(--color-ink-850);
+    padding: 0 14px;
+    font-size: 15px;
+    font-weight: 500;
+    white-space: nowrap;
+    color: var(--color-marble-200);
+  }
+  .chip:hover {
+    background: var(--color-ink-800);
+  }
+  .chip:disabled {
+    opacity: 0.4;
+  }
+
+  /* Text buttons and links: marble, never candle — the candle is spent elsewhere. */
+  .text-btn {
+    min-height: 44px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--color-marble-100);
+  }
+  .text-btn:hover {
+    color: var(--color-marble-50);
+  }
+  .text-btn:disabled {
+    color: var(--color-marble-400);
+  }
+  .link {
+    color: var(--color-marble-200);
+    text-decoration: underline;
+    text-decoration-color: var(--color-marble-500);
+    text-underline-offset: 3px;
+  }
+  .link:hover {
+    color: var(--color-marble-50);
+  }
 }
 
 .font-display {

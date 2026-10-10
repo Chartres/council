@@ -19,8 +19,8 @@ export function Header() {
       style={{ paddingTop: 'max(0px, env(safe-area-inset-top))' }}
     >
       <div className="mx-auto flex max-w-xl items-center justify-between gap-2 px-4 py-2">
-        <span className="font-display text-lg text-candle-200">
-          Mastermind <span className="text-marble-200">Council</span>
+        <span className="font-display text-lg font-medium text-marble-100">
+          Mastermind <span className="font-normal text-marble-400">Council</span>
         </span>
         <div className="flex items-center gap-1">
           {gate === 'ready' && (
@@ -28,7 +28,7 @@ export function Header() {
               type="button"
               onClick={() => toggle('feedback')}
               aria-expanded={open === 'feedback'}
-              className="min-h-11 px-2 text-sm text-marble-400 hover:text-candle-300"
+              className="min-h-11 px-3 text-[15px] font-medium text-marble-400 hover:text-marble-100"
             >
               Feedback
             </button>
@@ -39,10 +39,10 @@ export function Header() {
               onClick={() => toggle('account')}
               aria-expanded={open === 'account'}
               aria-label={user ? 'Account' : 'Sign in'}
-              className="flex h-11 w-11 items-center justify-center rounded-full text-marble-400 hover:text-candle-300"
+              className="flex h-11 w-11 items-center justify-center rounded-full text-marble-400 hover:text-marble-100"
             >
               {user ? (
-                <span className="flex h-8 w-8 items-center justify-center rounded-full border border-candle-400/60 font-display text-sm text-candle-200">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full border-[1.5px] border-marble-500 bg-ink-800 font-display text-[15px] text-marble-100">
                   {user.email?.[0]?.toUpperCase() ?? '·'}
                 </span>
               ) : (

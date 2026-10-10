@@ -93,8 +93,8 @@ export function ListenToggle({ on, onChange }: { on: boolean; onChange: (on: boo
       onClick={() => onChange(!on)}
       aria-pressed={on}
       data-testid="listen"
-      className={`flex min-h-11 items-center gap-2 rounded-card border px-3 text-sm ${
-        on ? 'border-candle-500 text-candle-200' : 'border-ink-700 text-marble-400'
+      className={`flex min-h-11 items-center gap-2 px-3 text-[15px] font-semibold ${
+        on ? 'text-marble-50' : 'text-marble-400 hover:text-marble-100'
       }`}
     >
       <svg

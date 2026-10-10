@@ -99,10 +99,8 @@ export function MicButton({
       aria-pressed={listening}
       aria-label={listening ? `Stop dictating ${label}` : `Dictate ${label}`}
       data-testid="mic"
-      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-card border ${
-        listening
-          ? 'border-candle-500 text-candle-200'
-          : 'border-ink-700 text-marble-400 hover:text-candle-300'
+      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${
+        listening ? 'bg-candle-400 text-ink-950' : 'text-marble-300 hover:text-marble-50'
       }`}
     >
       <svg
