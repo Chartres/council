@@ -37,7 +37,7 @@ export function IdeasScreen() {
                 <button
                   type="button"
                   onClick={() => open(item)}
-                  className="vellum flex w-full flex-col gap-2 rounded-card border border-ink-700 p-3 text-left hover:border-ink-600"
+                  className="flex w-full flex-col gap-2 border-t border-ink-800 py-3 text-left hover:bg-ink-900"
                 >
                   <span className="flex items-center gap-2">
                     <span className="text-xs text-marble-500">

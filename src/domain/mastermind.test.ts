@@ -5,7 +5,7 @@ import {
   controlRoute,
   exportJournal,
   intakePayload,
-  intakeReducer,
+  stableIntake,
   journalReducer,
   normalizeEntry,
   parseDeepLink,
@@ -54,32 +54,29 @@ describe('controlRoute', () => {
   })
 })
 
-describe('intakeReducer', () => {
-  const start = { step: 0, answers: {} }
-
-  it('records an answer for the current question and moves on', () => {
-    let s = intakeReducer(start, { type: 'answer', text: 'Product lead' })
-    s = intakeReducer(s, { type: 'next' })
-    expect(s).toEqual({ step: 1, answers: { role: 'Product lead' } })
+describe('intake', () => {
+  it('uses the gateway keys, in Eyal\'s order', () => {
+    expect(INTAKE_QUESTIONS.map((q) => q.id)).toEqual([
+      'role', 'organization', 'goal', 'situation', 'success', 'constraints', 'working_style',
+    ])
+    expect(INTAKE_QUESTIONS[1].hint).toBe(
+      "Your industry, who you serve, and your scope of responsibility. No company or people's names needed.",
+    )
   })
 
-  it('skip drops the current answer; back and next stay in bounds', () => {
-    let s = intakeReducer(start, { type: 'answer', text: 'half-typed' })
-    s = intakeReducer(s, { type: 'skip' })
-    expect(s.answers).toEqual({})
-    expect(intakeReducer({ step: 0, answers: {} }, { type: 'back' }).step).toBe(0)
-    const last = INTAKE_QUESTIONS.length - 1
-    expect(intakeReducer({ step: last, answers: {} }, { type: 'next' }).step).toBe(last)
-  })
-
-  it('prefills from the last session ("same context?")', () => {
-    const s = intakeReducer(start, { type: 'prefill', intake: { role: 'CFO', goal: 'Cut churn' } })
-    expect(s.answers).toEqual({ role: 'CFO', goal: 'Cut churn' })
-  })
-
-  it('payload trims and drops blanks, undefined when empty', () => {
+  it('payload trims, drops blanks, caps each field at 1,000 characters; undefined when empty', () => {
     expect(intakePayload({ role: '  CFO ', goal: '   ' })).toEqual({ role: 'CFO' })
+    expect(intakePayload({ goal: 'x'.repeat(1200) })!.goal).toHaveLength(1000)
     expect(intakePayload({})).toBeUndefined()
+  })
+
+  it('prefills only the stable fields, mapping v4 keys to the gateway keys', () => {
+    expect(stableIntake({ role: 'CFO', goal: 'Cut churn', organization: 'SaaS' })).toEqual({ role: 'CFO', organization: 'SaaS' })
+    expect(stableIntake({ workplace: 'Retail', mode: 'challenge me', today: 'busy' } as never)).toEqual({
+      organization: 'Retail',
+      working_style: 'challenge me',
+    })
+    expect(stableIntake(null)).toEqual({})
   })
 })
 

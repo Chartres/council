@@ -30,9 +30,10 @@ primary button) is the same pair inverted.
 
 - **Monograms, never portraits.** A persona is initials in a thin ring (`Monogram.tsx`). No
   generated faces, no likenesses — a legal guardrail first and a taste choice second.
-- **One lit thing per screen.** `.lit` (the candle glow) goes on the live surface only: the
-  enabled primary action and the verdict frame. A disabled primary action is an outline, not a
-  dimmed amber slab — amber at 40 % opacity reads as mud on warm black.
+- **One accent per screen (v4.1).** The candle colour fills the single primary action; every
+  secondary action is a text button. No textures, no glows, no boxed panels where a hairline
+  rule and a line of text do the job. A disabled primary action is an outline, not a dimmed
+  amber slab (amber at 40 % opacity reads as mud on warm black).
 - **The debate is the content.** Turns are plain text with a monogram and a name. No chat
   bubbles, no typing animation beyond a single 320 ms fade-up per turn (skipped under
   `prefers-reduced-motion`).

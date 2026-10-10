@@ -34,16 +34,10 @@ test('Business roster → intake → three turns with controls → capture → c
   await page.screenshot({ path: 'e2e/shots/v4-start.png' })
   await page.getByRole('button', { name: 'Begin' }).click()
 
-  // Intake: seven short steps, each skippable.
-  await expect(page.getByTestId('intake-step')).toHaveText('1 / 7')
+  // Intake: one screen. She types two of the seven fields and goes.
   await page.getByLabel('Who are you professionally?').fill('Head of product, 8 years in B2B SaaS.')
-  await page.getByRole('button', { name: 'Next' }).click()
-  await page.getByRole('button', { name: 'Skip' }).click()
   await page.getByLabel('What would you like the group to help you achieve?').fill('decide whether to pilot a premium tier')
   await page.screenshot({ path: 'e2e/shots/v4-intake.png' })
-  await page.getByRole('button', { name: 'Next' }).click()
-  for (let i = 0; i < 3; i++) await page.getByRole('button', { name: 'Skip' }).click()
-  await expect(page.getByTestId('intake-step')).toHaveText('7 / 7')
   await page.getByRole('button', { name: 'Bring it to the group' }).click()
 
   // Turn 1: the facilitator recaps the intake, two advisers speak, the floor opens.
@@ -120,7 +114,7 @@ test('Classics roster, quick path: no intake, straight to the group, then wrap u
   await expect(page.getByText('Simulation inspired by')).toHaveCount(0)
   await expect(page.getByRole('button', { pressed: true, name: /Seneca/ })).toBeVisible()
   await page.getByRole('button', { name: 'Begin' }).click()
-  await page.getByRole('button', { name: 'Bring it to the group now' }).click()
+  await page.getByRole('button', { name: 'Bring it to the group' }).click()
 
   await expect(page.getByTestId('facilitator').first()).toContainText('Welcome')
   await expect(page.getByTestId('contribution').first()).toContainText('Socrates')
@@ -162,11 +156,11 @@ test('"Last time…": remembered journal opens the session, and the outcome writ
   await expect(card).toContainText('You said you’d talk to Sven by 2026-10-09')
   await page.screenshot({ path: 'e2e/shots/v4-last-time.png' })
 
-  // "Same context?" prefills the intake from last session.
+  // The stable fields (role, organization, working style) come back on their own; the goal does not.
   await page.getByRole('button', { name: 'Begin' }).click()
-  await page.getByRole('button', { name: 'Use it' }).click()
   await expect(page.getByLabel('Who are you professionally?')).toHaveValue('Head of product')
-  await page.getByRole('button', { name: 'Bring it to the group now' }).click()
+  await expect(page.getByLabel('What would you like the group to help you achieve?')).toHaveValue('')
+  await page.getByRole('button', { name: 'Bring it to the group' }).click()
 
   await expect(page.getByTestId('facilitator').first()).toContainText(
     "Last time we talked about Pilot the premium tier with five customers; you said you'd talk to Sven by 2026-10-09",

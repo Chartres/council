@@ -64,6 +64,12 @@ env** — it is simply absent there, which is what makes it a no-op in productio
 this var baked in, so the plain build at :4173 — and every other spec — never carries it;
 `e2e/admin-bar.spec.ts` is the only file that points at :4174.
 
+v4.1 routes (stub): `POST /v1/intake/extract` answers JSON `{text}` with the `key: value` lines
+it finds for the seven intake keys (else a fixed sample) and multipart `{file}` with the sample;
+`QUOTA` in the text/file → 429, `NO_CONVERTER` → 503 `{error:"no_converter"}`. `POST /v1/feedback`
+→ 204, the 6th per process (or text containing `QUOTA`) → 429; `/__reset` clears the count.
+`/privacy` is public (rendered before the beta door).
+
 Perf/size asks name a number (bundle kB, p95 ms, suite seconds), re-measure each round, stop at
 target. Multi-finding reviews use the clean-room split (flywheel `skills/flywheel/references/sweep.md`).
 
@@ -73,8 +79,8 @@ npm run stub         # terminal 1 — the fake gateway on :8787
 VITE_GATEWAY_URL=http://localhost:8787 npm run dev   # terminal 2 — http://localhost:5173
 ```
 Run the dev gateway with `STUB_PASSWORD=tallow-candle npm run stub` to see the door.
-Primary journeys (v4, `/`): roster (Business/Classics) → pick ≤4 → Begin → 7-step intake
-(skippable, mic per step, "same context?" when a last intake exists) → conversation (speaker
+Primary journeys (v4, `/`): roster (Business/Classics) → pick ≤4 → Begin → one-screen intake
+(paste/drop/ask your AI/talk it through, review the seven fields; stable fields prefilled) → conversation (speaker
 cards, floor question, reply box, control chips) → proposal → Accept → journal → commitment
 with a due date and an opt-in email reminder → Journal tab (outcomes, export). Returning: the
 "Last time" card on `/` and a "Last time…" opener. Reminder emails link to

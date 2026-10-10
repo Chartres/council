@@ -145,3 +145,13 @@ VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_…
 
 Only the publishable key ever reaches the client. The gateway verifies the Supabase JWT itself
 (`SUPABASE_JWKS_URL`); no service-role key exists in this repo or in Pages.
+
+## Council v4.1: Export everything / Delete everything
+
+The account menu's **Export everything** reads the user's own rows from `council_sessions`,
+`council_journal`, `council_commitments` and `council_ideas` (own-row RLS above) and downloads
+`council-export-<date>.json`. **Delete everything** calls `supabase.rpc('council_delete_me')`, a
+`SECURITY DEFINER` function that deletes the caller's rows and their `auth.users` row (the
+`on delete cascade` foreign keys cover the tables). The app then clears its localStorage
+(keeping only the beta password) and reloads signed out. The function is created by the
+integrator alongside the gateway v4.1 change; until it exists the app shows "Nothing was deleted".

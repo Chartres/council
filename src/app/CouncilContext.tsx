@@ -29,13 +29,14 @@ import { fetchUsage, type Usage } from '@/domain/usage'
 
 // v4 (start → intake → conversation, journal) is the main flow at `/`; v3's quick
 // verdict lives on at `/quick` with its session screen and "My ideas".
-export type View = 'start' | 'intake' | 'conversation' | 'journal' | 'home' | 'session' | 'ideas'
+export type View = 'start' | 'intake' | 'conversation' | 'journal' | 'home' | 'session' | 'ideas' | 'privacy'
 
 const VIEW_PATH: Partial<Record<View, string>> = {
   start: '/',
   journal: '/journal',
   home: '/quick',
   ideas: '/ideas',
+  privacy: '/privacy',
 }
 
 /** Unknown paths (including `/start` and the `/c/:id` deep link) land on the start screen. */
@@ -97,7 +98,7 @@ interface CouncilContextValue {
 
 const CouncilContext = createContext<CouncilContextValue | null>(null)
 
-const GATEWAY_URL = (import.meta.env.VITE_GATEWAY_URL as string | undefined) ?? ''
+export const GATEWAY_URL = (import.meta.env.VITE_GATEWAY_URL as string | undefined) ?? ''
 
 export function CouncilProvider({ children }: { children: ReactNode }) {
   const { user, token } = useAuth()

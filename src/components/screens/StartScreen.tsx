@@ -3,6 +3,7 @@ import { useMastermind } from '@/app/MastermindContext'
 import { Monogram } from '@/components/Monogram'
 import { SignInPanel } from '@/components/SignInPanel'
 import { OutcomeButtons } from '@/components/OutcomeButtons'
+import { PrivacyLink } from '@/components/screens/PrivacyScreen'
 import {
   BUSINESS_DISCLOSURE,
   DISCLOSURE,
@@ -31,7 +32,7 @@ export function StartScreen() {
         <section
           aria-label="Last time"
           data-testid="last-time"
-          className="vellum mt-3 rounded-card border border-ink-700 p-4"
+          className="mt-3 border-b border-ink-800 pb-3"
         >
           <p className="font-display text-xs uppercase tracking-widest text-candle-400">Last time</p>
           {last && <p className="mt-1 text-sm text-marble-200">{last.decision}</p>}
@@ -55,8 +56,8 @@ export function StartScreen() {
             type="button"
             aria-pressed={roster === r}
             onClick={() => setRoster(r)}
-            className={`min-h-11 rounded-card border px-3 font-display text-lg ${
-              roster === r ? 'border-candle-500 text-candle-200' : 'border-ink-700 text-marble-400'
+            className={`min-h-11 border-b-2 px-3 font-display text-lg ${
+              roster === r ? 'border-candle-400 text-candle-200' : 'border-transparent text-marble-400'
             }`}
           >
             {ROSTER_LABEL[r]}
@@ -104,13 +105,14 @@ export function StartScreen() {
       <button
         type="button"
         onClick={() => go('intake')}
-        className="lit mt-3 min-h-12 w-full rounded-card bg-candle-400 px-4 py-3 font-display text-lg font-semibold text-ink-950 hover:bg-candle-300"
+        className="mt-3 min-h-12 w-full rounded-card bg-candle-400 px-4 py-3 font-display text-lg font-semibold text-ink-950 hover:bg-candle-300"
       >
         Begin
       </button>
 
       <p className="mt-3 text-xs leading-snug text-marble-500">
-        {roster === 'business' ? BUSINESS_DISCLOSURE : `${DISCLOSURE} ${MONTESSORI_NOTE}`}
+        The advisers are AI. {roster === 'business' ? BUSINESS_DISCLOSURE : `${DISCLOSURE} ${MONTESSORI_NOTE}`}{' '}
+        <PrivacyLink />
       </p>
     </div>
   )

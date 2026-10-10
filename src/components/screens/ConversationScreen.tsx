@@ -89,7 +89,7 @@ export function ConversationScreen() {
         </div>
       )}
       {failure && failure !== 'sign_in' && (
-        <p className="mt-6 rounded-card border border-ink-700 bg-ink-900 p-4 text-sm text-marble-200" role="alert">
+        <p className="mt-6 border-l-2 border-clay-500 pl-3 text-sm text-marble-200" role="alert">
           {FAILURE_COPY[failure]}
         </p>
       )}
@@ -99,7 +99,7 @@ export function ConversationScreen() {
           <button
             type="button"
             onClick={() => go('journal')}
-            className="lit mt-6 min-h-12 w-full rounded-card bg-candle-400 px-4 py-3 font-display text-lg font-semibold text-ink-950"
+            className="mt-6 min-h-12 w-full rounded-card bg-candle-400 px-4 py-3 font-display text-lg font-semibold text-ink-950"
           >
             Open the journal
           </button>
@@ -266,7 +266,7 @@ function ProposalCard({ item, index }: { item: Proposal; index: number }) {
   const field = 'mt-1 w-full rounded-card border border-ink-700 bg-ink-900 px-3 py-2 text-base text-marble-100 focus:border-candle-500'
 
   return (
-    <section aria-label="Proposal" data-testid="proposal" className="vellum rounded-card border border-candle-500/40 p-4">
+    <section aria-label="Proposal" data-testid="proposal" className="border-t border-candle-500/40 pt-4">
       <p className="font-display text-xs uppercase tracking-widest text-candle-400">
         {state === 'open' ? 'Proposal' : state === 'declined' ? 'Proposal · not yet' : 'In your journal'}
       </p>
@@ -300,7 +300,7 @@ function ProposalCard({ item, index }: { item: Proposal; index: number }) {
           <button
             type="button"
             onClick={() => decline(index)}
-            className="min-h-11 rounded-card border border-ink-700 px-3 text-sm text-marble-300"
+            className="min-h-11 px-3 text-sm text-marble-300 hover:text-candle-300"
           >
             Not yet
           </button>
@@ -334,7 +334,7 @@ function ProposalCard({ item, index }: { item: Proposal; index: number }) {
           {remind && !user && (
             <p className="text-xs text-marble-500">Sign in so the reminder has an address to go to.</p>
           )}
-          <button type="submit" className="mt-2 min-h-11 w-full rounded-card border border-candle-500/60 px-3 text-sm font-semibold text-candle-200">
+          <button type="submit" className="mt-2 min-h-11 text-sm font-semibold text-candle-300 hover:text-candle-200">
             Commit
           </button>
         </form>

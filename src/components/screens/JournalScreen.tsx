@@ -44,7 +44,7 @@ export function JournalScreen() {
           <button
             type="button"
             onClick={() => void copy()}
-            className="mt-4 min-h-11 w-full rounded-card border border-candle-500/60 px-4 text-sm font-semibold text-candle-200"
+            className="mt-3 min-h-11 text-sm font-semibold text-candle-300 hover:text-candle-200"
           >
             Export (copy as text)
           </button>
@@ -55,7 +55,7 @@ export function JournalScreen() {
           )}
           <ul className="mt-4 space-y-3" data-testid="journal">
             {entries.map((e) => (
-              <li key={e.id} className="vellum rounded-card border border-ink-700 p-3">
+              <li key={e.id} className="border-t border-ink-800 pt-3">
                 <p className="flex items-center gap-2 text-xs text-marble-500">
                   {e.created_at.slice(0, 10)}
                   <span className="rounded-card bg-candle-400/10 px-1.5 uppercase tracking-wide text-candle-300">{e.status}</span>

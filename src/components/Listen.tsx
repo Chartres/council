@@ -26,21 +26,25 @@ export function useListen(): [boolean, (on: boolean) => void] {
   ]
 }
 
-function cancel() {
+export function cancel() {
   if (synthesisAvailable()) window.speechSynthesis.cancel()
 }
 
-function speak(text: string, voice: { pitch: number; rate: number }) {
+export const FACILITATOR_VOICE = { pitch: 1, rate: 0.95 }
+
+export function speak(text: string, voice: { pitch: number; rate: number }, onEnd?: () => void) {
   // A speech engine that refuses an utterance must not take the debate down with it.
   try {
     const u = new SpeechSynthesisUtterance(text)
     u.pitch = voice.pitch
     u.rate = voice.rate
+    if (onEnd) u.onend = onEnd
     const english = pickVoice(window.speechSynthesis.getVoices())
     if (english) u.voice = english as SpeechSynthesisVoice
     window.speechSynthesis.speak(u)
   } catch {
     // Silent: the transcript on screen is the source of truth.
+    onEnd?.()
   }
 }
 
@@ -71,10 +75,7 @@ export function useNarration(turns: Turn[], verdict: Verdict | null, on: boolean
     spoken.current = turns.length
     if (verdict && !saidVerdict.current) {
       saidVerdict.current = true
-      speak(`The verdict. ${verdict.summary} Next action. ${verdict.next_action}`, {
-        pitch: 1,
-        rate: 0.95,
-      })
+      speak(`The verdict. ${verdict.summary} Next action. ${verdict.next_action}`, FACILITATOR_VOICE)
     }
   }, [on, turns, verdict])
 
@@ -91,7 +92,7 @@ export function ListenToggle({ on, onChange }: { on: boolean; onChange: (on: boo
       aria-pressed={on}
       data-testid="listen"
       className={`flex min-h-11 items-center gap-2 rounded-card border px-3 text-sm ${
-        on ? 'lit border-candle-500 text-candle-200' : 'border-ink-700 text-marble-400'
+        on ? 'border-candle-500 text-candle-200' : 'border-ink-700 text-marble-400'
       }`}
     >
       <svg
