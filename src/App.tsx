@@ -13,6 +13,7 @@ import { IntakeScreen } from '@/components/screens/IntakeScreen'
 import { JournalScreen } from '@/components/screens/JournalScreen'
 import { StartScreen } from '@/components/screens/StartScreen'
 import { IdeasScreen } from '@/components/screens/IdeasScreen'
+import { PrivacyScreen } from '@/components/screens/PrivacyScreen'
 import { SessionScreen } from '@/components/screens/SessionScreen'
 
 const SCREENS = {
@@ -23,6 +24,7 @@ const SCREENS = {
   home: HomeScreen,
   session: SessionScreen,
   ideas: IdeasScreen,
+  privacy: PrivacyScreen,
 }
 
 // In-session views hide the tab bar: a place you are in, not a tab (DESIGN.md).
@@ -49,7 +51,8 @@ function Shell() {
         className="flex-1"
         style={{ paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom))' }}
       >
-        {gate === 'ask' ? <PasswordPanel /> : <Screen />}
+        {/* The privacy page is public: readable before the beta door. */}
+        {gate === 'ask' && view !== 'privacy' ? <PasswordPanel /> : <Screen />}
       </main>
       {gate === 'ready' && !NO_NAV.has(view) && <BottomNav />}
     </div>
