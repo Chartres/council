@@ -66,57 +66,54 @@ export type MastermindEvent =
 
 // ---------- intake ----------
 
+// Keys are the gateway's (`gateway/src/v4.ts` INTAKE_QUESTIONS); unknown keys are dropped there.
 export const INTAKE_QUESTIONS = [
-  { id: 'role', q: 'Who are you professionally?', hint: 'Your role and relevant experience.' },
-  { id: 'workplace', q: 'Where do you work?', hint: 'Organisation or industry, who you serve, your scope. Names optional.' },
-  { id: 'goal', q: 'What would you like the group to help you achieve?', hint: 'The question, opportunity or decision.' },
-  { id: 'today', q: 'What is happening today?', hint: 'Background, what you have tried, evidence.' },
-  { id: 'success', q: 'What would a successful outcome look like?', hint: 'The change you want and your time horizon.' },
-  { id: 'constraints', q: 'What constraints should the group understand?', hint: 'Authority, budget, dependencies, limits.' },
-  { id: 'mode', q: 'How would you like the group to work with you?', hint: 'Explore, challenge, shape a solution, design an experiment.' },
+  { id: 'role', label: 'Role', q: 'Who are you professionally?', hint: 'Your role and relevant experience.' },
+  {
+    id: 'organization',
+    label: 'Organization',
+    q: 'Where do you work?',
+    hint: "Your industry, who you serve, and your scope of responsibility. No company or people's names needed.",
+  },
+  { id: 'goal', label: 'Goal', q: 'What would you like the group to help you achieve?', hint: 'The question, opportunity or decision.' },
+  { id: 'situation', label: 'Situation', q: 'What is happening today?', hint: 'Background, what you have tried, evidence.' },
+  { id: 'success', label: 'Success', q: 'What would a successful outcome look like?', hint: 'The change you want and your time horizon.' },
+  { id: 'constraints', label: 'Constraints', q: 'What constraints should the group understand?', hint: 'Authority, budget, dependencies, limits.' },
+  {
+    id: 'working_style',
+    label: 'Working style',
+    q: 'How would you like the group to work with you?',
+    hint: 'Explore, challenge, shape a solution, design an experiment.',
+  },
 ] as const
 
 export type IntakeId = (typeof INTAKE_QUESTIONS)[number]['id']
 
-export interface IntakeState {
-  step: number
-  answers: Intake
-}
+/** The gateway rejects the whole intake when one field is longer (MAX_FIELD). */
+export const MAX_FIELD = 1000
 
-export type IntakeAction =
-  | { type: 'answer'; text: string }
-  | { type: 'next' }
-  | { type: 'skip' }
-  | { type: 'back' }
-  | { type: 'prefill'; intake: Intake }
-
-export function intakeReducer(state: IntakeState, action: IntakeAction): IntakeState {
-  const last = INTAKE_QUESTIONS.length - 1
-  const id = INTAKE_QUESTIONS[state.step].id
-  switch (action.type) {
-    case 'answer':
-      return { ...state, answers: { ...state.answers, [id]: action.text } }
-    case 'next':
-      return { ...state, step: Math.min(state.step + 1, last) }
-    case 'skip': {
-      const { [id]: _skipped, ...rest } = state.answers
-      return { step: Math.min(state.step + 1, last), answers: rest }
-    }
-    case 'back':
-      return { ...state, step: Math.max(state.step - 1, 0) }
-    case 'prefill':
-      return { ...state, answers: { ...action.intake } }
-  }
-}
-
-/** What goes on the wire: trimmed, blanks dropped; undefined when nothing was answered. */
+/** What goes on the wire: trimmed, capped, blanks dropped; undefined when nothing was answered. */
 export function intakePayload(answers: Intake): Intake | undefined {
   const out: Intake = {}
   for (const { id } of INTAKE_QUESTIONS) {
-    const v = answers[id]?.trim()
+    const v = answers[id]?.trim().slice(0, MAX_FIELD)
     if (v) out[id] = v
   }
   return Object.keys(out).length ? out : undefined
+}
+
+// v4 stored these under its own keys; old Supabase rows still carry them.
+const LEGACY: Record<string, IntakeId> = { workplace: 'organization', mode: 'working_style' }
+const STABLE: IntakeId[] = ['role', 'organization', 'working_style']
+
+/** The fields that do not change between sessions, prefilled from the last intake. */
+export function stableIntake(last: Record<string, string | undefined> | null): Intake {
+  const out: Intake = {}
+  for (const [k, v] of Object.entries(last ?? {})) {
+    const id = (LEGACY[k] ?? k) as IntakeId
+    if (STABLE.includes(id) && v) out[id] = v
+  }
+  return out
 }
 
 // ---------- controls ----------
