@@ -287,7 +287,7 @@ function ItemView({ item, index, steer }: { item: Item; index: number; steer?: S
     case 'user':
       return (
         <div data-testid="user">
-          <p className="t-label">You</p>
+          <p className="t-title text-marble-300">You</p>
           <p className="t-body mt-1 text-marble-100">{item.text}</p>
         </div>
       )
@@ -353,22 +353,28 @@ function ProposalCard({ item, index, steer }: { item: Proposal; index: number; s
 
       {state === 'open' ? (
         <>
-          <label htmlFor={`next-${index}`} className="t-label mt-6 block">
+          <label htmlFor={`next-${index}`} className="sr-only">
             Next action
           </label>
-          <textarea
-            id={`next-${index}`}
-            rows={1}
-            value={nextAction}
-            onChange={(e) => setNextAction(e.target.value)}
-            className={`t-body mt-1 min-h-11 text-marble-100 ${bare}`}
-          />
+          <div className="mt-6 flex gap-2">
+            <span aria-hidden="true" className="t-body text-marble-400">→</span>
+            <textarea
+              id={`next-${index}`}
+              rows={1}
+              value={nextAction}
+              onChange={(e) => setNextAction(e.target.value)}
+              className={`t-body min-h-11 text-marble-100 ${bare}`}
+            />
+          </div>
         </>
       ) : (
-        <>
-          <p className="t-label mt-6">Next action</p>
-          <p className="t-body mt-1 text-marble-100">{entry.next_action}</p>
-        </>
+        <p className="t-body mt-6 flex gap-2 text-marble-100">
+          <span aria-hidden="true" className="text-marble-400">→</span>
+          <span>
+            <span className="sr-only">Next action: </span>
+            {entry.next_action}
+          </span>
+        </p>
       )}
       <p className="t-body mt-6 text-marble-300">{aboutEntry(entry)}</p>
 
@@ -424,7 +430,7 @@ function ProposalCard({ item, index, steer }: { item: Proposal; index: number; s
                 required
                 value={due}
                 onChange={(e) => setDue(e.target.value)}
-                className="min-h-11 min-w-0 flex-1 bg-transparent text-[17px] text-marble-100 focus-visible:shadow-none"
+                className="min-h-11 min-w-0 bg-transparent text-[17px] text-marble-100 focus-visible:shadow-none"
               />
             </label>
             <label className="flex min-h-11 items-center gap-2 text-[17px] text-marble-200">

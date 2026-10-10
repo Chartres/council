@@ -56,7 +56,7 @@ export function JournalScreen() {
                   .map((c) => (
                     <div key={c.id} className="mt-6" data-testid="commitment">
                       <p className="t-body text-marble-100">
-                        {sentence(c.what)} by {humanDate(c.due_date)}
+                        {sentence(c.what)} by <span className="whitespace-nowrap">{humanDate(c.due_date)}</span>
                         {c.outcome && <span className="text-marble-400"> · {c.outcome === 'later' ? 'not yet' : c.outcome}</span>}
                       </p>
                       {isOpen(c) && <OutcomeButtons id={c.id} />}
