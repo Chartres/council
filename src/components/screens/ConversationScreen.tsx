@@ -8,6 +8,7 @@ import { Monogram } from '@/components/Monogram'
 import { SignInPanel } from '@/components/SignInPanel'
 import { BUSINESS_DISCLOSURE, DISCLOSURE, personaName } from '@/content/personas'
 import { FAILURE_COPY, type Turn } from '@/domain/council'
+import { humanDate } from '@/domain/dates'
 import type { Control } from '@/domain/mastermind'
 
 type Proposal = Extract<Item, { kind: 'proposal' }>
@@ -17,6 +18,7 @@ export function ConversationScreen() {
   const { conversation, say, control, journal } = useMastermind()
   const [message, setMessage] = useState('')
   const [more, setMore] = useState(false)
+  const [replyOpen, setReplyOpen] = useState(false)
   const [listen, setListen] = useListen()
   const list = useRef<HTMLOListElement>(null)
   const turnStart = useRef(0)
@@ -56,6 +58,9 @@ export function ConversationScreen() {
   const busy = streaming || !sessionId
   const run = (c: Control) => control(c)
   const decided = journal.entries.filter((e) => e.status !== 'proposal').length
+  // While a proposal is open, Wrap up and Capture are its buttons; while one awaits a date, the reply steps aside.
+  const openAt = conversation.items.reduce((at, it, i) => (it.kind === 'proposal' && it.state === 'open' ? i : at), -1)
+  const committing = !replyOpen && conversation.items.some((it) => it.kind === 'proposal' && it.state === 'accepted')
 
   const send = (e: React.FormEvent) => {
     e.preventDefault()
@@ -87,7 +92,7 @@ export function ConversationScreen() {
       <ol ref={list} className="mt-12 space-y-6" data-testid="conversation">
         {conversation.items.map((it, i) => (
           <li key={i} className="rise scroll-mt-20">
-            <ItemView item={it} index={i} />
+            <ItemView item={it} index={i} steer={i === openAt ? { busy: !!busy, run } : undefined} />
           </li>
         ))}
       </ol>
@@ -117,6 +122,18 @@ export function ConversationScreen() {
         )
       ) : (
         <>
+          {committing ? (
+            <button
+              type="button"
+              aria-label="Reply instead"
+              onClick={() => setReplyOpen(true)}
+              className="mt-6 flex h-11 w-11 items-center justify-center rounded-full bg-ink-850 text-marble-200 hover:bg-ink-800"
+            >
+              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M4 5h16v11H9l-5 4z" strokeLinejoin="round" />
+              </svg>
+            </button>
+          ) : (
           <form onSubmit={send} className="mt-6">
             <label htmlFor="reply" className="sr-only">
               Your turn
@@ -143,6 +160,7 @@ export function ConversationScreen() {
               </button>
             </div>
           </form>
+          )}
 
           <div role="group" aria-label="Steer the group" className="mt-2">
             <div className="-mx-4 flex gap-2 overflow-x-auto px-4 py-1 [scrollbar-width:none]">
@@ -152,9 +170,11 @@ export function ConversationScreen() {
               <button type="button" disabled={busy} className="chip" onClick={() => run({ kind: 'concrete' })}>
                 Make this concrete
               </button>
-              <button type="button" disabled={busy} className="chip" onClick={() => run({ kind: 'wrap_up' })}>
-                Wrap up
-              </button>
+              {openAt < 0 && (
+                <button type="button" disabled={busy} className="chip" onClick={() => run({ kind: 'wrap_up' })}>
+                  Wrap up
+                </button>
+              )}
               <button type="button" aria-expanded={more} className="chip text-marble-400" onClick={() => setMore((m) => !m)}>
                 {more ? 'Less' : 'More ›'}
               </button>
@@ -181,9 +201,11 @@ export function ConversationScreen() {
                 <button type="button" disabled={busy} className="chip" onClick={() => run({ kind: 'test' })}>
                   What would we test?
                 </button>
-                <button type="button" disabled={busy} className="chip" onClick={() => run({ kind: 'capture' })}>
-                  Capture that decision
-                </button>
+                {openAt < 0 && (
+                  <button type="button" disabled={busy} className="chip" onClick={() => run({ kind: 'capture' })}>
+                    Capture that decision
+                  </button>
+                )}
                 <LetExplore advisers={advisers} disabled={!!busy} onRun={run} />
               </div>
             )}
@@ -231,7 +253,9 @@ function LetExplore({ advisers, disabled, onRun }: { advisers: string[]; disable
   )
 }
 
-function ItemView({ item, index }: { item: Item; index: number }) {
+type Steer = { busy: boolean; run: (c: Control) => void }
+
+function ItemView({ item, index, steer }: { item: Item; index: number; steer?: Steer }) {
   switch (item.kind) {
     case 'facilitator':
       return (
@@ -268,15 +292,30 @@ function ItemView({ item, index }: { item: Item; index: number }) {
         </div>
       )
     case 'proposal':
-      return <ProposalCard item={item} index={index} />
+      return <ProposalCard item={item} index={index} steer={steer} />
   }
+}
+
+/** Why, what it rests on, who owns it and when to look again: one paragraph, no label-colon list. */
+const aboutEntry = (e: Proposal['entry']) => {
+  const n = e.assumptions.length
+  const rests = n ? `It rests on ${['', 'one assumption', 'two assumptions', 'three assumptions'][n] ?? `${n} assumptions`}. ${e.assumptions.map(sentence).join(' ')}` : ''
+  const who = /^(you|me)$/i.test(e.owner) ? 'You own it' : `${e.owner} owns it`
+  return [e.reasoning, rests, `${who}; check back ${when(e.review_trigger)}.`].filter(Boolean).join(' ')
+}
+const sentence = (t: string) => (/[.!?]$/.test(t.trim()) ? t.trim() : `${t.trim()}.`)
+// ponytail: plain-English join for the gateway's trigger phrases ("End of week two", "Thursday", "When …").
+const when = (t: string) => {
+  const s = t.trim().replace(/\.$/, '')
+  const lower = /^(End|After|When|If|In|Once|Next|Before|The|At|By|Every)\b/.test(s) ? s[0].toLowerCase() + s.slice(1) : s
+  return /^(after|when|if|in|once|before|at|by|every)\b/.test(lower) ? lower : `by ${lower}`
 }
 
 const inAWeek = () => new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10)
 const bare =
   'block w-full resize-none bg-transparent [field-sizing:content] focus-visible:shadow-[inset_0_-2px_0_var(--color-candle-400)]'
 
-function ProposalCard({ item, index }: { item: Proposal; index: number }) {
+function ProposalCard({ item, index, steer }: { item: Proposal; index: number; steer?: Steer }) {
   const { accept, decline, commitTo, journal } = useMastermind()
   const { user } = useAuth()
   const [decision, setDecision] = useState(item.entry.decision)
@@ -311,7 +350,6 @@ function ProposalCard({ item, index }: { item: Proposal; index: number }) {
       ) : (
         <p className="t-display mt-2">{entry.decision}</p>
       )}
-      <p className="mt-2 text-[15px] leading-[22px] text-marble-300">{entry.reasoning}</p>
 
       {state === 'open' ? (
         <>
@@ -332,12 +370,7 @@ function ProposalCard({ item, index }: { item: Proposal; index: number }) {
           <p className="t-body mt-1 text-marble-100">{entry.next_action}</p>
         </>
       )}
-      <dl className="mt-2 space-y-1 text-[15px] leading-[22px] text-marble-300">
-        {entry.assumptions.length > 0 && (
-          <div><dt className="inline text-marble-400">Assumptions: </dt><dd className="inline">{entry.assumptions.join('; ')}</dd></div>
-        )}
-        <div><dt className="inline text-marble-400">Owner: </dt><dd className="inline">{entry.owner} · review: {entry.review_trigger}</dd></div>
-      </dl>
+      <p className="t-body mt-6 text-marble-300">{aboutEntry(entry)}</p>
 
       {state === 'open' && (
         <>
@@ -348,14 +381,29 @@ function ProposalCard({ item, index }: { item: Proposal; index: number }) {
           >
             Accept → journal
           </button>
-          <div className="mt-2 flex justify-center gap-6">
+          <div className="mt-2 flex flex-wrap justify-center gap-x-2">
             <button type="button" onClick={() => decisionField.current?.focus()} className="text-btn px-3">
               Edit
             </button>
-            <button type="button" onClick={() => decline(index)} className="text-btn px-3 text-marble-400">
+            <button type="button" onClick={() => decline(index)} className="text-btn px-3">
               Not yet
             </button>
+            {steer && (
+              <button type="button" disabled={steer.busy} onClick={() => steer.run({ kind: 'wrap_up' })} className="text-btn px-3">
+                Wrap up
+              </button>
+            )}
           </div>
+          {steer && (
+            <button
+              type="button"
+              disabled={steer.busy}
+              onClick={() => steer.run({ kind: 'capture' })}
+              className="text-btn mx-auto block px-3 text-marble-300"
+            >
+              Capture that decision
+            </button>
+          )}
         </>
       )}
 
@@ -363,25 +411,37 @@ function ProposalCard({ item, index }: { item: Proposal; index: number }) {
         <>
           <form
             id={`commit-${index}`}
-            className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2"
+            className="field mt-6 flex flex-wrap items-center gap-x-4 py-1"
             onSubmit={(e) => {
               e.preventDefault()
               commitTo(index, due, remind)
             }}
           >
-            <label className="flex items-center gap-2 text-[15px] text-marble-300">
-              Due
-              <input type="date" required value={due} onChange={(e) => setDue(e.target.value)} className="field min-h-11 w-auto px-3 py-2" />
+            <label className="flex min-w-0 flex-1 items-center gap-3">
+              <span className="t-label">Due</span>
+              <input
+                type="date"
+                required
+                value={due}
+                onChange={(e) => setDue(e.target.value)}
+                className="min-h-11 min-w-0 flex-1 bg-transparent text-[17px] text-marble-100 focus-visible:shadow-none"
+              />
             </label>
-            <label className="flex min-h-11 items-center gap-2 text-[15px] text-marble-300">
-              <input type="checkbox" checked={remind} onChange={(e) => setRemind(e.target.checked)} className="h-5 w-5 accent-candle-400" />
-              Remind me by email on that day
+            <label className="flex min-h-11 items-center gap-2 text-[17px] text-marble-200">
+              <input
+                type="checkbox"
+                aria-label="Remind me by email on that day"
+                checked={remind}
+                onChange={(e) => setRemind(e.target.checked)}
+                className="h-5 w-5 accent-candle-400"
+              />
+              Remind me
             </label>
           </form>
           {/* Outside the form: the sign-in panel carries its own. */}
           {remind && !user && (
             <div className="mt-6">
-              <SignInPanel reason="Sign in so the reminder has an address to go to." />
+              <SignInPanel title="Where should the reminder go?" />
             </div>
           )}
           <button type="submit" form={`commit-${index}`} className="slab mt-6">
@@ -391,8 +451,8 @@ function ProposalCard({ item, index }: { item: Proposal; index: number }) {
       )}
 
       {state === 'committed' && committed && (
-        <p className="mt-6 text-[15px] text-laurel-400" data-testid="committed">
-          Committed by {committed.due_date} · {committed.remind ? 'email reminder on' : 'no reminder'}
+        <p className="t-body mt-6 text-laurel-400" data-testid="committed">
+          Committed by {humanDate(committed.due_date)} · {committed.remind ? 'email reminder on' : 'no reminder'}
         </p>
       )}
     </section>
