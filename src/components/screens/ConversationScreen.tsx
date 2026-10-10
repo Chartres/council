@@ -5,6 +5,7 @@ import { useAuth } from '@/auth/AuthContext'
 import { ListenToggle, useListen, useNarration } from '@/components/Listen'
 import { MicButton } from '@/components/MicButton'
 import { Monogram } from '@/components/Monogram'
+import { CouncilMap } from '@/components/CouncilMap'
 import { SignInPanel } from '@/components/SignInPanel'
 import { BUSINESS_DISCLOSURE, DISCLOSURE, personaName } from '@/content/personas'
 import { FAILURE_COPY, type Turn } from '@/domain/council'
@@ -338,6 +339,11 @@ function ProposalCard({ item, index, steer }: { item: Proposal; index: number; s
         </p>
         {entry.confidence !== null && <p className="t-label">{entry.confidence} % confident</p>}
       </div>
+      {entry.map && (
+        <div className="mt-6 mb-4">
+          <CouncilMap map={entry.map} />
+        </div>
+      )}
       {state === 'open' ? (
         <textarea
           ref={decisionField}
