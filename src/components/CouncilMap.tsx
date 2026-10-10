@@ -1,113 +1,75 @@
+import { useEffect, useRef, useState } from 'react'
 import { personaMonogram, personaName } from '@/content/personas'
 import { wrapLabel } from '@/domain/map'
 import type { CouncilMap as CMap, MapEdge, MapNode } from '@/domain/mastermind'
 
 // The council map (flywheel/docs/expansion/council-v4.2.md): question on top, the claims
 // stacked under it, the proposal, its assumptions, the action last. Sizes are viewBox
-// units on a 360-wide canvas; the card is ~318 px wide at 390, so 15 units ≈ 13 px —
-// nothing here is set smaller.
+// units on a canvas at least 360 wide (wider containers get a wider canvas, 1 unit = 1 px);
+// the card is ~318 px wide at 390, so 15 units ≈ 13 px — nothing here is set smaller.
 //
 // ponytail: claims stack one per row, not side by side: four claims in a row leave ~6
-// characters per line at 13 px. Edges run in lanes beside the nodes so no line crosses text.
+// characters per line at 13 px. Edges live in a left gutter — one spine, a stub into each
+// node — so no line ever crosses text.
 
-const W = 360
+const SPINE = 8
+const X = 24 // nodes start after the gutter and run to the right edge
 const GAP = 24
 const ROW = 8
 const SANS_LH = 20
 const CH = 8.2 // average Inter advance at 15 units, rounded up
-const LANE = 14
+const TITLE_LH = 26
 
 type Box = { node: MapNode; x: number; y: number; w: number; h: number; lines: string[] }
 
 const fits = (width: number, perChar: number) => Math.floor(width / perChar)
+const mid = (b: Box) => b.y + b.h / 2
 
-function layout(map: CMap) {
+function layout(map: CMap, W: number) {
+  const NW = W - X
   const of = (k: MapNode['kind']) => map.nodes.filter((n) => n.kind === k)
   const [questions, claims, proposals, assumptions, actions] = (
     ['question', 'claim', 'proposal', 'assumption', 'action'] as const
   ).map(of)
-  const qEdges = map.edges.some((e) => [e.from, e.to].some((id) => questions.some((n) => n.id === id)))
-  const left = qEdges ? 18 : 0 // gutter for the question's spine
-  const lanes = claims.length * LANE + 8 // right-hand lanes, claim → proposal
   const boxes: Box[] = []
   let y = 0
-
-  for (const node of questions) {
-    const lines = wrapLabel(node.label, fits(W, 10.8))
-    boxes.push({ node, x: 0, y, w: W, h: lines.length * 28 + 4, lines })
-    y += lines.length * 28 + 4 + GAP
+  const place = (nodes: MapNode[], chars: (n: MapNode) => number, height: (lines: number) => number, gap: number) => {
+    for (const node of nodes) {
+      const lines = wrapLabel(node.label, chars(node))
+      const h = height(lines.length)
+      // An unlinked question is a heading: it sits flush left, not in the node column.
+      const x = node.kind === 'question' && !map.edges.some((e) => e.from === node.id || e.to === node.id) ? 0 : X
+      boxes.push({ node, x, y, w: W - x, h, lines })
+      y += h + gap
+    }
+    if (nodes.length) y += GAP - gap
   }
-  for (const node of claims) {
-    const w = W - left - lanes
-    const disc = node.speaker ? 42 : 0
-    const lines = wrapLabel(node.label, fits(w - 24 - disc, CH))
-    const h = Math.max(52, lines.length * SANS_LH + 20)
-    boxes.push({ node, x: left, y, w, h, lines })
-    y += h + ROW
-  }
-  if (claims.length) y += GAP - ROW
-  for (const node of proposals) {
-    const lines = wrapLabel(node.label, fits(W - 28, 9.4))
-    const h = lines.length * 24 + 26
-    boxes.push({ node, x: 0, y, w: W, h, lines })
-    y += h + GAP
-  }
-  for (const node of assumptions) {
-    const lines = wrapLabel(node.label, fits(W - 48 - 28, CH))
-    const h = lines.length * SANS_LH + 12
-    boxes.push({ node, x: 24, y, w: W - 48, h, lines })
-    y += h + ROW
-  }
-  if (assumptions.length) y += GAP - ROW
-  for (const node of actions) {
-    const lines = wrapLabel(node.label, fits(W - 32, 9.4))
-    const h = lines.length * 24 + 24
-    boxes.push({ node, x: 0, y, w: W, h, lines })
-    y += h + GAP
-  }
-  return { boxes, height: y, claims, assumptions }
+  place(questions, () => fits(NW, 9.8), (n) => n * TITLE_LH, GAP)
+  place(claims, (n) => fits(NW - 24 - (n.speaker ? 42 : 0), CH), (n) => Math.max(52, n * SANS_LH + 20), ROW)
+  place(proposals, () => fits(NW - 28, 9.8), (n) => n * TITLE_LH + 24, GAP)
+  place(assumptions, () => fits(NW - 28, CH), (n) => n * SANS_LH + 12, ROW)
+  place(actions, () => fits(NW - 30, 9.8), (n) => n * TITLE_LH + 24, GAP)
+  return { boxes, height: y - GAP }
 }
 
-/** One path per edge, routed by what it connects so it never runs through a label. */
-function route(e: MapEdge, at: (id: string) => Box | undefined, claims: MapNode[], assumptions: MapNode[]): string {
-  const a = at(e.from)!
-  const b = at(e.to)!
-  const [top, low] = a.y <= b.y ? [a, b] : [b, a]
-  const kinds = [top.node.kind, low.node.kind].join('>')
-  const r = 6
-  if (kinds === 'claim>proposal') {
-    // Top claim takes the outermost lane, so lanes never cross.
-    const x = W - 6 - claims.findIndex((n) => n.id === top.node.id) * LANE
-    const y = top.y + top.h / 2
-    return `M${top.x + top.w} ${y} H${x - r} Q${x} ${y} ${x} ${y + r} V${low.y}`
-  }
-  if (kinds === 'question>claim') {
-    const y = low.y + low.h / 2
-    return `M8 ${top.y + top.h} V${y - r} Q8 ${y} ${8 + r} ${y} H${low.x}`
-  }
-  if (kinds === 'proposal>assumption') {
-    const x = W - 10
-    const y = low.y + low.h / 2
-    return `M${x} ${top.y + top.h} V${y - r} Q${x} ${y} ${x - r} ${y} H${low.x + low.w}`
-  }
-  if (kinds === 'proposal>action') {
-    const x = assumptions.length ? 10 : W / 2
-    return `M${x} ${top.y + top.h} V${low.y}`
-  }
-  // ponytail: anything off-pattern (claim → claim, …) is a gentle curve between centres; it
-  // may cross a label. Route it properly if the model starts emitting such edges.
-  const x1 = top.x + top.w / 2
-  const x2 = low.x + low.w / 2
-  const y1 = top.y + top.h
-  const m = (y1 + low.y) / 2
-  return `M${x1} ${y1} C${x1} ${m} ${x2} ${m} ${x2} ${low.y}`
+/**
+ * One path per edge: a stub from the spine into each end that is not the proposal (the
+ * proposal is the hub the spine already reaches); `leads_to` also lights the spine between
+ * its two ends.
+ */
+function route(e: MapEdge, at: (id: string) => Box | undefined): string {
+  const ends = [at(e.from)!, at(e.to)!]
+  const hub = ends.find((b) => b.node.kind === 'proposal')
+  const stubs = ends.filter((b) => b !== hub).map((b) => `M${SPINE} ${mid(b)} H${b.x}`)
+  if (e.kind === 'leads_to') stubs.unshift(`M${SPINE} ${mid(ends[0])} V${mid(ends[1])}`)
+  return stubs.join(' ')
 }
 
 const STROKE: Record<MapEdge['kind'], { className: string; width: number; dash?: string }> = {
   supports: { className: 'stroke-marble-500', width: 1.5 },
-  challenges: { className: 'stroke-clay-400', width: 1.5, dash: '6 4' },
+  challenges: { className: 'stroke-clay-400', width: 1.5, dash: '4 3' },
   leads_to: { className: 'stroke-candle-400', width: 2 },
-  rests_on: { className: 'stroke-marble-500', width: 1.5, dash: '1 4' },
+  rests_on: { className: 'stroke-marble-500', width: 1.5, dash: '0.1 4' },
 }
 const VERB: Record<MapEdge['kind'], string> = {
   supports: 'supports',
@@ -153,7 +115,7 @@ function NodeView({ b }: { b: Box }) {
   const { node, x, y, w, h, lines } = b
   switch (node.kind) {
     case 'question':
-      return <Lines lines={lines} x={x} y={y + 22} lh={28} className="fill-marble-50 font-display text-[24px] font-medium" />
+      return <Lines lines={lines} x={x} y={y + 19} lh={TITLE_LH} className="fill-marble-200 font-display text-[22px] font-medium" />
     case 'claim': {
       const disc = node.speaker ? 42 : 0
       const cy = y + h / 2
@@ -182,8 +144,7 @@ function NodeView({ b }: { b: Box }) {
       return (
         <>
           <rect x={x} y={y} width={w} height={h} rx={4} className="fill-candle-400" fillOpacity={0.12} />
-          <rect x={x} y={y} width={w} height={2} className="fill-candle-400" />
-          <Lines lines={lines} x={x + 14} y={y + 30} lh={24} className="fill-marble-50 font-display text-[20px] font-medium" />
+          <Lines lines={lines} x={x + 14} y={y + 31} lh={TITLE_LH} className="fill-marble-50 font-display text-[22px] font-medium" />
         </>
       )
     case 'assumption':
@@ -196,63 +157,80 @@ function NodeView({ b }: { b: Box }) {
     case 'action':
       return (
         <>
-          <rect x={x} y={y} width={w} height={h} rx={4} className="fill-candle-400" />
-          <Lines lines={lines} x={x + 16} y={y + 29} lh={24} className="fill-ink-950 font-display text-[19px] font-semibold" />
+          <rect x={x} y={y} width={w} height={h} rx={4} className="fill-ink-850" />
+          <rect x={x} y={y} width={2} height={h} className="fill-candle-400" />
+          <Lines lines={lines} x={x + 16} y={y + 31} lh={TITLE_LH} className="fill-marble-50 font-display text-[22px] font-medium" />
         </>
       )
   }
 }
 
 export function CouncilMap({ map }: { map: CMap }) {
-  const { boxes, height, claims, assumptions } = layout(map)
+  const ref = useRef<SVGSVGElement>(null)
+  const [W, setW] = useState(360)
+  useEffect(() => {
+    const el = ref.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(([e]) => setW(Math.max(360, Math.round(e.contentRect.width))))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+  const { boxes, height } = layout(map, W)
   const at = (id: string) => boxes.find((b) => b.node.id === id)
   const edges = map.edges.filter((e) => at(e.from) && at(e.to) && e.from !== e.to)
   const kinds = [...new Set(edges.map((e) => e.kind))]
-  const rows = Math.ceil(kinds.length / 2)
-  const H = rows ? height + rows * 24 - 4 : height - GAP
+  const linked = boxes.filter((b) => edges.some((e) => e.from === b.node.id || e.to === b.node.id))
+  const hubs = linked.filter((b) => b.node.kind === 'proposal')
+  const spine =
+    linked.length > 1
+      ? [`M${SPINE} ${mid(linked[0])} V${mid(linked[linked.length - 1])}`, ...hubs.map((b) => `M${SPINE} ${mid(b)} H${b.x}`)].join(' ')
+      : ''
 
   return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      width="100%"
-      role="img"
-      aria-label={describe({ nodes: map.nodes, edges })}
-      data-testid="council-map"
-      className="block max-w-[400px]"
-    >
-      {edges.map((e, i) => {
-        const s = STROKE[e.kind]
-        return (
-          <path
-            key={i}
-            d={route(e, at, claims, assumptions)}
-            data-kind={e.kind}
-            className={`map-edge ${s.className}`}
-            strokeWidth={s.width}
-            strokeDasharray={s.dash}
-            strokeLinecap="round"
-            fill="none"
-          />
-        )
-      })}
-      {boxes.map((b) => (
-        <g key={b.node.id} className="map-node" data-kind={b.node.kind}>
-          <NodeView b={b} />
-        </g>
-      ))}
-      {kinds.map((k, i) => {
-        const x = (i % 2) * 180
-        const y = height + Math.floor(i / 2) * 24 + 10
-        const s = STROKE[k]
-        return (
-          <g key={k} aria-hidden="true">
-            <line x1={x} x2={x + 28} y1={y} y2={y} className={s.className} strokeWidth={s.width} strokeDasharray={s.dash} strokeLinecap="round" />
-            <text x={x + 38} y={y + 5} className="fill-marble-400 font-sans text-[15px]">
-              {VERB[k]}
-            </text>
+    <div>
+      <svg
+        ref={ref}
+        viewBox={`0 0 ${W} ${height}`}
+        width="100%"
+        role="img"
+        aria-label={describe({ nodes: map.nodes, edges })}
+        data-testid="council-map"
+        className="block"
+      >
+        {spine && <path d={spine} className="stroke-ink-500" strokeWidth={1.5} fill="none" />}
+        {edges.map((e, i) => {
+          const s = STROKE[e.kind]
+          return (
+            <path
+              key={i}
+              d={route(e, at)}
+              data-kind={e.kind}
+              className={`map-edge ${s.className}`}
+              strokeWidth={s.width}
+              strokeDasharray={s.dash}
+              strokeLinecap={e.kind === 'challenges' ? 'butt' : 'round'}
+              fill="none"
+            />
+          )
+        })}
+        {boxes.map((b) => (
+          <g key={b.node.id} className="map-node" data-kind={b.node.kind}>
+            <NodeView b={b} />
           </g>
-        )
-      })}
-    </svg>
+        ))}
+      </svg>
+      {kinds.length > 0 && (
+        <p aria-hidden="true" className="t-label mt-2 flex flex-wrap gap-x-4 normal-case tracking-normal">
+          {kinds.map((k) => (
+            <span key={k} className="flex items-center gap-1.5">
+              <svg width="18" height="8" aria-hidden="true">
+                <line x1="1" x2="17" y1="4" y2="4" className={STROKE[k].className} strokeWidth={STROKE[k].width} strokeDasharray={STROKE[k].dash} strokeLinecap={k === 'challenges' ? 'butt' : 'round'} />
+              </svg>
+              {VERB[k]}
+            </span>
+          ))}
+        </p>
+      )}
+    </div>
   )
 }
