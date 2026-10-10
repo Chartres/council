@@ -22,62 +22,49 @@ export function JournalScreen() {
   }
 
   return (
-    <div className="mx-auto max-w-xl px-4 pb-6">
-      <h1 className="pt-3 font-display text-2xl text-marble-100">Journal</h1>
-      <p className="mt-1 text-sm text-marble-400">
+    <div className="mx-auto max-w-xl px-4 pb-12">
+      <h1 className="t-display pt-6">Journal</h1>
+      <p className="mt-2 text-[15px] leading-[22px] text-marble-400">
         {user ? 'Kept on your account.' : 'Kept in this browser only. Sign in to keep it across devices.'}
       </p>
 
       {entries.length === 0 ? (
-        <div className="mt-6">
-          <p className="text-sm text-marble-300">No decisions yet.</p>
-          <button
-            type="button"
-            onClick={() => go('start')}
-            className="mt-3 min-h-12 w-full rounded-card bg-candle-400 px-4 py-3 font-display text-lg font-semibold text-ink-950"
-          >
+        <div className="mt-12">
+          <p className="t-body">No decisions yet.</p>
+          <button type="button" onClick={() => go('start')} className="slab mt-6">
             Sit down with the group
           </button>
         </div>
       ) : (
         <>
-          <button
-            type="button"
-            onClick={() => void copy()}
-            className="mt-3 min-h-11 text-sm font-semibold text-candle-300 hover:text-candle-200"
-          >
-            Export (copy as text)
-          </button>
-          {copied !== 'idle' && (
-            <p role="status" className="mt-1 text-xs text-marble-400">
-              {copied === 'copied' ? 'Copied — paste it into another session to resume.' : 'Could not copy from this browser.'}
-            </p>
-          )}
-          <ul className="mt-4 space-y-3" data-testid="journal">
+          <ul className="mt-12 space-y-12" data-testid="journal">
             {entries.map((e) => (
-              <li key={e.id} className="border-t border-ink-800 pt-3">
-                <p className="flex items-center gap-2 text-xs text-marble-500">
-                  {e.created_at.slice(0, 10)}
-                  <span className="rounded-card bg-candle-400/10 px-1.5 uppercase tracking-wide text-candle-300">{e.status}</span>
-                  {e.confidence !== null && <span>confidence {e.confidence}</span>}
+              <li key={e.id}>
+                <p className="t-label">
+                  {e.status} · {e.created_at.slice(0, 10)}
+                  {e.confidence !== null && ` · confidence ${e.confidence}`}
                 </p>
-                <p className="mt-1 font-display text-base leading-snug text-marble-100">{e.decision}</p>
-                <p className="mt-1 text-xs text-marble-300">{e.reasoning}</p>
+                <p className="t-title mt-2">{e.decision}</p>
+                <p className="mt-2 text-[15px] leading-[22px] text-marble-300">{e.reasoning}</p>
                 {e.assumptions.length > 0 && (
-                  <p className="mt-1 text-xs text-marble-400">Assumptions: {e.assumptions.join('; ')}</p>
+                  <p className="mt-2 text-[15px] leading-[22px] text-marble-300">
+                    <span className="text-marble-400">Assumptions: </span>
+                    {e.assumptions.join('; ')}
+                  </p>
                 )}
-                <p className="mt-1 text-xs text-marble-300">
-                  Next: {e.next_action} · {e.owner} · review: {e.review_trigger}
+                <p className="mt-2 text-[15px] leading-[22px] text-marble-300">
+                  <span className="text-marble-400">Next: </span>
+                  {e.next_action} · {e.owner} · review: {e.review_trigger}
                 </p>
                 {journal.commitments
                   .filter((c) => c.journal_id === e.id)
                   .map((c) => (
-                    <div key={c.id} className="mt-2 border-t border-ink-700 pt-2" data-testid="commitment">
-                      <p className="text-sm text-marble-200">
+                    <div key={c.id} className="mt-6 rounded-card bg-ink-850 p-4" data-testid="commitment">
+                      <p className="t-body text-marble-100">
                         {c.what} — by {c.due_date}
-                        {c.outcome && <span className="text-marble-500"> · {c.outcome === 'later' ? 'not yet' : c.outcome}</span>}
+                        {c.outcome && <span className="text-marble-400"> · {c.outcome === 'later' ? 'not yet' : c.outcome}</span>}
                       </p>
-                      <label className="mt-1 flex min-h-11 items-center gap-2 text-sm text-marble-300">
+                      <label className="mt-2 flex min-h-11 items-center gap-2 text-[15px] text-marble-300">
                         <input
                           type="checkbox"
                           checked={c.remind}
@@ -92,6 +79,14 @@ export function JournalScreen() {
               </li>
             ))}
           </ul>
+          <button type="button" onClick={() => void copy()} className="text-btn mt-12 -ml-3 px-3">
+            Export (copy as text)
+          </button>
+          {copied !== 'idle' && (
+            <p role="status" className="mt-2 text-[15px] text-marble-300">
+              {copied === 'copied' ? 'Copied — paste it into another session to resume.' : 'Could not copy from this browser.'}
+            </p>
+          )}
         </>
       )}
     </div>

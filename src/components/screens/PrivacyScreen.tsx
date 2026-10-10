@@ -13,7 +13,7 @@ export function PrivacyLink({ children = 'What we store' }: { children?: string 
         window.dispatchEvent(new PopStateEvent('popstate'))
         window.scrollTo(0, 0)
       }}
-      className="text-candle-300 underline decoration-candle-500/50 underline-offset-2 hover:text-candle-200"
+      className="link"
     >
       {children}
     </a>
@@ -77,38 +77,38 @@ const ROWS: [string, string, string, string][] = [
 
 export function PrivacyScreen() {
   return (
-    <article className="mx-auto max-w-xl px-4 pb-6 text-sm leading-relaxed text-marble-300">
-      <h1 className="pt-3 font-display text-2xl text-marble-100">What we store</h1>
-      <p className="mt-1">Mastermind Council is a small private beta run by one person. This is all of it.</p>
+    <article className="mx-auto max-w-xl px-4 pb-12 text-[15px] leading-[24px] text-marble-300">
+      <h1 className="t-display pt-6">What we store</h1>
+      <p className="mt-2">Mastermind Council is a small private beta run by one person. This is all of it.</p>
 
-      <dl className="mt-4">
+      <dl className="mt-12 space-y-6">
         {ROWS.map(([what, where, howLong, who]) => (
-          <div key={what} className="border-t border-ink-800 py-3">
-            <dt className="text-marble-100">{what}</dt>
-            <dd className="mt-1">
-              <span className="text-marble-500">Where: </span>
+          <div key={what}>
+            <dt className="t-body text-marble-50">{what}</dt>
+            <dd className="mt-2">
+              <span className="text-marble-400">Where: </span>
               {where}
             </dd>
             <dd>
-              <span className="text-marble-500">How long: </span>
+              <span className="text-marble-400">How long: </span>
               {howLong}
             </dd>
             <dd>
-              <span className="text-marble-500">Who can read it: </span>
+              <span className="text-marble-400">Who can read it: </span>
               {who}
             </dd>
           </div>
         ))}
       </dl>
 
-      <p className="mt-2 border-t border-ink-800 pt-3">
+      <p className="mt-12">
         What we don’t do: train models (we have none, and Anthropic does not train on API data); sell or share your data
         with anyone outside the providers above; set advertising cookies; read your sessions, except to fix a problem
         you report or when the law requires it.
       </p>
 
-      <h2 className="mt-6 font-display text-lg text-marble-100">Your content</h2>
-      <p className="mt-1">
+      <h2 className="t-title mt-12">Your content</h2>
+      <p className="mt-2">
         You own what you write in Mastermind Council and what the advisers write back. We claim no rights to your ideas,
         plans or decisions. We don’t sell your content, and neither we nor our AI provider use it to train models. We use
         it only to run the service for you: to write replies, keep your journal if you are signed in, and send reminders
@@ -117,15 +117,15 @@ export function PrivacyScreen() {
         account, we delete your content; provider copies expire on the schedules listed above.
       </p>
 
-      <h2 className="mt-6 font-display text-lg text-marble-100">Using this for work?</h2>
-      <p className="mt-1">
+      <h2 className="t-title mt-12">Using this for work?</h2>
+      <p className="mt-2">
         Leave out anything your employer treats as confidential: client names, unreleased numbers, internal documents.
         Describe the situation in general terms; the advisers work fine with that.
       </p>
 
-      <h2 className="mt-6 font-display text-lg text-marble-100">Who is responsible</h2>
-      <p className="mt-1">
-        Controller: Pavol Dravecký. Contact: <a className="text-candle-300 underline" href="mailto:council@dravec.org">council@dravec.org</a>.
+      <h2 className="t-title mt-12">Who is responsible</h2>
+      <p className="mt-2">
+        Controller: Pavol Dravecký. Contact: <a className="link" href="mailto:council@dravec.org">council@dravec.org</a>.
         Address: to be added.
       </p>
       <p className="mt-2">

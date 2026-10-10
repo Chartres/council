@@ -39,7 +39,7 @@ export function FeedbackSheet() {
 
   return (
     <form onSubmit={send} aria-label="Feedback">
-      <label htmlFor="feedback" className="block text-sm text-marble-300">
+      <label htmlFor="feedback" className="t-label block">
         What worked, what didn’t?
       </label>
       <div className="mt-1 flex items-end gap-2">
@@ -49,14 +49,14 @@ export function FeedbackSheet() {
           maxLength={MAX_FEEDBACK}
           value={text}
           onChange={(e) => setText(e.target.value)}
-          className="min-w-0 flex-1 resize-y rounded-card border border-ink-700 bg-ink-900 px-3 py-2 text-base text-marble-100 focus:border-candle-500"
+          className="field min-w-0 flex-1 resize-y"
         />
         <MicButton value={text} onChange={setText} label="your feedback" />
       </div>
       <button
         type="submit"
         disabled={state === 'sending' || !text.trim()}
-        className="mt-1 min-h-11 text-sm font-semibold text-candle-300 hover:text-candle-200 disabled:text-marble-500"
+        className="text-btn mt-1 -ml-3 px-3"
       >
         {state === 'sending' ? 'Sending…' : 'Send'}
       </button>

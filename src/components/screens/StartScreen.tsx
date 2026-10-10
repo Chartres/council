@@ -21,7 +21,7 @@ export function StartScreen() {
   const last = memory?.entries[0]
 
   return (
-    <div className="mx-auto max-w-xl px-4 pb-6">
+    <div className="mx-auto max-w-xl px-4 pb-12">
       {linkNeedsSignIn && (
         <div className="pt-3">
           <SignInPanel reason="Sign in to record how it went. The group picks up where you left off." />
@@ -29,17 +29,13 @@ export function StartScreen() {
       )}
 
       {memory && (
-        <section
-          aria-label="Last time"
-          data-testid="last-time"
-          className="mt-3 border-b border-ink-800 pb-3"
-        >
-          <p className="font-display text-xs uppercase tracking-widest text-candle-400">Last time</p>
-          {last && <p className="mt-1 text-sm text-marble-200">{last.decision}</p>}
-          <ul className="mt-2 space-y-3">
+        <section aria-label="Last time" data-testid="last-time" className="mt-6">
+          <p className="t-label">Last time</p>
+          {last && <p className="t-title mt-2">{last.decision}</p>}
+          <ul className="mt-2 space-y-6">
             {memory.commitments.map((c) => (
               <li key={c.id}>
-                <p className="text-sm text-marble-300">
+                <p className="t-body">
                   You said you’d {c.what} by {c.due_date}. How did it go?
                 </p>
                 <OutcomeButtons id={c.id} />
@@ -49,15 +45,15 @@ export function StartScreen() {
         </section>
       )}
 
-      <div role="group" aria-label="Roster" className="mt-3 grid grid-cols-2 gap-2">
+      <div role="group" aria-label="Roster" className={`grid grid-cols-2 gap-2 ${memory ? 'mt-12' : 'mt-2'}`}>
         {(Object.keys(ROSTERS) as RosterId[]).map((r) => (
           <button
             key={r}
             type="button"
             aria-pressed={roster === r}
             onClick={() => setRoster(r)}
-            className={`min-h-11 border-b-2 px-3 font-display text-lg ${
-              roster === r ? 'border-candle-400 text-candle-200' : 'border-transparent text-marble-400'
+            className={`min-h-11 border-b-2 px-3 font-display text-xl font-medium ${
+              roster === r ? 'border-marble-100 text-marble-50' : 'border-transparent text-marble-400 hover:text-marble-200'
             }`}
           >
             {ROSTER_LABEL[r]}
@@ -65,10 +61,11 @@ export function StartScreen() {
         ))}
       </div>
 
-      <p className="mt-3 text-sm text-marble-400">
+      <p className="mt-6 text-[15px] leading-[22px] text-marble-400">
         Pick up to {MAX_PERSONAS}. A neutral facilitator is always there.
       </p>
-      <ul className="mt-2">
+      {/* The room's people are the picture: a row of seats, lit when taken. */}
+      <ul className="mt-6 grid grid-cols-4 gap-x-2 gap-y-6">
         {ROSTERS[roster].map((p) => {
           const on = advisers.includes(p.id)
           const full = !on && advisers.length >= MAX_PERSONAS
@@ -79,38 +76,38 @@ export function StartScreen() {
                 onClick={() => toggleAdviser(p.id)}
                 aria-pressed={on}
                 disabled={full}
-                className={`flex min-h-14 w-full items-center gap-3 rounded-card px-2 py-2 text-left ${
-                  on ? 'bg-candle-400/10' : full ? 'opacity-40' : 'hover:bg-ink-850'
-                }`}
+                className={`flex w-full flex-col items-center gap-2 rounded-card py-1 text-center ${full ? 'opacity-40' : ''}`}
               >
-                <Monogram id={p.id} size={36} lit={on} />
-                <span className="min-w-0 flex-1">
-                  <span className={`block font-display text-base ${on ? 'text-candle-200' : 'text-marble-100'}`}>
-                    {p.name}
-                  </span>
-                  {'inspiredBy' in p && p.inspiredBy && (
-                    <span className="block text-xs text-marble-400">Simulation inspired by {p.inspiredBy}</span>
-                  )}
-                  <span className="block text-xs leading-snug text-marble-400">{p.brings}</span>
-                </span>
-                <span aria-hidden="true" className={`text-sm ${on ? 'text-candle-300' : 'text-marble-500'}`}>
-                  {on ? '✓' : '+'}
-                </span>
+                <Monogram id={p.id} size={64} lit={on} />
+                <span className={`t-title ${on ? '' : 'text-marble-300'}`}>{p.name}</span>
+                {'inspiredBy' in p && p.inspiredBy && (
+                  <span className="text-[13px] leading-[18px] text-marble-400">Simulation inspired by {p.inspiredBy}</span>
+                )}
               </button>
             </li>
           )
         })}
       </ul>
 
-      <button
-        type="button"
-        onClick={() => go('intake')}
-        className="mt-3 min-h-12 w-full rounded-card bg-candle-400 px-4 py-3 font-display text-lg font-semibold text-ink-950 hover:bg-candle-300"
-      >
+      <details className="mt-6">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center text-[15px] font-semibold text-marble-100 [&::-webkit-details-marker]:hidden">
+          What they bring ›
+        </summary>
+        <dl className="mt-2 space-y-2">
+          {ROSTERS[roster].map((p) => (
+            <div key={p.id}>
+              <dt className="inline font-display text-[17px] font-medium text-marble-50">{p.name} </dt>
+              <dd className="inline text-[15px] leading-[22px] text-marble-300">{p.brings}</dd>
+            </div>
+          ))}
+        </dl>
+      </details>
+
+      <button type="button" onClick={() => go('intake')} className="slab mt-6">
         Begin
       </button>
 
-      <p className="mt-3 text-xs leading-snug text-marble-500">
+      <p className="mt-6 text-[13px] leading-[18px] text-marble-400">
         The advisers are AI. {roster === 'business' ? BUSINESS_DISCLOSURE : `${DISCLOSURE} ${MONTESSORI_NOTE}`}{' '}
         <PrivacyLink />
       </p>
