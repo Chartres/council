@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Turn, Verdict } from '@/domain/council'
 import { personaVoice, pickVoice, primeVoices, synthesisAvailable } from '@/domain/speech'
+import * as tts from '@/domain/tts'
 
 export const LISTEN_STORAGE = 'council:listen'
 
@@ -29,12 +30,18 @@ export function useListen(): [boolean, (on: boolean) => void] {
 }
 
 export function cancel() {
+  tts.cancel()
   if (synthesisAvailable()) window.speechSynthesis.cancel()
 }
 
 export const FACILITATOR_VOICE = { pitch: 1, rate: 0.95 }
 
-export function speak(text: string, voice: { pitch: number; rate: number }, onEnd?: () => void) {
+/** Voice out: the gateway's MeloTTS first (src/domain/tts.ts), the browser engine where
+ *  the gateway cannot speak. */
+export const speak = tts.speak
+tts.setFallback(speakInBrowser)
+
+export function speakInBrowser(text: string, voice: { pitch: number; rate: number }, onEnd?: () => void) {
   // A speech engine that refuses an utterance must not take the debate down with it.
   try {
     const u = new SpeechSynthesisUtterance(text)
@@ -52,7 +59,7 @@ export function speak(text: string, voice: { pitch: number; rate: number }, onEn
 
 /**
  * Reads the debate aloud as it arrives — one voice per persona, the verdict last
- * (speechSynthesis plays the queue in order, so queueing in order is enough).
+ * (the tts queue plays in order, so queueing in order is enough).
  * Turning the toggle on mid-debate starts from the next turn, not the first.
  */
 export function useNarration(turns: Turn[], verdict: Verdict | null, on: boolean) {
