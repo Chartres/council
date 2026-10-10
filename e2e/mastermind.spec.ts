@@ -35,6 +35,7 @@ test('Business roster → intake → three turns with controls → capture → c
   await page.getByRole('button', { name: 'Begin' }).click()
 
   // Intake: one screen. She types two of the seven fields and goes.
+  await page.getByText(/^About you ·/).click()
   await page.getByLabel('Who are you professionally?').fill('Head of product, 8 years in B2B SaaS.')
   await page.getByLabel('What would you like the group to help you achieve?').fill('decide whether to pilot a premium tier')
   await page.screenshot({ path: 'e2e/shots/v4-intake.png' })
@@ -52,7 +53,7 @@ test('Business roster → intake → three turns with controls → capture → c
   // Turn 2: she answers in her own words; three speakers this time.
   await page.getByLabel('Your turn').fill('The constraint is engineering time, not demand.')
   await page.getByRole('button', { name: 'Say it' }).click()
-  await expect(page.getByText('You · The constraint is engineering time')).toBeVisible()
+  await expect(page.getByTestId('user')).toContainText('The constraint is engineering time')
   await expect(page.getByTestId('floor')).toHaveCount(2, { timeout: 20_000 })
   await expect(page.getByTestId('contribution')).toHaveCount(5)
   await expect(page.getByText('confidence 70').first()).toBeVisible()
@@ -64,7 +65,8 @@ test('Business roster → intake → three turns with controls → capture → c
   await expect(proposal).toContainText('two-week pilot')
   await expect(page.getByTestId('streaming')).toHaveCount(0, { timeout: 20_000 })
 
-  // "Go back to Grove's point" steers without typing.
+  // "Go back to Grove's point" steers without typing; it lives under More.
+  await page.getByRole('button', { name: 'More ›' }).click()
   await page.getByLabel('Go back to').selectOption('grove')
   await expect(page.getByText("Back to Grove's point.")).toBeVisible({ timeout: 20_000 })
   await expect(page.getByTestId('streaming')).toHaveCount(0, { timeout: 20_000 })
