@@ -16,6 +16,19 @@ test('phone fold: the first control starts near the top', async ({ page }) => {
   await page.screenshot({ path: 'e2e/shots/fold-phone.png' })
 })
 
+// The intake's question is the screen: its field near the top and the primary button
+// above the fold on a phone, once the first-visit trust note is dismissed.
+test('phone fold: the intake question and its button fit the first screen', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.addInitScript(() => localStorage.setItem('council:trust-seen', '1'))
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Begin' }).click()
+  const goal = await page.getByLabel('What would you like the group to help you achieve?').boundingBox()
+  const go = await page.getByRole('button', { name: 'Bring it to the group' }).boundingBox()
+  expect(goal!.y).toBeLessThanOrEqual(160)
+  expect(go!.y + go!.height).toBeLessThanOrEqual(844)
+})
+
 test('no horizontal page overflow at 320, 375 and 430 px', async ({ page }) => {
   await page.goto('/')
   for (const width of [320, 375, 430]) {
