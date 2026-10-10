@@ -68,6 +68,9 @@ export function StartScreen() {
       <p className="t-body mt-6 text-marble-400">
         Pick up to {MAX_PERSONAS}. A neutral facilitator is always there.
       </p>
+      {inspired.length > 0 && (
+        <p className="mt-2 text-[13px] leading-[18px] text-marble-400">Simulations inspired by {listOf(inspired)}.</p>
+      )}
       {/* The room's people are the picture: one seat per adviser, lit when taken, what they bring in plain sight. */}
       <ul className="mt-6 space-y-6">
         {ROSTERS[roster].map((p) => {
@@ -92,9 +95,6 @@ export function StartScreen() {
           )
         })}
       </ul>
-      {inspired.length > 0 && (
-        <p className="mt-6 text-[13px] leading-[18px] text-marble-400">Simulations inspired by {listOf(inspired)}.</p>
-      )}
 
       {/* Above the bottom nav, so Begin is in reach however long the roster runs. */}
       <div className="sticky z-10 mt-6 bg-ink-950 py-2" style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom))' }}>
