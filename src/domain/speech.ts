@@ -55,7 +55,22 @@ export function personaVoice(id: string): { pitch: number; rate: number } {
   }
 }
 
-/** An English voice if the device has one; otherwise let the browser decide. */
-export function pickVoice(voices: { lang: string }[]): { lang: string } | undefined {
-  return voices.find((v) => v.lang?.toLowerCase().startsWith('en'))
+// Best first. Edge's "Natural" and Chrome's "Google" voices are server-rendered and sound
+// human; Apple's premium voices next; the first English voice of any kind is the floor.
+const VOICE_RANK = [/natural/i, /google/i, /premium|enhanced/i, /samantha|daniel|karen|moira|tessa/i]
+
+/** The most human English voice the device has; otherwise let the browser decide. */
+export function pickVoice<V extends { lang: string; name?: string }>(voices: V[]): V | undefined {
+  const en = voices.filter((v) => v.lang?.toLowerCase().startsWith('en'))
+  for (const re of VOICE_RANK) {
+    const v = en.find((x) => re.test(x.name ?? ''))
+    if (v) return v
+  }
+  return en[0]
+}
+
+/** Chrome fills `getVoices()` asynchronously; asking once at load means the list is there
+ *  by the time anything speaks. */
+export function primeVoices(): void {
+  if (synthesisAvailable()) window.speechSynthesis.getVoices()
 }

@@ -1,9 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { recognitionCtor, transcriptOf, type Recognition } from '@/domain/speech'
 
+/** A pause this long after the last heard word ends the answer. The browser's own
+ *  endpoint (non-continuous mode) fires on the first breath, which is what made the
+ *  facilitator ask the next question before anyone had finished the first. */
+export const SILENCE_MS = 2500
+// ponytail: Chrome gives up on its own after ~8 s of silence; we listen again a few times
+// before treating that as "nothing to say".
+const RESTARTS = 3
+
 /**
- * Dictation for a textarea. Press to start, press again to stop; the browser also
- * stops itself after a pause. Interim words stream into the field as they are heard.
+ * Dictation for a textarea. Press to start, press again to stop; otherwise it stops by
+ * itself after a real pause. Interim words stream into the field as they are heard.
  * Absent entirely where the Web Speech API is not there (most desktop Firefox).
  */
 export function MicButton({
@@ -18,7 +26,7 @@ export function MicButton({
   label: string
   /** Start listening on mount (the intake's "Talk it through"). */
   autoStart?: boolean
-  /** Called when the browser stops listening, with what it heard ('' for nothing). */
+  /** Called when listening ends, with what it heard ('' for nothing). */
   onDone?: (heard: string) => void
 }) {
   const [listening, setListening] = useState(false)
@@ -29,8 +37,12 @@ export function MicButton({
   const Ctor = recognitionCtor()
 
   const heardRef = useRef('')
+  const restarts = useRef(0)
+  // Set by the user's stop or by unmount; an engine ending on its own is not "stopped".
+  const stopped = useRef(false)
 
   const stop = () => {
+    stopped.current = true
     rec.current?.stop()
     setListening(false)
   }
@@ -38,20 +50,31 @@ export function MicButton({
   const start = () => {
     if (!Ctor) return
     const r = new Ctor()
-    r.continuous = false
+    r.continuous = true
     r.interimResults = true
+    let silence: ReturnType<typeof setTimeout> | undefined
     r.onresult = (event) => {
       const heard = transcriptOf(event)
       heardRef.current = heard
       onChange(base.current ? `${base.current.trimEnd()} ${heard}` : heard)
+      clearTimeout(silence)
+      silence = setTimeout(() => r.stop(), SILENCE_MS)
     }
     r.onend = () => {
+      clearTimeout(silence)
+      if (rec.current !== r) return
+      if (!stopped.current && !heardRef.current && restarts.current < RESTARTS) {
+        restarts.current += 1
+        start()
+        return
+      }
       setListening(false)
       onDone?.(heardRef.current)
     }
     r.onerror = () => setListening(false)
     heardRef.current = ''
     base.current = value
+    stopped.current = false
     rec.current = r
     r.start()
     setListening(true)
@@ -59,7 +82,11 @@ export function MicButton({
 
   useEffect(() => {
     if (autoStart) start()
-    return () => rec.current?.abort()
+    return () => {
+      stopped.current = true
+      rec.current?.abort()
+      rec.current = null
+    }
     // Mount only: the parent keys it per field.
   }, [])
 

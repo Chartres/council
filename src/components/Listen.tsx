@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Turn, Verdict } from '@/domain/council'
-import { personaVoice, pickVoice, synthesisAvailable } from '@/domain/speech'
+import { personaVoice, pickVoice, primeVoices, synthesisAvailable } from '@/domain/speech'
 
 export const LISTEN_STORAGE = 'council:listen'
+
+primeVoices()
 
 /** The toggle, remembered between sessions. */
 export function useListen(): [boolean, (on: boolean) => void] {
@@ -40,7 +42,7 @@ export function speak(text: string, voice: { pitch: number; rate: number }, onEn
     u.rate = voice.rate
     if (onEnd) u.onend = onEnd
     const english = pickVoice(window.speechSynthesis.getVoices())
-    if (english) u.voice = english as SpeechSynthesisVoice
+    if (english) u.voice = english
     window.speechSynthesis.speak(u)
   } catch {
     // Silent: the transcript on screen is the source of truth.
