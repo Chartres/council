@@ -28,6 +28,13 @@
 //   POST /v1/council/capture   → { entry }  (canned, or the proposal named by proposal_id)
 //   POST /v1/council/commit    → { commitment }  (echo, keeps the client's id)
 //   GET  /v1/council/journal   → { entries, commitments } captured/committed this process
+//
+// v4.1 (flywheel/docs/expansion/council-v4.1.md "Gateway contract"):
+//   POST /v1/intake/extract    JSON {text} → `key: value` lines for the seven keys, else a
+//                              fixed sample; multipart {file} → the sample. Text or file
+//                              containing QUOTA → 429, NO_CONVERTER → 503 {error:"no_converter"}
+//   POST /v1/feedback          {text, page, session_id?} → 204; the 6th of a process (or
+//                              text containing QUOTA) → 429. /__reset clears the count.
 // ponytail: module-level state, single process. Fine for one Playwright worker;
 // a shared fixture would need a per-test key in the request instead.
 
@@ -106,6 +113,13 @@ const PROPOSAL = {
   confidence: 65,
 }
 const v4 = new Map() // session_id → { advisers, turns }
+const INTAKE_KEYS = ['role', 'organization', 'goal', 'situation', 'success', 'constraints', 'working_style']
+const SAMPLE_INTAKE = {
+  role: 'Product manager, 10 years in B2B software.',
+  organization: 'A mid-size software company serving logistics firms; owns the pricing roadmap.',
+  goal: 'Decide whether to launch a premium tier this year.',
+}
+let feedbackCount = 0
 const captured = { entries: [], commitments: [] }
 
 const cap = (id) => id.charAt(0).toUpperCase() + id.slice(1)
@@ -236,6 +250,14 @@ const readBody = (req) =>
     })
   })
 
+const readRaw = (req) =>
+  new Promise((resolve) => {
+    let raw = ''
+    req.setEncoding('latin1')
+    req.on('data', (c) => (raw += c))
+    req.on('end', () => resolve(raw))
+  })
+
 const fail = (res, status, reason) => {
   res.writeHead(status, { 'content-type': 'application/json' })
   res.end(JSON.stringify({ reason }))
@@ -277,6 +299,7 @@ createServer(async (req, res) => {
   if (req.url === '/__reset') {
     anonUsed = false
     rotateConsumed = false
+    feedbackCount = 0
     v4.clear()
     captured.entries = []
     captured.commitments = []
@@ -314,7 +337,36 @@ createServer(async (req, res) => {
     return res.end(JSON.stringify(captured))
   }
 
+  if (req.url === '/v1/intake/extract' && req.method === 'POST') {
+    const multipart = (req.headers['content-type'] ?? '').startsWith('multipart/form-data')
+    const raw = multipart ? await readRaw(req) : String((await readBody(req)).text ?? '')
+    await sleep(TURN_DELAY_MS)
+    if (raw.includes('QUOTA')) return fail(res, 429, 'quota')
+    if (raw.includes('NO_CONVERTER')) {
+      res.writeHead(503, { 'content-type': 'application/json' })
+      return res.end(JSON.stringify({ error: 'no_converter' }))
+    }
+    const intake = {}
+    if (!multipart) {
+      for (const m of raw.matchAll(/^\s*([a-z_ ]+)\s*:\s*(.+)$/gim)) {
+        const key = m[1].trim().toLowerCase().replace(' ', '_')
+        if (INTAKE_KEYS.includes(key)) intake[key] = m[2].trim()
+      }
+    }
+    const out = Object.keys(intake).length ? intake : SAMPLE_INTAKE
+    res.writeHead(200, { 'content-type': 'application/json' })
+    return res.end(JSON.stringify({ intake: out, unknown: INTAKE_KEYS.filter((k) => !out[k]) }))
+  }
+
   const body = await readBody(req)
+
+  if (req.url === '/v1/feedback' && req.method === 'POST') {
+    const text = String(body.text ?? '').trim()
+    if (!text || text.length > 2000 || !body.page) return fail(res, 400, 'bad_request')
+    if (text.includes('QUOTA') || ++feedbackCount > 5) return fail(res, 429, 'quota')
+    return res.writeHead(204).end()
+  }
+
   const signedIn = (req.headers.authorization ?? '').startsWith('Bearer ')
   const idea = String(body.idea ?? '')
   // Admin-only free/premium switch; a header with neither value falls back to STUB_TIER.
