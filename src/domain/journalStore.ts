@@ -63,10 +63,10 @@ export async function saveRemoteSession(
 
 export async function saveRemoteEntry(sb: SupabaseClient, userId: string, entry: JournalEntry) {
   // Explicit columns: gateway extras (e.g. `date`) must not reach PostgREST.
-  const { id, session_id, decision, reasoning, assumptions, next_action, owner, review_trigger, confidence, status, created_at } = entry
+  const { id, session_id, decision, reasoning, assumptions, next_action, owner, review_trigger, confidence, map, status, created_at } = entry
   check(
     await sb.from('council_journal').upsert({
-      id, user_id: userId, session_id, decision, reasoning, assumptions, next_action, owner, review_trigger, confidence, status, created_at,
+      id, user_id: userId, session_id, decision, reasoning, assumptions, next_action, owner, review_trigger, confidence, map: map ?? null, status, created_at,
     }),
   )
 }
