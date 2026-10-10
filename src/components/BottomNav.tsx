@@ -49,8 +49,8 @@ export function BottomNav() {
                 type="button"
                 onClick={() => go(tab.view)}
                 aria-current={active ? 'page' : undefined}
-                className={`flex min-h-12 w-full flex-col items-center gap-1 py-2 text-[0.68rem] font-medium uppercase tracking-wide ${
-                  active ? 'text-candle-300' : 'text-marble-500 hover:text-marble-300'
+                className={`flex min-h-12 w-full flex-col items-center gap-1 py-2 text-[13px] font-medium leading-[18px] ${
+                  active ? 'text-marble-50' : 'text-marble-400 hover:text-marble-200'
                 }`}
               >
                 <svg
@@ -58,7 +58,7 @@ export function BottomNav() {
                   className="h-6 w-6"
                   fill="none"
                   stroke="currentColor"
-                  strokeWidth="1.5"
+                  strokeWidth={active ? 2 : 1.5}
                   aria-hidden="true"
                 >
                   {tab.icon}

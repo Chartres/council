@@ -22,13 +22,38 @@ not reused — a council is a place you sit down in, not an instrument panel.
 Type: **EB Garamond** for anything a person says or a heading (the council speaks in a serif),
 **Inter** for UI and body. Radius 4 px — a bound page, not a chrome card.
 
-Contrast: body text is marble-100/200 on ink-950 (≥ 12:1); the smallest secondary text uses
-marble-400 on ink-950 (≈ 6:1). `candle-400` on `ink-950` is ≈ 9:1; `ink-950` on `candle-400` (the
-primary button) is the same pair inverted.
+## Type, contrast, accent, space (bold by scale, v4.2)
+
+Bold comes from scale, weight and contrast, not from more colour. Utilities in `src/index.css`.
+
+| Step | Class | Face | Size / leading | Use |
+|---|---|---|---|---|
+| Display | `.t-display` | EB Garamond 500 | 28/32 (36/40 from 768 px) | the question, the decision, the verdict, the floor question |
+| Title | `.t-title` | EB Garamond 500 | 20/26 | adviser names, screen titles, journal decisions |
+| Body | `.t-body` | Inter 400 | 17/26 | adviser lines, answers, inputs |
+| Label | `.t-label` | Inter 500, caps, 0.06em | 13/18 | section labels, metadata |
+
+A 15 px secondary size is allowed for chips, text buttons, the facilitator line and proposal
+metadata. Nothing under 13 px.
+
+- **Contrast floor:** marble-400 (5.9:1 on ink-950) is the dimmest text colour, labels included.
+  marble-500 draws rules and the monogram ring only, never text. A control edge that must be seen
+  uses `ink-500` (≈ 2.9:1).
+- **No borders on fields.** A field is `.field`: a filled ink-850 surface, no border; focus is a
+  2 px candle rule along its foot.
+- **Accent budget: two touches per screen, both large.** The one action (`.slab`, filled
+  candle-400) and the one live line (the floor question with its 3 px bar, or the field being
+  dictated into). Names, text buttons (`.text-btn`), links (`.link`), the wordmark and the nav are
+  marble. The proposal card's 7 % candle tint is the surface that carries the candle, not a third
+  touch. A disabled action is `.slab-off`: an ink-500 outline with marble-300 text.
+- **Three gaps:** 8 px within an item, 24 between items, 48 between sections.
+- **Three chips:** the conversation shows "I disagree", "Make this concrete" and "Wrap up" as
+  `.chip`s (filled ink-850, no border, 40 px) in one scrolling row, plus "More ›" for the rest.
 
 ## Rules this product adds
 
-- **Monograms, never portraits.** A persona is initials in a thin ring (`Monogram.tsx`). No
+- **Monograms, never portraits.** A persona is initials in a ring on a filled disc (`Monogram.tsx`;
+  44 px, 64 px on the start screen; lit = 2 px candle ring). No
   generated faces, no likenesses — a legal guardrail first and a taste choice second.
 - **One accent per screen (v4.1).** The candle colour fills the single primary action; every
   secondary action is a text button. No textures, no glows, no boxed panels where a hairline
@@ -48,7 +73,7 @@ primary button) is the same pair inverted.
   `e2e/council.spec.ts` by reading the clipboard.
 - **The door is the whole app.** In private beta the password panel replaces the screens and
   the tab bar — an app greyed out behind a dialog is worse than no app.
-- **Which council sat, never which model.** One quiet marble-500 line under the verdict:
+- **Which council sat, never which model.** One quiet marble-400 line under the verdict:
   "Free council" or "Premium council". Model names are the gateway's business.
 - **Voice is a button, not a mode.** The mic sits beside the field it fills; "Listen" sits
   beside "← New idea". Both vanish where the Web Speech API is missing — no explanation, no

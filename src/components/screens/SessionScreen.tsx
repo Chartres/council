@@ -44,38 +44,32 @@ export function SessionScreen() {
   }
 
   return (
-    <div className="mx-auto max-w-xl px-4 pb-6">
-      <div className="mt-2 flex items-center justify-between gap-2">
-        <button
-          type="button"
-          onClick={() => go('home')}
-          className="min-h-11 text-sm text-marble-400 hover:text-candle-300"
-        >
+    <div className="mx-auto max-w-xl px-4 pb-12">
+      <div className="flex items-center justify-between gap-2">
+        <button type="button" onClick={() => go('home')} className="text-btn -ml-3 px-3 text-marble-400">
           ← New idea
         </button>
         <ListenToggle on={listen} onChange={setListen} />
       </div>
 
-      <h1 className="mt-1 font-display text-xl leading-snug text-marble-100 text-balance">
+      <h1 className="t-title mt-2 text-balance">
         {question ?? idea}
       </h1>
 
-      <ol className="mt-5 space-y-5">
+      <ol className="mt-12 space-y-6">
         {turns.map((turn, i) => (
-          <li key={`${turn.persona}-${i}`} className="rise flex gap-3">
-            <Monogram id={turn.persona} size={40} />
+          <li key={`${turn.persona}-${i}`} className="rise flex gap-4">
+            <Monogram id={turn.persona} />
             <div className="min-w-0 flex-1">
-              <p className="font-display text-base text-candle-200">
-                {personaName(turn.persona)}
-              </p>
-              <p className="mt-1 text-[0.95rem] leading-relaxed text-marble-200">{turn.text}</p>
+              <p className="t-title">{personaName(turn.persona)}</p>
+              <p className="t-body mt-1">{turn.text}</p>
             </div>
           </li>
         ))}
       </ol>
 
       {streaming && (
-        <p className="mt-5 text-sm text-marble-400" role="status" data-testid="streaming">
+        <p className="t-title mt-6 italic text-marble-200" role="status" data-testid="streaming">
           The council is speaking…
         </p>
       )}
@@ -84,30 +78,33 @@ export function SessionScreen() {
         <section
           aria-label="Verdict"
           data-testid="verdict"
-          className="mt-7 border-t border-candle-500/40 pt-4"
+          className="mt-12 border-t-2 border-candle-400 pt-6"
         >
-          <p className="font-display text-xs uppercase tracking-widest text-candle-400">Verdict</p>
-          <p className="mt-2 text-[0.98rem] leading-relaxed text-marble-100">{verdict.summary}</p>
+          <p className="t-label">Verdict</p>
+          <p className="t-display mt-2">{verdict.summary}</p>
 
-          <p className="mt-4 font-display text-xs uppercase tracking-widest text-candle-400">
-            Next action
-          </p>
-          <p className="mt-1 text-[0.98rem] leading-relaxed text-marble-100">
-            {verdict.next_action}
+          <p className="t-label mt-6">Next action</p>
+          <p className="t-title mt-2">{verdict.next_action}</p>
+
+          {/* The split as one line: who sat, and which way each one went. */}
+          <p className="mt-6 font-display text-[20px] leading-[26px] text-marble-200">
+            {Object.entries(verdict.votes).map(([id, vote], i) => (
+              <span key={id}>
+                {i > 0 && <span className="text-marble-400"> · </span>}
+                {personaName(id)} <span className={`font-medium ${VOTE_CLASS[vote]}`}>{VOTE_LABEL[vote]}</span>
+              </span>
+            ))}
           </p>
 
           {verdict.quotes && verdict.quotes.length > 0 && (
-            <div className="mt-4 border-t border-ink-700 pt-3" data-testid="verdict-quotes">
-              <p className="font-display text-xs uppercase tracking-widest text-candle-400">
-                From the texts
-              </p>
-              <ul className="mt-2 space-y-2">
+            <div className="mt-12" data-testid="verdict-quotes">
+              <p className="t-label">From the texts</p>
+              <ul className="mt-2 space-y-6">
                 {verdict.quotes.map((q, i) => (
-                  <li key={i} className="flex gap-2">
-                    <Monogram id={q.persona} size={24} />
-                    <p className="font-serif text-[0.95rem] leading-relaxed text-marble-200">
+                  <li key={i}>
+                    <p className="font-display text-[20px] italic leading-[28px] text-marble-100">
                       “{q.text}”{' '}
-                      <span className="text-xs text-marble-400">
+                      <span className="font-sans text-[13px] not-italic text-marble-400">
                         — {personaName(q.persona)}, {q.locator}
                       </span>
                     </p>
@@ -117,21 +114,9 @@ export function SessionScreen() {
             </div>
           )}
 
-          <ul className="mt-4 flex flex-wrap gap-2 border-t border-ink-700 pt-3">
-            {Object.entries(verdict.votes).map(([id, vote]) => (
-              <li key={id} className="flex items-center gap-2 rounded-card bg-ink-850 px-2 py-1">
-                <Monogram id={id} size={24} />
-                <span className="text-xs text-marble-300">{personaName(id)}</span>
-                <span className={`text-xs font-semibold ${VOTE_CLASS[vote]}`}>
-                  {VOTE_LABEL[vote]}
-                </span>
-              </li>
-            ))}
-          </ul>
-
           {dailyKey && (
-            <div className="mt-4 border-t border-ink-700 pt-3">
-              <p className="text-sm text-marble-300">
+            <div className="mt-6">
+              <p className="text-[15px] text-marble-300">
                 {split.for} for · {split.mixed} mixed · {split.against} against
               </p>
               <button
@@ -141,12 +126,12 @@ export function SessionScreen() {
                     await shareText(dailyShareText(dailyKey, question ?? idea, verdict)),
                   )
                 }
-                className="mt-2 min-h-11 font-semibold text-candle-300 hover:text-candle-200"
+                className="text-btn -ml-3 px-3"
               >
                 Share today’s split
               </button>
               {shareState !== 'idle' && (
-                <p className="mt-2 text-xs text-marble-400" role="status">
+                <p className="mt-2 text-[13px] text-marble-400" role="status">
                   {shareState === 'copied'
                     ? 'Copied — your own text is never included.'
                     : shareState === 'shared'
@@ -161,7 +146,7 @@ export function SessionScreen() {
 
       {/* Which council sat, never which model (DESIGN.md: no model names in the UI). */}
       {tier && (
-        <p className="mt-3 text-xs text-marble-500" data-testid="tier">
+        <p className="mt-6 text-[13px] text-marble-400" data-testid="tier">
           {TIER_LABEL[tier]}
         </p>
       )}
@@ -174,7 +159,7 @@ export function SessionScreen() {
 
       {failure && failure !== 'sign_in' && (
         <p
-          className="mt-6 border-l-2 border-clay-500 pl-3 text-sm text-marble-200"
+          className="t-body mt-6 border-l-2 border-clay-500 pl-4"
           role="alert"
           data-testid="failure"
         >
@@ -183,36 +168,32 @@ export function SessionScreen() {
       )}
 
       {verdict && !streaming && !failure && (
-        <form onSubmit={sendReply} className="mt-6">
-          <label htmlFor="reply" className="block text-sm text-marble-300">
+        <form onSubmit={sendReply} className="mt-12">
+          <label htmlFor="reply" className="t-label block">
             Answer the council
           </label>
-          <div className="mt-1 flex items-end gap-2">
+          <div className="mt-2 flex items-end gap-2">
             <textarea
               id="reply"
               rows={3}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder="Push back, add a constraint, ask them to go further."
-              className="min-w-0 flex-1 resize-y rounded-card border border-ink-700 bg-ink-900 px-3 py-3 text-base leading-relaxed text-marble-100 placeholder:text-marble-500 focus:border-candle-500"
+              className="field min-w-0 flex-1 resize-y"
             />
             <MicButton value={message} onChange={setMessage} label="your reply" />
           </div>
           <button
             type="submit"
             disabled={!message.trim()}
-            className={`mt-2 min-h-12 w-full rounded-card px-4 py-3 font-display text-lg font-semibold ${
-              message.trim()
-                ? 'bg-candle-400 text-ink-950 hover:bg-candle-300'
-                : 'border border-ink-700 bg-transparent text-marble-500'
-            }`}
+            className="slab mt-2"
           >
             Continue the debate
           </button>
         </form>
       )}
 
-      <p className="mt-6 text-xs leading-snug text-marble-500">{DISCLOSURE}</p>
+      <p className="mt-12 text-[13px] leading-[18px] text-marble-400">{DISCLOSURE}</p>
       <div ref={end} />
     </div>
   )

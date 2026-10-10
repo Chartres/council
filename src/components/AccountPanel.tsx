@@ -55,21 +55,23 @@ export function AccountPanel({
   }
 
   return (
-    <section aria-label="Account" className="text-sm" data-testid="account-panel">
+    <section aria-label="Account" className="text-[15px]" data-testid="account-panel">
       <p className="truncate text-marble-300">{user.email}</p>
-      <div className="flex flex-wrap gap-x-5">
-        <button type="button" onClick={onSignOut} className="min-h-11 text-marble-200 hover:text-candle-300">
+      <div className="flex flex-wrap gap-x-6">
+        <button type="button" onClick={onSignOut} className="text-btn">
           Sign out
         </button>
-        <button type="button" onClick={() => void exportAll()} className="min-h-11 text-marble-200 hover:text-candle-300">
+        <button type="button" onClick={() => void exportAll()} className="text-btn">
           Export everything
         </button>
-        {step === 'idle' && (
+      </div>
+      {step === 'idle' && (
+        <div className="mt-2 border-t border-ink-700 pt-2">
           <button type="button" onClick={() => setStep('confirm')} className="min-h-11 text-clay-400 hover:text-clay-500">
             Delete everything
           </button>
-        )}
-      </div>
+        </div>
+      )}
       {step !== 'idle' && (
         <div className="mt-1 border-t border-ink-800 pt-2" data-testid="delete-confirm">
           <label htmlFor="delete-typed" className="block text-marble-300">
@@ -80,14 +82,14 @@ export function AccountPanel({
             value={typed}
             onChange={(e) => setTyped(e.target.value)}
             autoComplete="off"
-            className="mt-1 w-full rounded-card border border-ink-700 bg-ink-900 px-3 py-2 text-base text-marble-100"
+            className="field mt-2"
           />
           <div className="flex gap-x-5">
             <button
               type="button"
               disabled={typed !== 'DELETE' || step === 'deleting'}
               onClick={() => void deleteAll()}
-              className="min-h-11 font-semibold text-clay-400 disabled:text-marble-500"
+              className="min-h-11 font-semibold text-clay-400 disabled:text-marble-400"
             >
               {step === 'deleting' ? 'Deleting…' : 'Delete everything'}
             </button>
@@ -98,7 +100,7 @@ export function AccountPanel({
         </div>
       )}
       {problem && <p className="text-clay-400">{problem}</p>}
-      <p className="mt-1 text-xs text-marble-500">
+      <p className="mt-2 text-[13px] text-marble-400">
         <PrivacyLink />
       </p>
     </section>

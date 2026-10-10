@@ -6,7 +6,7 @@ import { personaMonogram, personaName } from '@/content/personas'
  */
 export function Monogram({
   id,
-  size = 40,
+  size = 44,
   lit = false,
 }: {
   id: string
@@ -17,14 +17,14 @@ export function Monogram({
     <span
       role="img"
       aria-label={personaName(id)}
-      style={{ width: size, height: size }}
-      className={`flex shrink-0 items-center justify-center rounded-full border font-display leading-none ${
+      style={{ width: size, height: size, borderWidth: lit ? 2 : 1.5 }}
+      className={`flex shrink-0 items-center justify-center rounded-full font-display font-medium leading-none ${
         lit
-          ? 'border-candle-400/70 bg-candle-400/10 text-candle-200'
-          : 'border-ink-600 bg-ink-850 text-marble-300'
+          ? 'border-candle-400 bg-[color-mix(in_srgb,var(--color-candle-400)_10%,var(--color-ink-950))] text-candle-200'
+          : 'border-marble-500 bg-ink-800 text-marble-100'
       }`}
     >
-      <span style={{ fontSize: size * 0.4 }} className="tracking-tight">
+      <span style={{ fontSize: size * 0.42 }} className="tracking-tight">
         {personaMonogram(id)}
       </span>
     </span>
