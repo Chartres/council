@@ -10,10 +10,16 @@ export function MicButton({
   value,
   onChange,
   label,
+  autoStart = false,
+  onDone,
 }: {
   value: string
   onChange: (next: string) => void
   label: string
+  /** Start listening on mount (the intake's "Talk it through"). */
+  autoStart?: boolean
+  /** Called when the browser stops listening, with what it heard ('' for nothing). */
+  onDone?: (heard: string) => void
 }) {
   const [listening, setListening] = useState(false)
   const rec = useRef<Recognition | null>(null)
@@ -22,9 +28,7 @@ export function MicButton({
   const base = useRef('')
   const Ctor = recognitionCtor()
 
-  useEffect(() => () => rec.current?.abort(), [])
-
-  if (!Ctor) return null
+  const heardRef = useRef('')
 
   const stop = () => {
     rec.current?.stop()
@@ -32,20 +36,34 @@ export function MicButton({
   }
 
   const start = () => {
+    if (!Ctor) return
     const r = new Ctor()
     r.continuous = false
     r.interimResults = true
     r.onresult = (event) => {
       const heard = transcriptOf(event)
+      heardRef.current = heard
       onChange(base.current ? `${base.current.trimEnd()} ${heard}` : heard)
     }
-    r.onend = () => setListening(false)
+    r.onend = () => {
+      setListening(false)
+      onDone?.(heardRef.current)
+    }
     r.onerror = () => setListening(false)
+    heardRef.current = ''
     base.current = value
     rec.current = r
     r.start()
     setListening(true)
   }
+
+  useEffect(() => {
+    if (autoStart) start()
+    return () => rec.current?.abort()
+    // Mount only: the parent keys it per field.
+  }, [])
+
+  if (!Ctor) return null
 
   return (
     <button
@@ -56,7 +74,7 @@ export function MicButton({
       data-testid="mic"
       className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-card border ${
         listening
-          ? 'lit border-candle-500 text-candle-200'
+          ? 'border-candle-500 text-candle-200'
           : 'border-ink-700 text-marble-400 hover:text-candle-300'
       }`}
     >
