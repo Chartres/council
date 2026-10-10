@@ -3,7 +3,10 @@ import { useCouncil } from '@/app/CouncilContext'
 import { useMastermind } from '@/app/MastermindContext'
 import { useAuth } from '@/auth/AuthContext'
 import { OutcomeButtons } from '@/components/OutcomeButtons'
+import { humanDate } from '@/domain/dates'
 import { isOpen } from '@/domain/mastermind'
+
+const sentence = (t: string) => t.charAt(0).toUpperCase() + t.slice(1)
 
 export function JournalScreen() {
   const { go } = useCouncil()
@@ -24,7 +27,7 @@ export function JournalScreen() {
   return (
     <div className="mx-auto max-w-xl px-4 pb-12">
       <h1 className="t-display pt-6">Journal</h1>
-      <p className="mt-2 text-[15px] leading-[22px] text-marble-400">
+      <p className="t-body mt-2 text-marble-400">
         {user ? 'Kept on your account.' : 'Kept in this browser only. Sign in to keep it across devices.'}
       </p>
 
@@ -40,31 +43,24 @@ export function JournalScreen() {
           <ul className="mt-12 space-y-12" data-testid="journal">
             {entries.map((e) => (
               <li key={e.id}>
-                <p className="t-label">
-                  {e.status} · {e.created_at.slice(0, 10)}
-                  {e.confidence !== null && ` · confidence ${e.confidence}`}
+                <p className="t-title">{e.decision}</p>
+                <p className="t-label mt-2">
+                  {e.status} · {humanDate(e.created_at, { weekday: false })}
+                  {e.confidence !== null && ` · ${e.confidence} % confident`}
                 </p>
-                <p className="t-title mt-2">{e.decision}</p>
-                <p className="mt-2 text-[15px] leading-[22px] text-marble-300">{e.reasoning}</p>
-                {e.assumptions.length > 0 && (
-                  <p className="mt-2 text-[15px] leading-[22px] text-marble-300">
-                    <span className="text-marble-400">Assumptions: </span>
-                    {e.assumptions.join('; ')}
-                  </p>
+                {!journal.commitments.some((c) => c.journal_id === e.id) && (
+                  <p className="t-body mt-2 text-marble-300">{sentence(e.next_action)}</p>
                 )}
-                <p className="mt-2 text-[15px] leading-[22px] text-marble-300">
-                  <span className="text-marble-400">Next: </span>
-                  {e.next_action} · {e.owner} · review: {e.review_trigger}
-                </p>
                 {journal.commitments
                   .filter((c) => c.journal_id === e.id)
                   .map((c) => (
-                    <div key={c.id} className="mt-6 rounded-card bg-ink-850 p-4" data-testid="commitment">
+                    <div key={c.id} className="mt-6" data-testid="commitment">
                       <p className="t-body text-marble-100">
-                        {c.what} — by {c.due_date}
+                        {sentence(c.what)} by <span className="whitespace-nowrap">{humanDate(c.due_date)}</span>
                         {c.outcome && <span className="text-marble-400"> · {c.outcome === 'later' ? 'not yet' : c.outcome}</span>}
                       </p>
-                      <label className="mt-2 flex min-h-11 items-center gap-2 text-[15px] text-marble-300">
+                      {isOpen(c) && <OutcomeButtons id={c.id} />}
+                      <label className="mt-2 flex min-h-11 items-center gap-2 text-[17px] text-marble-300">
                         <input
                           type="checkbox"
                           checked={c.remind}
@@ -73,7 +69,6 @@ export function JournalScreen() {
                         />
                         Remind me by email
                       </label>
-                      {isOpen(c) && <OutcomeButtons id={c.id} />}
                     </div>
                   ))}
               </li>
@@ -83,7 +78,7 @@ export function JournalScreen() {
             Export (copy as text)
           </button>
           {copied !== 'idle' && (
-            <p role="status" className="mt-2 text-[15px] text-marble-300">
+            <p role="status" className="t-body mt-2 text-marble-300">
               {copied === 'copied' ? 'Copied — paste it into another session to resume.' : 'Could not copy from this browser.'}
             </p>
           )}

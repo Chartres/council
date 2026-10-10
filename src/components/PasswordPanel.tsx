@@ -19,8 +19,8 @@ export function PasswordPanel() {
         data-testid="password-panel"
         className="pt-3"
       >
-        <h1 className="font-display text-2xl text-marble-100">Enter the council password</h1>
-        <p className="mt-2 text-sm leading-relaxed text-marble-300">
+        <h1 className="t-display">Enter the council password</h1>
+        <p className="t-body mt-2 text-marble-300">
           The council is in private beta. The password comes from Pavol.
         </p>
         <form
@@ -28,9 +28,9 @@ export function PasswordPanel() {
             e.preventDefault()
             submitKey(value)
           }}
-          className="mt-3"
+          className="mt-6"
         >
-          <label htmlFor="council-key" className="block text-sm text-marble-300">
+          <label htmlFor="council-key" className="t-label block">
             Password
           </label>
           <input
@@ -39,26 +39,22 @@ export function PasswordPanel() {
             autoComplete="current-password"
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            className="mt-1 w-full rounded-card border border-ink-700 bg-ink-850 px-3 py-3 text-base text-marble-100 placeholder:text-marble-500 focus:border-candle-500"
+            className="field mt-2"
           />
           <button
             type="submit"
             disabled={disabled}
-            className={`mt-3 min-h-12 w-full rounded-card px-4 py-3 font-display text-lg font-semibold ${
-              disabled
-                ? 'border border-ink-700 bg-transparent text-marble-500'
-                : 'bg-candle-400 text-ink-950 hover:bg-candle-300'
-            }`}
+            className="slab mt-6"
           >
             {checkingKey ? 'Checking…' : 'Enter'}
           </button>
           {keyError === 'password' && (
-            <p className="mt-2 text-sm text-clay-400" role="alert" data-testid="password-rejected">
+            <p className="t-body mt-2 text-clay-400" role="alert" data-testid="password-rejected">
               {FAILURE_COPY.password}
             </p>
           )}
           {keyError === 'gateway' && (
-            <p className="mt-2 text-sm text-clay-400" role="alert" data-testid="password-gateway-error">
+            <p className="t-body mt-2 text-clay-400" role="alert" data-testid="password-gateway-error">
               {FAILURE_COPY.gateway}
             </p>
           )}

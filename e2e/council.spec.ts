@@ -81,7 +81,8 @@ test('today’s question can be convened on and shared without leaking her text'
   const key = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(
     today.getDate(),
   ).padStart(2, '0')}`
-  await expect(card).toContainText(key)
+  // Written like a person on the card; the share text keeps the key.
+  await expect(card).toContainText(today.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' }))
   const question = (await card.getByRole('heading').textContent())!.trim()
   expect(question.length).toBeGreaterThan(10)
   await page.screenshot({ path: 'e2e/shots/daily-card.png' })

@@ -25,11 +25,11 @@ test('Business roster → intake → three turns with controls → capture → c
   page,
 }) => {
   await page.goto('/')
-  // Business is the default roster: four advisers ticked, each labelled as a simulation.
+  // Business is the default roster: four advisers ticked, what each brings in plain sight,
+  // and one line naming the simulations.
   await expect(page.getByRole('button', { name: 'Business' })).toHaveAttribute('aria-pressed', 'true')
-  for (const name of ['Peter Drucker', 'Steve Jobs', 'Andy Grove']) {
-    await expect(page.getByText(`Simulation inspired by ${name}`)).toBeVisible()
-  }
+  await expect(page.getByText('Asks whose circumstances improve, and how you would know.')).toBeVisible()
+  await expect(page.getByText('Simulations inspired by Peter Drucker, Steve Jobs and Andy Grove.')).toBeVisible()
   await expect(page.getByRole('button', { pressed: true, name: /Socrates/ })).toBeVisible()
   await page.screenshot({ path: 'e2e/shots/v4-start.png' })
   await page.getByRole('button', { name: 'Begin' }).click()
@@ -86,7 +86,7 @@ test('Business roster → intake → three turns with controls → capture → c
   await settle(page)
   await page.screenshot({ path: 'e2e/shots/v4-commit.png' })
   await captured.getByRole('button', { name: 'Commit' }).click()
-  await expect(captured.getByTestId('committed')).toHaveText('Committed by 2026-10-15 · email reminder on')
+  await expect(captured.getByTestId('committed')).toHaveText(/^Committed by Thursday 15 October( 2026)? · email reminder on$/)
 
   // The in-stream proposal can wait.
   await proposal.getByRole('button', { name: 'Not yet' }).click()
@@ -96,7 +96,7 @@ test('Business roster → intake → three turns with controls → capture → c
   await page.getByRole('button', { name: /^Journal · 1$/ }).click()
   const journal = page.getByTestId('journal')
   await expect(journal).toContainText('Talk to Sven before committing budget to the premium pilot.')
-  await expect(page.getByTestId('commitment')).toContainText('by 2026-10-15')
+  await expect(page.getByTestId('commitment')).toContainText('by Thursday 15 October')
   await expect(page.getByTestId('commitment').getByLabel('Remind me by email')).toBeChecked()
   await page.getByRole('button', { name: 'Export (copy as text)' }).click()
   const clip = await page.evaluate(() => navigator.clipboard.readText())
@@ -113,7 +113,7 @@ test('Business roster → intake → three turns with controls → capture → c
 test('Classics roster, quick path: no intake, straight to the group, then wrap up', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Classics' }).click()
-  await expect(page.getByText('Simulation inspired by')).toHaveCount(0)
+  await expect(page.getByText('Simulations inspired by Peter')).toHaveCount(0)
   await expect(page.getByRole('button', { pressed: true, name: /Seneca/ })).toBeVisible()
   await page.getByRole('button', { name: 'Begin' }).click()
   await page.getByRole('button', { name: 'Bring it to the group' }).click()
@@ -155,7 +155,7 @@ test('"Last time…": remembered journal opens the session, and the outcome writ
   await page.goto('/')
   const card = page.getByTestId('last-time')
   await expect(card).toContainText('Pilot the premium tier with five customers.')
-  await expect(card).toContainText('You said you’d talk to Sven by 2026-10-09')
+  await expect(card).toContainText('You said you’d talk to Sven by Friday 9 October')
   await page.screenshot({ path: 'e2e/shots/v4-last-time.png' })
 
   // The stable fields (role, organization, working style) come back on their own; the goal does not.

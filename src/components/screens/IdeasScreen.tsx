@@ -3,6 +3,7 @@ import { Monogram } from '@/components/Monogram'
 import { SignInPanel } from '@/components/SignInPanel'
 import { useAuth } from '@/auth/AuthContext'
 import { voteSplit } from '@/domain/council'
+import { humanDate } from '@/domain/dates'
 
 export function IdeasScreen() {
   const { ideas, open, go } = useCouncil()
@@ -10,26 +11,26 @@ export function IdeasScreen() {
 
   return (
     <div className="mx-auto max-w-xl px-4 pb-6">
-      <h1 className="pt-3 font-display text-2xl text-marble-100">My ideas</h1>
-      <p className="mt-1 text-sm text-marble-400">
+      <h1 className="t-display pt-6">My ideas</h1>
+      <p className="t-body mt-2 text-marble-400">
         {user
           ? 'Kept on your account — every council you have convened.'
           : 'Kept in this browser only. Sign in to keep them across devices.'}
       </p>
 
       {ideas.length === 0 ? (
-        <div className="mt-6">
-          <p className="text-sm text-marble-300">Nothing here yet.</p>
+        <div className="mt-12">
+          <p className="t-body">Nothing here yet.</p>
           <button
             type="button"
             onClick={() => go('home')}
-            className="mt-3 min-h-12 w-full rounded-card bg-candle-400 px-4 py-3 font-display text-lg font-semibold text-ink-950 hover:bg-candle-300"
+            className="slab mt-6"
           >
             Bring the council an idea
           </button>
         </div>
       ) : (
-        <ul className="mt-5 space-y-3">
+        <ul className="mt-12 space-y-6">
           {ideas.map((item) => {
             const split = item.verdict ? voteSplit(item.verdict.votes) : null
             return (
@@ -37,20 +38,12 @@ export function IdeasScreen() {
                 <button
                   type="button"
                   onClick={() => open(item)}
-                  className="flex w-full flex-col gap-2 border-t border-ink-800 py-3 text-left hover:bg-ink-900"
+                  className="flex w-full flex-col gap-2 rounded-card text-left"
                 >
-                  <span className="flex items-center gap-2">
-                    <span className="text-xs text-marble-500">
-                      {item.created_at.slice(0, 10)}
-                    </span>
-                    {item.daily_key && (
-                      <span className="rounded-card bg-candle-400/10 px-1.5 py-0.5 text-[0.65rem] uppercase tracking-wide text-candle-300">
-                        daily
-                      </span>
-                    )}
-                  </span>
-                  <span className="line-clamp-3 font-display text-base leading-snug text-marble-100">
-                    {item.idea}
+                  <span className="t-title line-clamp-3">{item.idea}</span>
+                  <span className="t-label">
+                    {humanDate(item.created_at, { weekday: false })}
+                    {item.daily_key && ' · daily question'}
                   </span>
                   {split && (
                     <span className="flex items-center gap-2">
@@ -59,7 +52,7 @@ export function IdeasScreen() {
                           <Monogram key={id} id={id} size={22} />
                         ))}
                       </span>
-                      <span className="text-xs text-marble-400">
+                      <span className="text-[15px] text-marble-300">
                         {split.for} for · {split.mixed} mixed · {split.against} against
                       </span>
                     </span>
@@ -72,7 +65,7 @@ export function IdeasScreen() {
       )}
 
       {configured && !user && (
-        <div className="mt-6">
+        <div className="mt-12">
           <SignInPanel reason="Sign in to keep these ideas when you change browser or phone." />
         </div>
       )}

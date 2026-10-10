@@ -80,8 +80,7 @@ export function SessionScreen() {
           data-testid="verdict"
           className="mt-12 border-t-2 border-candle-400 pt-6"
         >
-          <p className="t-label">Verdict</p>
-          <p className="t-display mt-2">{verdict.summary}</p>
+          <p className="t-display">{verdict.summary}</p>
 
           <p className="t-label mt-6">Next action</p>
           <p className="t-title mt-2">{verdict.next_action}</p>
@@ -98,8 +97,7 @@ export function SessionScreen() {
 
           {verdict.quotes && verdict.quotes.length > 0 && (
             <div className="mt-12" data-testid="verdict-quotes">
-              <p className="t-label">From the texts</p>
-              <ul className="mt-2 space-y-6">
+              <ul className="space-y-6">
                 {verdict.quotes.map((q, i) => (
                   <li key={i}>
                     <p className="font-display text-[20px] italic leading-[28px] text-marble-100">
@@ -169,10 +167,10 @@ export function SessionScreen() {
 
       {verdict && !streaming && !failure && (
         <form onSubmit={sendReply} className="mt-12">
-          <label htmlFor="reply" className="t-label block">
+          <label htmlFor="reply" className="sr-only">
             Answer the council
           </label>
-          <div className="mt-2 flex items-end gap-2">
+          <div className="flex items-end gap-2">
             <textarea
               id="reply"
               rows={3}

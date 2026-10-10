@@ -4,6 +4,7 @@ import { Monogram } from '@/components/Monogram'
 import { SignInPanel } from '@/components/SignInPanel'
 import { OutcomeButtons } from '@/components/OutcomeButtons'
 import { PrivacyLink } from '@/components/screens/PrivacyScreen'
+import { humanDate } from '@/domain/dates'
 import {
   BUSINESS_DISCLOSURE,
   DISCLOSURE,
@@ -13,12 +14,15 @@ import {
   type RosterId,
 } from '@/content/personas'
 
+const listOf = (xs: string[]) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`)
+
 const ROSTER_LABEL: Record<RosterId, string> = { business: 'Business', classics: 'Classics' }
 
 export function StartScreen() {
   const { go } = useCouncil()
   const { roster, setRoster, advisers, toggleAdviser, memory, linkNeedsSignIn } = useMastermind()
   const last = memory?.entries[0]
+  const inspired = ROSTERS[roster].flatMap((p) => ('inspiredBy' in p && p.inspiredBy ? [p.inspiredBy] : []))
 
   return (
     <div className="mx-auto max-w-xl px-4 pb-12">
@@ -36,7 +40,7 @@ export function StartScreen() {
             {memory.commitments.map((c) => (
               <li key={c.id}>
                 <p className="t-body">
-                  You said you’d {c.what} by {c.due_date}. How did it go?
+                  You said you’d {c.what} by {humanDate(c.due_date)}. How did it go?
                 </p>
                 <OutcomeButtons id={c.id} />
               </li>
@@ -61,11 +65,14 @@ export function StartScreen() {
         ))}
       </div>
 
-      <p className="mt-6 text-[15px] leading-[22px] text-marble-400">
+      <p className="t-body mt-6 text-marble-400">
         Pick up to {MAX_PERSONAS}. A neutral facilitator is always there.
       </p>
-      {/* The room's people are the picture: a row of seats, lit when taken. */}
-      <ul className="mt-6 grid grid-cols-4 gap-x-2 gap-y-6">
+      {inspired.length > 0 && (
+        <p className="mt-2 text-[13px] leading-[18px] text-marble-400">Simulations inspired by {listOf(inspired)}.</p>
+      )}
+      {/* The room's people are the picture: one seat per adviser, lit when taken, what they bring in plain sight. */}
+      <ul className="mt-6 space-y-6">
         {ROSTERS[roster].map((p) => {
           const on = advisers.includes(p.id)
           const full = !on && advisers.length >= MAX_PERSONAS
@@ -76,36 +83,25 @@ export function StartScreen() {
                 onClick={() => toggleAdviser(p.id)}
                 aria-pressed={on}
                 disabled={full}
-                className={`flex w-full flex-col items-center gap-2 rounded-card py-1 text-center ${full ? 'opacity-40' : ''}`}
+                className={`flex w-full items-center gap-4 rounded-card text-left ${full ? 'opacity-40' : ''}`}
               >
                 <Monogram id={p.id} size={64} lit={on} />
-                <span className={`t-title ${on ? '' : 'text-marble-300'}`}>{p.name}</span>
-                {'inspiredBy' in p && p.inspiredBy && (
-                  <span className="text-[13px] leading-[18px] text-marble-400">Simulation inspired by {p.inspiredBy}</span>
-                )}
+                <span className="min-w-0 flex-1">
+                  <span className={`t-title block ${on ? '' : 'text-marble-300'}`}>{p.name}</span>
+                  <span className={`t-body mt-1 block ${on ? '' : 'text-marble-400'}`}>{p.brings}</span>
+                </span>
               </button>
             </li>
           )
         })}
       </ul>
 
-      <details className="mt-6">
-        <summary className="flex min-h-11 cursor-pointer list-none items-center text-[15px] font-semibold text-marble-100 [&::-webkit-details-marker]:hidden">
-          What they bring ›
-        </summary>
-        <dl className="mt-2 space-y-2">
-          {ROSTERS[roster].map((p) => (
-            <div key={p.id}>
-              <dt className="inline font-display text-[17px] font-medium text-marble-50">{p.name} </dt>
-              <dd className="inline text-[15px] leading-[22px] text-marble-300">{p.brings}</dd>
-            </div>
-          ))}
-        </dl>
-      </details>
-
-      <button type="button" onClick={() => go('intake')} className="slab mt-6">
-        Begin
-      </button>
+      {/* Above the bottom nav, so Begin is in reach however long the roster runs. */}
+      <div className="sticky z-10 mt-6 bg-ink-950 py-2" style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom))' }}>
+        <button type="button" onClick={() => go('intake')} className="slab">
+          Begin
+        </button>
+      </div>
 
       <p className="mt-6 text-[13px] leading-[18px] text-marble-400">
         The advisers are AI. {roster === 'business' ? BUSINESS_DISCLOSURE : `${DISCLOSURE} ${MONTESSORI_NOTE}`}{' '}
