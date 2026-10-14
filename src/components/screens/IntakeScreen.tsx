@@ -51,8 +51,7 @@ function TrustNote() {
   )
 }
 
-// Label type (13/18 uppercase tracked) so three fit one row on a phone.
-const SHORTCUT = 'text-btn text-left text-[13px] leading-[18px] uppercase tracking-[0.06em]'
+const SHORTCUT = 'text-btn text-[17px]'
 
 const filled = (a: Intake) => Object.fromEntries(Object.entries(a).filter(([, v]) => v?.trim())) as Intake
 const ask = (id: string) => INTAKE_QUESTIONS.find((q) => q.id === id)!.q
@@ -239,7 +238,7 @@ export function IntakeScreen() {
       />
 
       {/* Three ways to skip the form; what they fill is reviewed under About you. */}
-      <div className="mt-2 grid grid-cols-3 gap-2" role="group" aria-label="Shortcuts">
+      <div className="mt-2 flex flex-wrap gap-x-4" role="group" aria-label="Shortcuts">
         <button
           type="button"
           onClick={() => {

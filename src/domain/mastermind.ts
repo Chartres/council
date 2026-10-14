@@ -128,7 +128,7 @@ export function intakePayload(answers: Intake): Intake | undefined {
 
 // v4 stored these under its own keys; old Supabase rows still carry them.
 const LEGACY: Record<string, IntakeId> = { workplace: 'organization', mode: 'working_style' }
-const STABLE: (keyof Intake)[] = ['role', 'organization', 'working_style', 'materials']
+const STABLE: (keyof Intake)[] = ['role', 'organization', 'working_style']
 
 /** The fields that do not change between sessions, prefilled from the last intake. */
 export function stableIntake(last: Record<string, string | undefined> | null): Intake {
