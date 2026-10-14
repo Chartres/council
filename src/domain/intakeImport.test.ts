@@ -105,6 +105,13 @@ describe('extractIntake', () => {
     expect(JSON.parse(init.body)).toEqual({ text: 'I am a CFO' })
   })
 
+  it('lets materials through from the gateway, capped at 8,000', async () => {
+    vi.stubGlobal('fetch', respond(200, { intake: { role: 'CFO', materials: 'x'.repeat(9000) } }))
+    const got = await extractIntake('x', opts)
+    expect(got.role).toBe('CFO')
+    expect(got.materials).toHaveLength(8000)
+  })
+
   it('posts a file as multipart, letting the browser set the boundary', async () => {
     const fetch = respond(200, { intake: { role: 'Engineer' }, unknown: [] })
     vi.stubGlobal('fetch', fetch)
@@ -133,6 +140,7 @@ describe('mergeIntake', () => {
     expect(mergeIntake({ role: 'CFO' }, { role: 'Board member', goal: 'cut churn' })).toEqual({
       merged: { role: 'CFO\n\nBoard member', goal: 'cut churn' },
       overflow: false,
+      cut: false,
     })
   })
 
@@ -147,9 +155,11 @@ describe('mergeIntake', () => {
     expect(overflow).toBe(true)
   })
 
-  it('caps Materials at 8,000', () => {
-    const { merged } = mergeIntake({ materials: 'm'.repeat(7990) }, { materials: 'x'.repeat(100) })
+  it('caps Materials at 8,000 and says it cut', () => {
+    const { merged, cut } = mergeIntake({ materials: 'm'.repeat(7990) }, { materials: 'x'.repeat(100) })
     expect(merged.materials).toHaveLength(8000)
+    expect(cut).toBe(true)
+    expect(mergeIntake({}, { materials: 'short' }).cut).toBe(false)
   })
 })
 
@@ -166,6 +176,9 @@ describe('importNote', () => {
     expect(importNote({ read: 2, filled: 3, overflow: false, skipped: [{ name: 'big.pdf', size: 6e6 }] })).toBe(
       'Read 2 files. Filled 3 of 7. Check them below. Skipped big.pdf: over 5 MB.',
     )
+    expect(
+      importNote({ read: 1, filled: 1, overflow: true, cut: true, skipped: [{ name: 'scan.pdf', size: 9, reason: 'could not be read' }] }),
+    ).toBe('Filled 1 of 7; the rest went to Materials. Materials was cut at 8,000 characters. Skipped scan.pdf: could not be read.')
     expect(importNote({ read: 0, filled: 0, overflow: false, skipped: [{ name: 'photo.png', size: 1 }] })).toBe(
       'Drop a PDF, DOCX or TXT file.',
     )
