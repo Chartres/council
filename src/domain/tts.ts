@@ -26,6 +26,13 @@ const queue: Item[] = []
 let playing: HTMLAudioElement | null = null
 let busy = false
 let fallback: Fallback = () => {}
+// The gateway serves an adviser's voice only inside a session the caller owns.
+let session: string | null = null
+
+/** The conversation's session id while one is on screen; null when it is left. */
+export function setSession(id: string | null): void {
+  session = id
+}
 
 /** The browser engine to use when the gateway cannot speak this line. */
 export function setFallback(f: Fallback): void {
@@ -40,7 +47,8 @@ async function fetchAudio(text: string, speaker: string | undefined, signal: Abo
     const res = await fetch(`${base}/v1/tts`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', ...(key ? { 'x-council-key': key } : {}) },
-      body: JSON.stringify(speaker ? { text, speaker } : { text }),
+      // Without a session the speaker cannot be honoured: plain text gets the default voice.
+      body: JSON.stringify(speaker && session ? { text, speaker, session_id: session } : { text }),
       signal,
     })
     if (!res.ok || !res.headers.get('content-type')?.startsWith('audio/')) return null

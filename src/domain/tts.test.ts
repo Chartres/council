@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cancel, setFallback, speak } from './tts'
+import { cancel, setFallback, setSession, speak } from './tts'
 
 // A player the test drives: nothing ends until the test says so.
 class FakeAudio {
@@ -55,15 +55,19 @@ describe('speak through the gateway', () => {
     expect(FakeAudio.all[1].playbackRate).toBe(1.05)
   })
 
-  it('names the speaker so the gateway can pick their voice', async () => {
+  it('names the speaker and the session so the gateway can pick their voice', async () => {
     vi.stubGlobal('fetch', vi.fn(audioResponse))
+    setSession('s-1')
     speak('Start with the customer.', { pitch: 1, rate: 1 }, undefined, 'drucker')
     speak('Plain line.', { pitch: 1, rate: 1 })
+    setSession(null)
+    speak('No session.', { pitch: 1, rate: 1 }, undefined, 'drucker')
     await flush()
     const calls = (fetch as ReturnType<typeof vi.fn>).mock.calls
     expect(calls[0][0]).toBe('https://gw.test/v1/tts')
-    expect(JSON.parse(calls[0][1].body)).toEqual({ text: 'Start with the customer.', speaker: 'drucker' })
+    expect(JSON.parse(calls[0][1].body)).toEqual({ text: 'Start with the customer.', speaker: 'drucker', session_id: 's-1' })
     expect(JSON.parse(calls[1][1].body)).toEqual({ text: 'Plain line.' })
+    expect(JSON.parse(calls[2][1].body)).toEqual({ text: 'No session.' })
   })
 
   it('hands the line to the browser engine when the gateway cannot speak', async () => {

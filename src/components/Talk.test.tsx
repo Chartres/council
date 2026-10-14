@@ -4,7 +4,7 @@ import type { Item } from '@/domain/mastermind'
 import * as tts from '@/domain/tts'
 import { Talk, TALK_SILENCE_MS } from './Talk'
 
-vi.mock('@/domain/tts', () => ({ speak: vi.fn(), cancel: vi.fn(), setFallback: vi.fn() }))
+vi.mock('@/domain/tts', () => ({ speak: vi.fn(), cancel: vi.fn(), setFallback: vi.fn(), setSession: vi.fn() }))
 
 // A recogniser the test drives: each `say` is a new result, `more` grows the last one (interim).
 class Fake {
