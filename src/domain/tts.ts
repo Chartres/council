@@ -28,10 +28,13 @@ let busy = false
 let fallback: Fallback = () => {}
 // The gateway serves an adviser's voice only inside a session the caller owns.
 let session: string | null = null
+let token: string | null = null
 
-/** The conversation's session id while one is on screen; null when it is left. */
-export function setSession(id: string | null): void {
+/** The conversation's session id while one is on screen (and the signed-in user's token,
+ *  which is how the gateway knows the session is theirs); null when it is left. */
+export function setSession(id: string | null, bearer: string | null = null): void {
   session = id
+  token = bearer
 }
 
 /** The browser engine to use when the gateway cannot speak this line. */
@@ -46,7 +49,13 @@ async function fetchAudio(text: string, speaker: string | undefined, signal: Abo
   try {
     const res = await fetch(`${base}/v1/tts`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', ...(key ? { 'x-council-key': key } : {}) },
+      headers: {
+        'content-type': 'application/json',
+        ...(key ? { 'x-council-key': key } : {}),
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+      },
+      // The anonymous session is a signed httpOnly cookie set by the Worker.
+      credentials: 'include',
       // Without a session the speaker cannot be honoured: plain text gets the default voice.
       body: JSON.stringify(speaker && session ? { text, speaker, session_id: session } : { text }),
       signal,

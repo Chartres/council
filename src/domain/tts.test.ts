@@ -57,7 +57,7 @@ describe('speak through the gateway', () => {
 
   it('names the speaker and the session so the gateway can pick their voice', async () => {
     vi.stubGlobal('fetch', vi.fn(audioResponse))
-    setSession('s-1')
+    setSession('s-1', 'jwt')
     speak('Start with the customer.', { pitch: 1, rate: 1 }, undefined, 'drucker')
     speak('Plain line.', { pitch: 1, rate: 1 })
     setSession(null)
@@ -66,6 +66,8 @@ describe('speak through the gateway', () => {
     const calls = (fetch as ReturnType<typeof vi.fn>).mock.calls
     expect(calls[0][0]).toBe('https://gw.test/v1/tts')
     expect(JSON.parse(calls[0][1].body)).toEqual({ text: 'Start with the customer.', speaker: 'drucker', session_id: 's-1' })
+    expect(calls[0][1].headers.authorization).toBe('Bearer jwt')
+    expect(calls[0][1].credentials).toBe('include')
     expect(JSON.parse(calls[1][1].body)).toEqual({ text: 'Plain line.' })
     expect(JSON.parse(calls[2][1].body)).toEqual({ text: 'No session.' })
   })

@@ -19,6 +19,7 @@ type Proposal = Extract<Item, { kind: 'proposal' }>
 export function ConversationScreen() {
   const { go } = useCouncil()
   const { conversation, say, control, journal } = useMastermind()
+  const { token } = useAuth()
   const [message, setMessage] = useState('')
   const [more, setMore] = useState(false)
   const [replyOpen, setReplyOpen] = useState(false)
@@ -59,9 +60,9 @@ export function ConversationScreen() {
   // The gateway voices advisers only inside this session; forget it on leaving.
   const sessionIdNow = conversation?.sessionId ?? null
   useEffect(() => {
-    tts.setSession(sessionIdNow)
+    tts.setSession(sessionIdNow, token)
     return () => tts.setSession(null)
-  }, [sessionIdNow])
+  }, [sessionIdNow, token])
 
   // Read from the start of what arrived: the first item of the newest turn goes to the top.
   // The opening turn needs no scroll; the question is pinned above it.
