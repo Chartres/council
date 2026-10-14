@@ -1,6 +1,6 @@
 // Voice out through the gateway: an adviser's Aura-1 voice when a speaker is named, MeloTTS otherwise,
 // on Workers AI (free inside the daily allowance),
-// one MP3 per utterance, played in order. Where the gateway cannot speak — no key, offline,
+// one MP3 per utterance, played in order on one shared element. Where the gateway cannot speak — no key, offline,
 // the stub in e2e — the browser's own engine takes the utterance instead, so nothing is
 // ever silent that used to speak.
 // ponytail: fetches are started at enqueue time so the next line is ready when this one
@@ -23,7 +23,7 @@ type Item = {
 }
 
 const queue: Item[] = []
-let playing: HTMLAudioElement | null = null
+let current: Item | null = null // the line downloading or playing
 let busy = false
 let fallback: Fallback = () => {}
 // The gateway serves an adviser's voice only inside a session the caller owns.
@@ -75,26 +75,49 @@ export function speak(text: string, voice: Voice, onEnd?: () => void, speaker?: 
   if (!busy) void next()
 }
 
+// 10 ms of silence: what the unlocking tap plays.
+const SILENT_WAV =
+  'data:audio/wav;base64,UklGRnQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YVAAAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA=='
+
+// One element for every line: iOS lets an element play on its own only after a tap has
+// played it, so the tap unlocks this one and each line swaps its src.
+let player: HTMLAudioElement | null = null
+const element = () => (player ??= new Audio())
+
+/** Call inside a tap: plays the silent clip on the shared element so later lines may play. */
+export function unlock(): void {
+  try {
+    const a = element()
+    a.src = SILENT_WAV
+    void a.play().catch(() => {})
+  } catch {
+    // No audio element: the browser engine still speaks.
+  }
+}
+
 async function next(): Promise<void> {
-  const item = queue.shift()
+  const item = queue.shift() ?? null
+  current = item
   if (!item) {
     busy = false
     return
   }
   busy = true
   const blob = await item.audio
-  if (item.abort.signal.aborted) return void next()
+  // Cancelled while downloading: cancel() already reset the queue; a later speak() runs its own loop.
+  if (item.abort.signal.aborted) return
   if (!blob) {
     fallback(item.text, item.voice, item.onEnd)
     return void next()
   }
   const url = URL.createObjectURL(blob)
-  const audio = new Audio(url)
-  audio.playbackRate = item.voice.rate
-  playing = audio
+  const audio = element()
+  audio.src = url
+  audio.defaultPlaybackRate = audio.playbackRate = item.voice.rate
   const done = () => {
-    if (playing === audio) playing = null
+    audio.onended = audio.onerror = null
     URL.revokeObjectURL(url)
+    if (item.abort.signal.aborted) return
     item.onEnd?.()
     void next()
   }
@@ -103,22 +126,23 @@ async function next(): Promise<void> {
   try {
     await audio.play()
   } catch {
-    // Autoplay refused (no gesture yet): let the browser engine try, then move on.
-    playing = null
     URL.revokeObjectURL(url)
+    // A cancelled line stays silent; otherwise autoplay was refused: let the browser engine try.
+    if (item.abort.signal.aborted) return
+    audio.onended = audio.onerror = null
     fallback(item.text, item.voice, item.onEnd)
     void next()
   }
 }
 
-/** Stop what is playing and forget what was queued. */
+/** Stop what is playing and forget what was queued, including the line still downloading. */
 export function cancel(): void {
   for (const item of queue.splice(0)) item.abort.abort()
-  if (playing) {
-    playing.onended = null
-    playing.onerror = null
-    playing.pause()
-    playing = null
+  current?.abort.abort()
+  current = null
+  if (player) {
+    player.onended = player.onerror = null
+    player.pause()
   }
   busy = false
 }

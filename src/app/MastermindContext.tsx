@@ -29,6 +29,7 @@ import {
   controlRoute,
   exportJournal,
   itemsReducer,
+  settleItems,
   journalReducer,
   normalizeEntry,
   parseDeepLink,
@@ -155,7 +156,7 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
       if (!(e instanceof CouncilError)) logError(e, { where: 'mastermind' })
       track('council_blocked', { reason, v: 4 })
       if (reason === 'password') lockDoor()
-      update({ streaming: false, failure: reason })
+      update((c) => ({ streaming: false, failure: reason, items: settleItems(c.items) }))
     },
     [lockDoor, update],
   )
@@ -199,7 +200,7 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
               update((c) => ({ items: itemsReducer(c.items, ev) }))
           }
         }
-        update({ streaming: false })
+        update((c) => ({ streaming: false, items: settleItems(c.items) }))
         void persistSession()
       } catch (e) {
         fail(e)

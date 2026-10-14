@@ -46,8 +46,15 @@ export function ConversationScreen() {
     }
     return { turns, current }
   }, [items])
+  // Talk switched off mid-answer: read-aloud skips that answer and starts after the stream.
+  const [quiet, setQuiet] = useState(false)
+  useEffect(() => {
+    if (streaming || !quiet) return
+    readFrom.current = turns.length
+    setQuiet(false)
+  }, [streaming, quiet])
   // Talk speaks for itself; read-aloud waits while it is on (it is gone once the session ended).
-  useNarration(turns, null, listen && !(talk && !conversation?.ended), readFrom.current ?? current)
+  useNarration(turns, null, listen && !quiet && !(talk && !conversation?.ended), readFrom.current ?? current)
   const onListen = (on: boolean) => {
     readFrom.current = null
     setListen(on)
@@ -153,6 +160,7 @@ export function ConversationScreen() {
             items={conversation.items}
             streaming={!!busy}
             onSay={(text) => say(text, { voice: true })}
+            onQuiet={() => setQuiet(true)}
           >
             <ListenToggle chip on={listen} onChange={onListen} />
           </Talk>

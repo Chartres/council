@@ -102,6 +102,13 @@ export type Item =
       state: 'open' | 'accepted' | 'declined' | 'committed'
     }
 
+/** A stream that ended or failed mid-answer: the half-arrived contribution stops growing. */
+export function settleItems(items: Item[]): Item[] {
+  return items.some((it) => it.kind === 'contribution' && it.streaming)
+    ? items.map((it) => (it.kind === 'contribution' && it.streaming ? { ...it, streaming: false } : it))
+    : items
+}
+
 /** The conversation's items after one stream event. Session, proposal, done and error are the provider's. */
 export function itemsReducer(items: Item[], ev: MastermindEvent): Item[] {
   const last = items[items.length - 1]

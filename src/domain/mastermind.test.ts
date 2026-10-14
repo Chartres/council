@@ -6,6 +6,7 @@ import {
   exportJournal,
   intakePayload,
   itemsReducer,
+  settleItems,
   sendTurn,
   type Item,
   stableIntake,
@@ -208,6 +209,13 @@ describe('voice turn', () => {
     expect(itemsReducer(items, { type: 'delta', text: 'x' })).toBe(items)
     expect(itemsReducer(items, { type: 'contribution', speaker: 'jobs', text: 't' })).toHaveLength(2)
     expect(itemsReducer(items, { type: 'done' })).toBe(items)
+  })
+
+  it('settles a contribution left growing by an error or a closed stream', () => {
+    const items: Item[] = [{ kind: 'contribution', speaker: 'grove', text: 'Who owns', streaming: true }]
+    expect(settleItems(items)).toEqual([{ kind: 'contribution', speaker: 'grove', text: 'Who owns', streaming: false }])
+    const done: Item[] = [{ kind: 'floor', question: 'q' }]
+    expect(settleItems(done)).toBe(done)
   })
 
   it('sendTurn posts voice: true', async () => {
