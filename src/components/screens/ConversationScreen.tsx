@@ -11,6 +11,7 @@ import { SignInPanel } from '@/components/SignInPanel'
 import { BUSINESS_DISCLOSURE, DISCLOSURE, personaName } from '@/content/personas'
 import { FAILURE_COPY, type Turn } from '@/domain/council'
 import { humanDate } from '@/domain/dates'
+import * as tts from '@/domain/tts'
 import type { Control } from '@/domain/mastermind'
 
 type Proposal = Extract<Item, { kind: 'proposal' }>
@@ -54,6 +55,13 @@ export function ConversationScreen() {
     readFrom.current = on ? null : turns.length
     setTalk(on)
   }
+
+  // The gateway voices advisers only inside this session; forget it on leaving.
+  const sessionIdNow = conversation?.sessionId ?? null
+  useEffect(() => {
+    tts.setSession(sessionIdNow)
+    return () => tts.setSession(null)
+  }, [sessionIdNow])
 
   // Read from the start of what arrived: the first item of the newest turn goes to the top.
   // The opening turn needs no scroll; the question is pinned above it.
