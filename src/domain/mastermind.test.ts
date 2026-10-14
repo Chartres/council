@@ -1,10 +1,13 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   INTAKE_QUESTIONS,
   assembleMemory,
   controlRoute,
   exportJournal,
   intakePayload,
+  itemsReducer,
+  sendTurn,
+  type Item,
   stableIntake,
   journalReducer,
   normalizeEntry,
@@ -173,5 +176,41 @@ describe('normalizeEntry', () => {
     const raw = { decision: 'x', assumptions: 'one' as unknown as string[], confidence: '70' as unknown as number }
     expect(normalizeEntry(raw)).toMatchObject({ assumptions: ['one'], confidence: 70 })
     expect(normalizeEntry({ decision: 'x' })).toMatchObject({ assumptions: [], confidence: null })
+  })
+})
+
+describe('voice turn', () => {
+  it('grows a streaming contribution from speaker + deltas and swaps in the final text', () => {
+    let items: Item[] = [{ kind: 'user', text: 'hi' }]
+    items = itemsReducer(items, { type: 'speaker', speaker: 'drucker' })
+    expect(items[1]).toEqual({ kind: 'contribution', speaker: 'drucker', text: '', streaming: true })
+    items = itemsReducer(items, { type: 'delta', text: 'Start with ' })
+    items = itemsReducer(items, { type: 'delta', text: 'the customer. ' })
+    expect(items[1]).toMatchObject({ text: 'Start with the customer. ', streaming: true })
+    items = itemsReducer(items, { type: 'contribution', speaker: 'drucker', text: 'Start with the customer.', confidence: 70 })
+    expect(items).toHaveLength(2)
+    expect(items[1]).toEqual({ kind: 'contribution', speaker: 'drucker', text: 'Start with the customer.', confidence: 70 })
+    items = itemsReducer(items, { type: 'floor', question: 'Who is it?' })
+    expect(items[2]).toEqual({ kind: 'floor', question: 'Who is it?' })
+  })
+
+  it('appends a typed turn\'s contribution and ignores a delta with nothing streaming', () => {
+    const items: Item[] = [{ kind: 'floor', question: 'q' }]
+    expect(itemsReducer(items, { type: 'delta', text: 'x' })).toBe(items)
+    expect(itemsReducer(items, { type: 'contribution', speaker: 'jobs', text: 't' })).toHaveLength(2)
+    expect(itemsReducer(items, { type: 'done' })).toBe(items)
+  })
+
+  it('sendTurn posts voice: true', async () => {
+    const fetch = vi.fn(() =>
+      Promise.resolve(new Response('data: {"type":"done"}\n\n', { headers: { 'content-type': 'text/event-stream' } })),
+    )
+    vi.stubGlobal('fetch', fetch)
+    const events = sendTurn({ session_id: 's', message: 'hello', voice: true }, { gatewayUrl: 'https://gw.test' } as never)
+    for await (const _ of events) void _
+    const calls = fetch.mock.calls as unknown as [string, RequestInit][]
+    expect(calls[0][0]).toBe('https://gw.test/v1/council/turn')
+    expect(JSON.parse(String(calls[0][1].body))).toEqual({ session_id: 's', message: 'hello', voice: true })
+    vi.unstubAllGlobals()
   })
 })

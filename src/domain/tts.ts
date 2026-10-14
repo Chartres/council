@@ -1,4 +1,5 @@
-// Voice out through the gateway: MeloTTS on Workers AI (free inside the daily allowance),
+// Voice out through the gateway: an adviser's Aura-1 voice when a speaker is named, MeloTTS otherwise,
+// on Workers AI (free inside the daily allowance),
 // one MP3 per utterance, played in order. Where the gateway cannot speak — no key, offline,
 // the stub in e2e — the browser's own engine takes the utterance instead, so nothing is
 // ever silent that used to speak.
@@ -31,7 +32,7 @@ export function setFallback(f: Fallback): void {
   fallback = f
 }
 
-async function fetchAudio(text: string, signal: AbortSignal): Promise<Blob | null> {
+async function fetchAudio(text: string, speaker: string | undefined, signal: AbortSignal): Promise<Blob | null> {
   const base = gatewayUrl()
   if (!base) return null
   const key = loadKey()
@@ -39,7 +40,7 @@ async function fetchAudio(text: string, signal: AbortSignal): Promise<Blob | nul
     const res = await fetch(`${base}/v1/tts`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', ...(key ? { 'x-council-key': key } : {}) },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify(speaker ? { text, speaker } : { text }),
       signal,
     })
     if (!res.ok || !res.headers.get('content-type')?.startsWith('audio/')) return null
@@ -49,9 +50,11 @@ async function fetchAudio(text: string, signal: AbortSignal): Promise<Blob | nul
   }
 }
 
-export function speak(text: string, voice: Voice, onEnd?: () => void): void {
+/** `speaker` (an adviser id or `facilitator`) picks that adviser's gateway voice; without it
+ *  the gateway uses its one default voice. `voice` is the browser fallback's pitch and rate. */
+export function speak(text: string, voice: Voice, onEnd?: () => void, speaker?: string): void {
   const abort = new AbortController()
-  queue.push({ text, voice, onEnd, abort, audio: fetchAudio(text, abort.signal) })
+  queue.push({ text, voice, onEnd, abort, audio: fetchAudio(text, speaker, abort.signal) })
   if (!busy) void next()
 }
 
