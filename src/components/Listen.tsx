@@ -7,13 +7,14 @@ export const LISTEN_STORAGE = 'council:listen'
 
 primeVoices()
 
-/** The toggle, remembered between sessions. */
-export function useListen(): [boolean, (on: boolean) => void] {
+/** A switch remembered on this device ('1' / '0'); `fallback` until it was ever set. */
+export function usePref(key: string, fallback: boolean): [boolean, (on: boolean) => void] {
   const [on, setOn] = useState(() => {
     try {
-      return localStorage.getItem(LISTEN_STORAGE) === '1'
+      const v = localStorage.getItem(key)
+      return v === null ? fallback : v === '1'
     } catch {
-      return false
+      return fallback
     }
   })
   return [
@@ -21,13 +22,16 @@ export function useListen(): [boolean, (on: boolean) => void] {
     (next: boolean) => {
       setOn(next)
       try {
-        localStorage.setItem(LISTEN_STORAGE, next ? '1' : '0')
+        localStorage.setItem(key, next ? '1' : '0')
       } catch {
         // Nothing to remember in private mode; the toggle still works this visit.
       }
     },
   ]
 }
+
+/** Read-aloud: on unless she turned it off on this device. */
+export const useListen = () => usePref(LISTEN_STORAGE, true)
 
 export function cancel() {
   tts.cancel()
@@ -60,23 +64,24 @@ export function speakInBrowser(text: string, voice: { pitch: number; rate: numbe
 /**
  * Reads the debate aloud as it arrives — one voice per persona, the verdict last
  * (the tts queue plays in order, so queueing in order is enough).
- * Turning the toggle on mid-debate starts from the next turn, not the first.
+ * Switching on reads from `from` (the turn on screen; default the last one), then what follows.
  */
-export function useNarration(turns: Turn[], verdict: Verdict | null, on: boolean) {
+export function useNarration(turns: Turn[], verdict: Verdict | null, on: boolean, from = turns.length - 1) {
   const spoken = useRef(0)
   const saidVerdict = useRef(false)
   const wasOn = useRef(false)
 
   useEffect(() => {
     if (!on || !synthesisAvailable()) {
-      cancel()
+      // Only on the way off: while off, Talk mode owns the speaker and must not be cut each turn.
+      if (wasOn.current) cancel()
       wasOn.current = false
       return
     }
     if (!wasOn.current) {
       wasOn.current = true
-      spoken.current = turns.length
-      saidVerdict.current = Boolean(verdict)
+      spoken.current = Math.max(0, Math.min(from, turns.length))
+      saidVerdict.current = false
     }
     for (let i = spoken.current; i < turns.length; i++) {
       speak(turns[i].text, personaVoice(turns[i].persona))
@@ -92,18 +97,13 @@ export function useNarration(turns: Turn[], verdict: Verdict | null, on: boolean
   useEffect(() => cancel, [])
 }
 
-export function ListenToggle({ on, onChange }: { on: boolean; onChange: (on: boolean) => void }) {
+export function ListenToggle({ on, onChange, chip = false }: { on: boolean; onChange: (on: boolean) => void; chip?: boolean }) {
   if (!synthesisAvailable()) return null
+  const look = chip
+    ? `chip min-h-11 gap-2 font-semibold ${on ? 'bg-ink-800 text-marble-50' : 'text-marble-400'}`
+    : `flex min-h-11 items-center gap-2 px-3 text-[15px] font-semibold ${on ? 'text-marble-50' : 'text-marble-400 hover:text-marble-100'}`
   return (
-    <button
-      type="button"
-      onClick={() => onChange(!on)}
-      aria-pressed={on}
-      data-testid="listen"
-      className={`flex min-h-11 items-center gap-2 px-3 text-[15px] font-semibold ${
-        on ? 'text-marble-50' : 'text-marble-400 hover:text-marble-100'
-      }`}
-    >
+    <button type="button" onClick={() => onChange(!on)} aria-pressed={on} data-testid="listen" className={look}>
       <svg
         viewBox="0 0 24 24"
         className="h-5 w-5"
