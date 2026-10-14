@@ -1,7 +1,7 @@
 // Council v4 — the facilitated, remembered, accountable flow
 // (flywheel/docs/expansion/council-v4.md "Flow (gateway contract)"):
 //   POST /v1/council/start   { roster, advisers[], intake?, memory? }  → SSE
-//   POST /v1/council/turn    { session_id, message }                   → SSE
+//   POST /v1/council/turn    { session_id, message, voice? }           → SSE (+ speaker, delta when voice)
 //   POST /v1/council/control { session_id, command }                   → SSE
 //   POST /v1/council/capture { session_id, proposal_id? | text? }      → { entry }
 //   POST /v1/council/commit  { session_id, entry_id, due_date, remind, id, what } → { commitment }
@@ -68,7 +68,8 @@ export interface Commitment {
   outcome_at?: string | null
 }
 
-export type Intake = Partial<Record<IntakeId, string>>
+/** The seven answers plus `materials`: raw background beyond what fits them (council-v4.3.md). */
+export type Intake = Partial<Record<IntakeId | 'materials', string>>
 
 export interface Memory {
   entries: Pick<JournalEntry, 'decision' | 'next_action' | 'status' | 'created_at'>[]
@@ -83,6 +84,52 @@ export type MastermindEvent =
   | ({ type: 'proposal' } & Omit<JournalEntry, 'status' | 'created_at' | 'session_id'>)
   | { type: 'done'; usage?: { cost_cents?: number } }
   | { type: 'error'; reason: string }
+  // Voice turns (council-v4.3.md "Voice turn"): the adviser first, then their words as they come.
+  | { type: 'speaker'; speaker: string }
+  | { type: 'delta'; text: string }
+
+export type Item =
+  | { kind: 'facilitator'; text: string }
+  /** `streaming` while a voice turn's deltas are still arriving; the final `contribution` replaces it. */
+  | { kind: 'contribution'; speaker: string; text: string; confidence?: number; streaming?: boolean }
+  | { kind: 'floor'; question: string }
+  | { kind: 'user'; text: string }
+  | {
+      kind: 'proposal'
+      entry: JournalEntry
+      /** From the "Capture that decision" chip (already captured) vs. offered in-stream. */
+      captured: boolean
+      state: 'open' | 'accepted' | 'declined' | 'committed'
+    }
+
+/** A stream that ended or failed mid-answer: the half-arrived contribution stops growing. */
+export function settleItems(items: Item[]): Item[] {
+  return items.some((it) => it.kind === 'contribution' && it.streaming)
+    ? items.map((it) => (it.kind === 'contribution' && it.streaming ? { ...it, streaming: false } : it))
+    : items
+}
+
+/** The conversation's items after one stream event. Session, proposal, done and error are the provider's. */
+export function itemsReducer(items: Item[], ev: MastermindEvent): Item[] {
+  const last = items[items.length - 1]
+  const growing = last?.kind === 'contribution' && last.streaming ? last : null
+  switch (ev.type) {
+    case 'facilitator':
+      return [...items, { kind: 'facilitator', text: ev.text }]
+    case 'speaker':
+      return [...items, { kind: 'contribution', speaker: ev.speaker, text: '', streaming: true }]
+    case 'delta':
+      return growing ? [...items.slice(0, -1), { ...growing, text: growing.text + ev.text }] : items
+    case 'contribution': {
+      const done: Item = { kind: 'contribution', speaker: ev.speaker, text: ev.text, confidence: ev.confidence }
+      return growing ? [...items.slice(0, -1), done] : [...items, done]
+    }
+    case 'floor':
+      return [...items, { kind: 'floor', question: ev.question }]
+    default:
+      return items
+  }
+}
 
 // ---------- intake ----------
 
@@ -111,6 +158,7 @@ export type IntakeId = (typeof INTAKE_QUESTIONS)[number]['id']
 
 /** The gateway rejects the whole intake when one field is longer (MAX_FIELD). */
 export const MAX_FIELD = 1000
+export const MAX_MATERIALS = 8000
 
 /** What goes on the wire: trimmed, capped, blanks dropped; undefined when nothing was answered. */
 export function intakePayload(answers: Intake): Intake | undefined {
@@ -119,18 +167,20 @@ export function intakePayload(answers: Intake): Intake | undefined {
     const v = answers[id]?.trim().slice(0, MAX_FIELD)
     if (v) out[id] = v
   }
+  const m = answers.materials?.trim().slice(0, MAX_MATERIALS)
+  if (m) out.materials = m
   return Object.keys(out).length ? out : undefined
 }
 
 // v4 stored these under its own keys; old Supabase rows still carry them.
 const LEGACY: Record<string, IntakeId> = { workplace: 'organization', mode: 'working_style' }
-const STABLE: IntakeId[] = ['role', 'organization', 'working_style']
+const STABLE: (keyof Intake)[] = ['role', 'organization', 'working_style']
 
 /** The fields that do not change between sessions, prefilled from the last intake. */
 export function stableIntake(last: Record<string, string | undefined> | null): Intake {
   const out: Intake = {}
   for (const [k, v] of Object.entries(last ?? {})) {
-    const id = (LEGACY[k] ?? k) as IntakeId
+    const id = (LEGACY[k] ?? k) as keyof Intake
     if (STABLE.includes(id) && v) out[id] = v
   }
   return out
@@ -299,7 +349,7 @@ export const startCouncil = (
   opts: StreamOptions,
 ) => s('/v1/council/start', body, opts)
 
-export const sendTurn = (body: { session_id: string; message: string }, opts: StreamOptions) =>
+export const sendTurn = (body: { session_id: string; message: string; voice?: true }, opts: StreamOptions) =>
   s('/v1/council/turn', body, opts)
 
 export const sendControl = (body: { session_id: string; command: string }, opts: StreamOptions) =>

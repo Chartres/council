@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useCouncil } from '@/app/CouncilContext'
 import { useMastermind } from '@/app/MastermindContext'
 import { Monogram } from '@/components/Monogram'
@@ -15,6 +16,31 @@ import {
 } from '@/content/personas'
 
 const listOf = (xs: string[]) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`)
+
+export const MCP_URL = 'https://llm.dravec.org/mcp'
+
+function ConnectPanel() {
+  const [copied, setCopied] = useState(false)
+  return (
+    <details className="mt-6" data-testid="connect">
+      <summary className="text-btn flex cursor-pointer list-none items-center [&::-webkit-details-marker]:hidden">
+        Connect from your AI
+      </summary>
+      <p className="t-body mt-2 break-all text-marble-50">{MCP_URL}</p>
+      <button
+        type="button"
+        onClick={() => navigator.clipboard?.writeText(MCP_URL).then(() => setCopied(true), () => setCopied(false))}
+        className="text-btn -ml-3 px-3"
+      >
+        {copied ? 'Copied' : 'Copy'}
+      </button>
+      <p className="t-body mt-2">
+        Add it as a connector in Claude or ChatGPT; it signs you in by email and your AI starts the council with what it
+        knows about you.
+      </p>
+    </details>
+  )
+}
 
 const ROSTER_LABEL: Record<RosterId, string> = { business: 'Business', classics: 'Classics' }
 
@@ -102,6 +128,8 @@ export function StartScreen() {
           Begin
         </button>
       </div>
+
+      <ConnectPanel />
 
       <p className="mt-6 text-[13px] leading-[18px] text-marble-400">
         The advisers are AI. {roster === 'business' ? BUSINESS_DISCLOSURE : `${DISCLOSURE} ${MONTESSORI_NOTE}`}{' '}

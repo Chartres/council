@@ -95,8 +95,7 @@ test('plain text and a dropped file go to the gateway; URLs and wrong files get 
 
 test('ask your AI: the prompt is one tap from the clipboard', async ({ page }) => {
   await openIntake(page)
-  await openAbout(page)
-  await page.getByRole('button', { name: 'Ask your AI' }).click()
+  await page.getByRole('button', { name: 'Let your AI fill this in' }).click()
   await expect(page.getByTestId('ai-prompt')).toContainText('Write UNKNOWN rather than guessing.')
   await page.getByRole('button', { name: 'Copy' }).click()
   await expect(page.getByRole('button', { name: 'Copied' })).toBeVisible()
@@ -159,4 +158,32 @@ test('talk it through without voice support focuses each empty field in turn', a
   await expect(page.getByLabel('What would you like the group to help you achieve?')).toBeFocused()
   await page.getByRole('button', { name: 'Stop talking' }).click()
   await expect(page.getByTestId('voice-bar')).toHaveCount(0)
+})
+
+test('several files at once: read in turn, a big one skipped by name, Materials goes to the group', async ({ page }) => {
+  const calls = extractCalls(page)
+  await page.addInitScript(() => localStorage.setItem('council:trust-seen', '1'))
+  await openIntake(page)
+  const pdf = (name: string, size = 20) => ({ name, mimeType: 'application/pdf', buffer: Buffer.alloc(size, 'x') })
+  await page
+    .getByTestId('file-input')
+    .setInputFiles([pdf('Profile.pdf'), pdf('Big.pdf', 5 * 1024 * 1024 + 1), pdf('Plan.pdf')])
+  await expect(page.getByTestId('intake-note')).toHaveText(
+    'Read 2 files. Filled 3 of 7. Check them below. Skipped Big.pdf: over 5 MB.',
+  )
+  expect(calls).toHaveLength(2)
+  await expect(page.getByLabel('Who are you professionally?')).toHaveValue(/Product manager/)
+  await page.getByLabel('Materials').fill('Q3 numbers: churn 4.1%, ARPU flat.')
+  await page.screenshot({ path: `${SHOTS}/v43-intake-files.png`, fullPage: true })
+  await page.getByRole('button', { name: 'Bring it to the group' }).click()
+  await expect(page.getByTestId('facilitator').first()).toContainText('premium tier')
+})
+
+test('connect from your AI: the MCP address is one tap from the clipboard', async ({ page }) => {
+  await page.goto('/')
+  await page.getByText('Connect from your AI').click()
+  await expect(page.getByText('https://llm.dravec.org/mcp')).toBeVisible()
+  await page.getByRole('button', { name: 'Copy' }).click()
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('https://llm.dravec.org/mcp')
+  await page.screenshot({ path: `${SHOTS}/v43-start-connect.png`, fullPage: true })
 })

@@ -6,6 +6,8 @@ import {
   classifyInput,
   extractIntake,
   fileProblem,
+  importNote,
+  mergeIntake,
   parseHeadings,
 } from './intakeImport'
 
@@ -103,6 +105,13 @@ describe('extractIntake', () => {
     expect(JSON.parse(init.body)).toEqual({ text: 'I am a CFO' })
   })
 
+  it('lets materials through from the gateway, capped at 8,000', async () => {
+    vi.stubGlobal('fetch', respond(200, { intake: { role: 'CFO', materials: 'x'.repeat(9000) } }))
+    const got = await extractIntake('x', opts)
+    expect(got.role).toBe('CFO')
+    expect(got.materials).toHaveLength(8000)
+  })
+
   it('posts a file as multipart, letting the browser set the boundary', async () => {
     const fetch = respond(200, { intake: { role: 'Engineer' }, unknown: [] })
     vi.stubGlobal('fetch', fetch)
@@ -123,5 +132,55 @@ describe('extractIntake', () => {
     await expect(extractIntake('x', opts)).rejects.toMatchObject({ code: 'password' })
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('offline')))
     await expect(extractIntake('x', opts)).rejects.toMatchObject({ code: 'gateway' })
+  })
+})
+
+describe('mergeIntake', () => {
+  it('fills empty fields and appends to filled ones after a blank line', () => {
+    expect(mergeIntake({ role: 'CFO' }, { role: 'Board member', goal: 'cut churn' })).toEqual({
+      merged: { role: 'CFO\n\nBoard member', goal: 'cut churn' },
+      overflow: false,
+      cut: false,
+    })
+  })
+
+  it('does not repeat text the field already has', () => {
+    expect(mergeIntake({ role: 'CFO at a retailer' }, { role: 'CFO' }).merged.role).toBe('CFO at a retailer')
+  })
+
+  it('cuts a field at 1,000 and sends the rest to Materials, appended', () => {
+    const { merged, overflow } = mergeIntake({ role: 'a'.repeat(900), materials: 'notes' }, { role: 'b'.repeat(300) })
+    expect(merged.role).toHaveLength(1000)
+    expect(merged.materials).toBe(`notes\n\nRole: ${'b'.repeat(202)}`)
+    expect(overflow).toBe(true)
+  })
+
+  it('caps Materials at 8,000 and says it cut', () => {
+    const { merged, cut } = mergeIntake({ materials: 'm'.repeat(7990) }, { materials: 'x'.repeat(100) })
+    expect(merged.materials).toHaveLength(8000)
+    expect(cut).toBe(true)
+    expect(mergeIntake({}, { materials: 'short' }).cut).toBe(false)
+  })
+})
+
+describe('importNote', () => {
+  it('counts files and fields and says where the rest went', () => {
+    expect(importNote({ read: 3, filled: 5, overflow: true, skipped: [] })).toBe(
+      'Read 3 files. Filled 5 of 7; the rest went to Materials.',
+    )
+    expect(importNote({ read: 1, filled: 2, overflow: false, skipped: [] })).toBe('Filled 2 of 7. Check them below.')
+    expect(importNote({ read: 1, filled: 0, overflow: false, skipped: [] })).toBe('Nothing to fill from that. Answer below instead.')
+  })
+
+  it('names a skipped file and still reports the rest', () => {
+    expect(importNote({ read: 2, filled: 3, overflow: false, skipped: [{ name: 'big.pdf', size: 6e6 }] })).toBe(
+      'Read 2 files. Filled 3 of 7. Check them below. Skipped big.pdf: over 5 MB.',
+    )
+    expect(
+      importNote({ read: 1, filled: 1, overflow: true, cut: true, skipped: [{ name: 'scan.pdf', size: 9, reason: 'could not be read' }] }),
+    ).toBe('Filled 1 of 7; the rest went to Materials. Materials was cut at 8,000 characters. Skipped scan.pdf: could not be read.')
+    expect(importNote({ read: 0, filled: 0, overflow: false, skipped: [{ name: 'photo.png', size: 1 }] })).toBe(
+      'Drop a PDF, DOCX or TXT file.',
+    )
   })
 })

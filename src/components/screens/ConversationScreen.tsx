@@ -2,14 +2,16 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useCouncil } from '@/app/CouncilContext'
 import { useMastermind, type Item } from '@/app/MastermindContext'
 import { useAuth } from '@/auth/AuthContext'
-import { ListenToggle, useListen, useNarration } from '@/components/Listen'
+import { ListenToggle, useListen, useNarration, usePref } from '@/components/Listen'
 import { MicButton } from '@/components/MicButton'
+import { Talk, TALK_STORAGE } from '@/components/Talk'
 import { Monogram } from '@/components/Monogram'
 import { CouncilMap } from '@/components/CouncilMap'
 import { SignInPanel } from '@/components/SignInPanel'
 import { BUSINESS_DISCLOSURE, DISCLOSURE, personaName } from '@/content/personas'
 import { FAILURE_COPY, type Turn } from '@/domain/council'
 import { humanDate } from '@/domain/dates'
+import * as tts from '@/domain/tts'
 import type { Control } from '@/domain/mastermind'
 
 type Proposal = Extract<Item, { kind: 'proposal' }>
@@ -17,30 +19,57 @@ type Proposal = Extract<Item, { kind: 'proposal' }>
 export function ConversationScreen() {
   const { go } = useCouncil()
   const { conversation, say, control, journal } = useMastermind()
+  const { token } = useAuth()
   const [message, setMessage] = useState('')
   const [more, setMore] = useState(false)
   const [replyOpen, setReplyOpen] = useState(false)
   const [listen, setListen] = useListen()
+  const [talk, setTalk] = usePref(TALK_STORAGE, false)
+  // Where read-aloud starts when it comes on: the turn on screen; after Talk, nothing already heard.
+  const readFrom = useRef<number | null>(null)
   const list = useRef<HTMLOListElement>(null)
   const turnStart = useRef(0)
   const items = conversation?.items
   const streaming = conversation?.streaming
 
-  // Spoken: the speaker's name, then the contribution (Eyal's voice rule).
-  const turns = useMemo<Turn[]>(
-    () =>
-      (items ?? []).flatMap((it): Turn[] =>
-        it.kind === 'contribution'
-          ? [{ persona: it.speaker, text: `${personaName(it.speaker)}. ${it.text}` }]
-          : it.kind === 'facilitator'
-            ? [{ persona: 'facilitator', text: it.text }]
-            : it.kind === 'floor'
-              ? [{ persona: 'facilitator', text: it.question }]
-              : [],
-      ),
-    [items],
-  )
-  useNarration(turns, null, listen)
+  // Spoken: the speaker's name, then the contribution (Eyal's voice rule). `current`: the first
+  // turn after her last message — the turn on screen.
+  const { turns, current } = useMemo(() => {
+    const turns: Turn[] = []
+    let current = 0
+    for (const it of items ?? []) {
+      if (it.kind === 'user') current = turns.length
+      else if (it.kind === 'contribution' && !it.streaming)
+        turns.push({ persona: it.speaker, text: `${personaName(it.speaker)}. ${it.text}` })
+      else if (it.kind === 'facilitator') turns.push({ persona: 'facilitator', text: it.text })
+      else if (it.kind === 'floor') turns.push({ persona: 'facilitator', text: it.question })
+    }
+    return { turns, current }
+  }, [items])
+  // Talk switched off mid-answer: read-aloud skips that answer and starts after the stream.
+  const [quiet, setQuiet] = useState(false)
+  useEffect(() => {
+    if (streaming || !quiet) return
+    readFrom.current = turns.length
+    setQuiet(false)
+  }, [streaming, quiet])
+  // Talk speaks for itself; read-aloud waits while it is on (it is gone once the session ended).
+  useNarration(turns, null, listen && !quiet && !(talk && !conversation?.ended), readFrom.current ?? current)
+  const onListen = (on: boolean) => {
+    readFrom.current = null
+    setListen(on)
+  }
+  const onTalk = (on: boolean) => {
+    readFrom.current = on ? null : turns.length
+    setTalk(on)
+  }
+
+  // The gateway voices advisers only inside this session; forget it on leaving.
+  const sessionIdNow = conversation?.sessionId ?? null
+  useEffect(() => {
+    tts.setSession(sessionIdNow, token)
+    return () => tts.setSession(null)
+  }, [sessionIdNow, token])
 
   // Read from the start of what arrived: the first item of the newest turn goes to the top.
   // The opening turn needs no scroll; the question is pinned above it.
@@ -77,12 +106,9 @@ export function ConversationScreen() {
         <button type="button" onClick={() => go('start')} className="text-btn -ml-3 px-3 text-marble-400">
           ← Council
         </button>
-        <span className="flex items-center gap-1">
-          <button type="button" onClick={() => go('journal')} className="text-btn px-3 text-marble-400">
-            {decided ? `Journal · ${decided}` : 'Journal'}
-          </button>
-          <ListenToggle on={listen} onChange={setListen} />
-        </span>
+        <button type="button" onClick={() => go('journal')} className="text-btn px-3 text-marble-400">
+          {decided ? `Journal · ${decided}` : 'Journal'}
+        </button>
       </div>
 
       <section aria-label="The question" className="mt-2">
@@ -98,7 +124,7 @@ export function ConversationScreen() {
         ))}
       </ol>
 
-      {streaming && (
+      {streaming && !talk && (
         <p className="t-title mt-6 italic text-marble-200" role="status" data-testid="streaming">
           The group is talking…
         </p>
@@ -116,13 +142,28 @@ export function ConversationScreen() {
       )}
 
       {ended ? (
-        !streaming && (
-          <button type="button" onClick={() => go('journal')} className="slab mt-6">
-            Open the journal
-          </button>
-        )
+        <>
+          <div className="mt-6 flex">
+            <ListenToggle chip on={listen} onChange={onListen} />
+          </div>
+          {!streaming && (
+            <button type="button" onClick={() => go('journal')} className="slab mt-6">
+              Open the journal
+            </button>
+          )}
+        </>
       ) : (
         <>
+          <Talk
+            on={talk}
+            onChange={onTalk}
+            items={conversation.items}
+            streaming={!!busy}
+            onSay={(text) => say(text, { voice: true })}
+            onQuiet={() => setQuiet(true)}
+          >
+            <ListenToggle chip on={listen} onChange={onListen} />
+          </Talk>
           {committing ? (
             <button
               type="button"
@@ -266,7 +307,7 @@ function ItemView({ item, index, steer }: { item: Item; index: number; steer?: S
       )
     case 'contribution':
       return (
-        <div className="flex gap-4" data-testid="contribution">
+        <div className="flex gap-4" data-testid="contribution" data-streaming={item.streaming || undefined}>
           <Monogram id={item.speaker} />
           <div className="min-w-0 flex-1">
             <p className="flex items-baseline gap-3">

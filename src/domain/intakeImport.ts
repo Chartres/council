@@ -4,7 +4,7 @@
 // fetched (SSRF surface on the gateway, and LinkedIn blocks it anyway).
 
 import { gatewayHeaders, type StreamOptions } from './council'
-import { INTAKE_QUESTIONS, MAX_FIELD, type Intake, type IntakeId } from './mastermind'
+import { INTAKE_QUESTIONS, MAX_FIELD, MAX_MATERIALS, type Intake, type IntakeId } from './mastermind'
 
 export const LINKEDIN_HINT =
   'LinkedIn blocks apps from reading profiles. On your profile: More → Save to PDF, then drop the file here.'
@@ -78,6 +78,47 @@ export function fileProblem(file: { name: string; size: number }): string | null
   return null
 }
 
+type Skipped = { name: string; size: number; reason?: string }
+const SKIP_REASON = (f: Skipped) => f.reason ?? (f.size > MAX_FILE_BYTES ? 'over 5 MB' : 'not a PDF, DOCX or TXT')
+
+/** What the user reads after a batch of files. */
+export function importNote(o: { read: number; filled: number; overflow: boolean; cut?: boolean; skipped: Skipped[] }): string {
+  if (!o.read && o.skipped.length === 1 && !o.skipped[0].reason) return fileProblem(o.skipped[0])!
+  const parts: string[] = []
+  if (o.read > 1) parts.push(`Read ${o.read} files.`)
+  if (o.read)
+    parts.push(
+      !o.filled
+        ? 'Nothing to fill from that. Answer below instead.'
+        : `Filled ${o.filled} of ${INTAKE_QUESTIONS.length}${o.overflow ? '; the rest went to Materials.' : '. Check them below.'}`,
+    )
+  if (o.cut) parts.push(`Materials was cut at ${MAX_MATERIALS.toLocaleString('en')} characters.`)
+  for (const f of o.skipped) parts.push(`Skipped ${f.name}: ${SKIP_REASON(f)}.`)
+  return parts.join(' ')
+}
+
+const append = (cur: string | undefined, add: string) => (cur?.trim() ? `${cur.trim()}\n\n${add}` : add)
+
+/** Adds a file's fields to what is there: appended after a blank line, cut at the cap; the rest goes to Materials. */
+export function mergeIntake(base: Intake, add: Intake): { merged: Intake; overflow: boolean; cut: boolean } {
+  const merged = { ...base }
+  let overflow = false
+  for (const q of INTAKE_QUESTIONS) {
+    const v = add[q.id]?.trim()
+    if (!v || merged[q.id]?.includes(v)) continue
+    const all = append(merged[q.id], v)
+    merged[q.id] = all.slice(0, MAX_FIELD)
+    if (all.length > MAX_FIELD) {
+      merged.materials = append(merged.materials, `${q.label}: ${all.slice(MAX_FIELD)}`)
+      overflow = true
+    }
+  }
+  if (add.materials?.trim()) merged.materials = append(merged.materials, add.materials.trim())
+  const cut = (merged.materials?.length ?? 0) > MAX_MATERIALS
+  if (cut) merged.materials = merged.materials!.slice(0, MAX_MATERIALS)
+  return { merged, overflow, cut }
+}
+
 export type ExtractCode = 'quota' | 'no_converter' | 'password' | 'gateway'
 
 export class ExtractError extends Error {
@@ -104,6 +145,8 @@ function sanitize(raw: unknown): Intake {
     const c = clean(v)
     if (c) out[id] = c
   }
+  const m = (raw as Record<string, unknown>).materials
+  if (typeof m === 'string' && m.trim()) out.materials = m.trim().slice(0, MAX_MATERIALS)
   return out
 }
 

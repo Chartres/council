@@ -40,7 +40,8 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
       timeout: 30_000,
       // Slow enough that a mid-debate screenshot is actually mid-debate.
-      env: { STUB_TURN_DELAY_MS: '300', STUB_PASSWORD },
+      // Voice-turn sentences slow enough to photograph one half-arrived (e2e/talk.spec.ts).
+      env: { STUB_TURN_DELAY_MS: '300', STUB_DELTA_MS: '500', STUB_PASSWORD },
     },
     {
       command: 'npm run build && npm run preview -- --port 4173',

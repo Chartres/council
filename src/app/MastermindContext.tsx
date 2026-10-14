@@ -28,6 +28,8 @@ import {
   commit,
   controlRoute,
   exportJournal,
+  itemsReducer,
+  settleItems,
   journalReducer,
   normalizeEntry,
   parseDeepLink,
@@ -36,6 +38,7 @@ import {
   startCouncil,
   type Control,
   type Intake,
+  type Item,
   type JournalEntry,
   type JournalState,
   type MastermindEvent,
@@ -44,18 +47,7 @@ import {
 } from '@/domain/mastermind'
 import { useCouncil } from './CouncilContext'
 
-export type Item =
-  | { kind: 'facilitator'; text: string }
-  | { kind: 'contribution'; speaker: string; text: string; confidence?: number }
-  | { kind: 'floor'; question: string }
-  | { kind: 'user'; text: string }
-  | {
-      kind: 'proposal'
-      entry: JournalEntry
-      /** From the "Capture that decision" chip (already captured) vs. offered in-stream. */
-      captured: boolean
-      state: 'open' | 'accepted' | 'declined' | 'committed'
-    }
+export type { Item }
 
 export interface Conversation {
   localId: string
@@ -80,7 +72,8 @@ interface Value {
   memory: Memory | null
   conversation: Conversation | null
   begin: (intake?: Intake, memoryOverride?: Memory | null) => void
-  say: (message: string) => void
+  /** `voice`: a Talk-mode turn — one adviser, streamed as deltas (council-v4.3.md). */
+  say: (message: string, opts?: { voice?: boolean }) => void
   control: (c: Control) => void
   accept: (index: number, edits: { decision: string; next_action: string }) => void
   decline: (index: number) => void
@@ -163,7 +156,7 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
       if (!(e instanceof CouncilError)) logError(e, { where: 'mastermind' })
       track('council_blocked', { reason, v: 4 })
       if (reason === 'password') lockDoor()
-      update({ streaming: false, failure: reason })
+      update((c) => ({ streaming: false, failure: reason, items: settleItems(c.items) }))
     },
     [lockDoor, update],
   )
@@ -191,15 +184,6 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
             case 'session':
               update((c) => ({ sessionId: ev.session_id, tier: ev.tier ?? c.tier }))
               break
-            case 'facilitator':
-              push({ kind: 'facilitator', text: ev.text })
-              break
-            case 'contribution':
-              push({ kind: 'contribution', speaker: ev.speaker, text: ev.text, confidence: ev.confidence })
-              break
-            case 'floor':
-              push({ kind: 'floor', question: ev.question })
-              break
             case 'proposal': {
               const { type: _t, ...fields } = ev
               push({
@@ -212,9 +196,11 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
             }
             case 'error':
               throw new CouncilError((ev.reason as FailureReason) ?? 'gateway')
+            default:
+              update((c) => ({ items: itemsReducer(c.items, ev) }))
           }
         }
-        update({ streaming: false })
+        update((c) => ({ streaming: false, items: settleItems(c.items) }))
         void persistSession()
       } catch (e) {
         fail(e)
@@ -250,12 +236,12 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
   )
 
   const say = useCallback(
-    (message: string) => {
+    (message: string, { voice = false }: { voice?: boolean } = {}) => {
       const id = convo.current?.sessionId
       if (!id) return
       update((c) => ({ items: [...c.items, { kind: 'user', text: message }] }))
-      track('council_replied', { v: 4 })
-      void consume(sendTurn({ session_id: id, message }, opts()))
+      track('council_replied', { v: 4, voice })
+      void consume(sendTurn({ session_id: id, message, ...(voice ? { voice: true as const } : {}) }, opts()))
     },
     [update, consume, opts],
   )
