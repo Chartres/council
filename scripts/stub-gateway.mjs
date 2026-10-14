@@ -411,8 +411,9 @@ createServer(async (req, res) => {
       anonUsed = true
     }
     if (!Array.isArray(body.advisers) || !body.advisers.length) return fail(res, 400, 'bad_request')
-    // Mirrors the gateway: an intake with a key outside INTAKE_KEYS is a client bug → 400.
-    if (body.intake && Object.keys(body.intake).some((k) => !INTAKE_KEYS.includes(k))) return fail(res, 400, 'bad_intake')
+    // Mirrors the gateway: an intake with a key outside INTAKE_KEYS (+ materials, v4.3) is a client bug → 400.
+    if (body.intake && Object.keys(body.intake).some((k) => !INTAKE_KEYS.includes(k) && k !== 'materials')) return fail(res, 400, 'bad_intake')
+    if (String(body.intake?.materials ?? '').length > 8000) return fail(res, 400, 'bad_intake')
     const id = `stub-${Date.now()}`
     const session = { id, advisers: body.advisers.slice(0, 4), turns: 0 }
     v4.set(id, session)

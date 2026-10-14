@@ -12,9 +12,11 @@ import {
   classifyInput,
   extractIntake,
   fileProblem,
+  importNote,
+  mergeIntake,
 } from '@/domain/intakeImport'
 import { VOICE_IDLE, currentField, voiceReducer } from '@/domain/intakeVoice'
-import { INTAKE_QUESTIONS, intakePayload, stableIntake, type Intake } from '@/domain/mastermind'
+import { INTAKE_QUESTIONS, MAX_MATERIALS, intakePayload, stableIntake, type Intake } from '@/domain/mastermind'
 import { recognitionCtor, synthesisAvailable } from '@/domain/speech'
 
 const TRUST_KEY = 'council:trust-seen'
@@ -37,7 +39,7 @@ function TrustNote() {
     }
   }
   return (
-    <section aria-label="Before you start" data-testid="trust-note" className="mt-2 text-[15px] leading-[22px] text-marble-300">
+    <section aria-label="Before you start" data-testid="trust-note" className="t-body mt-2">
       <p>
         Your answers go to Anthropic’s Claude, which deletes them within 30 days and does not train on them; without an
         account we keep nothing after 24 hours. The advisers are AI. <PrivacyLink />
@@ -48,6 +50,9 @@ function TrustNote() {
     </section>
   )
 }
+
+// Label type (13/18 uppercase tracked) so three fit one row on a phone.
+const SHORTCUT = 'text-btn text-left text-[13px] leading-[18px] uppercase tracking-[0.06em]'
 
 const filled = (a: Intake) => Object.fromEntries(Object.entries(a).filter(([, v]) => v?.trim())) as Intake
 const ask = (id: string) => INTAKE_QUESTIONS.find((q) => q.id === id)!.q
@@ -83,18 +88,61 @@ export function IntakeScreen() {
     setNote(n ? `Filled ${n} of ${INTAKE_QUESTIONS.length}. Check them below.` : 'Nothing to fill from that. Answer below instead.')
   }
 
-  const read = async (input: string | File) => {
+  const failed = (e: unknown) => {
+    const code = e instanceof ExtractError ? e.code : 'gateway'
+    if (code === 'password') lockDoor()
+    setNote(EXTRACT_COPY[code])
+  }
+
+  const read = async (input: string) => {
     setBusy(true)
     setNote('Reading…')
     try {
       fill(await extractIntake(input, { gatewayUrl: GATEWAY_URL, token, councilKey }))
     } catch (e) {
-      const code = e instanceof ExtractError ? e.code : 'gateway'
-      if (code === 'password') lockDoor()
-      setNote(EXTRACT_COPY[code])
+      failed(e)
     } finally {
       setBusy(false)
     }
+  }
+
+  // Files are read one after another and merged into what is there; a bad file is skipped, not fatal.
+  const readFiles = async (list: FileList | null | undefined) => {
+    const files = Array.from(list ?? [])
+    if (!files.length) return
+    const skipped = files.filter((f) => fileProblem(f))
+    const ok = files.filter((f) => !fileProblem(f))
+    if (!ok.length) return setNote(importNote({ read: 0, filled: 0, overflow: false, skipped }))
+    setBusy(true)
+    setOpen(true)
+    let acc = answers
+    let overflow = false
+    const touched = new Set<string>()
+    try {
+      for (const [i, f] of ok.entries()) {
+        setNote(ok.length > 1 ? `Reading ${i + 1} of ${ok.length}…` : 'Reading…')
+        const got = await extractIntake(f, { gatewayUrl: GATEWAY_URL, token, councilKey })
+        Object.keys(got).forEach((k) => touched.add(k))
+        const m = mergeIntake(acc, got)
+        acc = m.merged
+        overflow ||= m.overflow
+        setAnswers(acc)
+      }
+      setNote(importNote({ read: ok.length, filled: touched.size, overflow, skipped }))
+    } catch (e) {
+      failed(e)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const dropFiles = {
+    onDragOver: (e: React.DragEvent) => e.preventDefault(),
+    onDrop: (e: React.DragEvent) => {
+      if (!e.dataTransfer.files.length) return
+      e.preventDefault()
+      void readFiles(e.dataTransfer.files)
+    },
   }
 
   const readText = () => {
@@ -102,13 +150,6 @@ export function IntakeScreen() {
     if (c.kind === 'hint') setNote(c.message)
     else if (c.kind === 'parsed') fill(c.intake)
     else if (c.kind === 'extract') void read(c.text)
-  }
-
-  const takeFile = (file: File | undefined) => {
-    if (!file) return
-    const problem = fileProblem(file)
-    if (problem) setNote(problem)
-    else void read(file)
   }
 
   const copyPrompt = () =>
@@ -192,9 +233,57 @@ export function IntakeScreen() {
         aria-label={goal.q}
         value={answers.goal ?? ''}
         onChange={(e) => set('goal', e.target.value)}
+        {...dropFiles}
         placeholder={goal.hint}
         className="t-display mt-2 block w-full resize-none border-b-2 border-marble-500 bg-transparent pb-3 [field-sizing:content] placeholder:text-marble-400 focus:border-candle-400 focus-visible:shadow-none"
       />
+
+      {/* Three ways to skip the form; what they fill is reviewed under About you. */}
+      <div className="mt-2 grid grid-cols-3 gap-2" role="group" aria-label="Shortcuts">
+        <button
+          type="button"
+          onClick={() => {
+            setShowPrompt((s) => !s)
+            setOpen(true)
+          }}
+          aria-expanded={showPrompt}
+          className={SHORTCUT}
+        >
+          Let your AI fill this in
+        </button>
+        <button type="button" onClick={voice.phase === 'idle' ? startVoice : stopVoice} className={SHORTCUT}>
+          {voice.phase === 'idle' ? 'Talk it through' : 'Stop talking'}
+        </button>
+        <button type="button" onClick={() => fileInput.current?.click()} disabled={busy} className={SHORTCUT}>
+          Drop files
+        </button>
+      </div>
+      <input
+        ref={fileInput}
+        type="file"
+        accept=".pdf,.docx,.txt"
+        multiple
+        hidden
+        data-testid="file-input"
+        onChange={(e) => {
+          void readFiles(e.target.files)
+          e.target.value = ''
+        }}
+      />
+      {note && (
+        <p role="status" className="t-body mt-2 text-marble-100" data-testid="intake-note">
+          {note}
+        </p>
+      )}
+      {showPrompt && (
+        <div className="mt-2 border-l-2 border-marble-500 pl-4" data-testid="ai-prompt">
+          <p className="t-body">Run this in ChatGPT, Claude or Gemini, then paste the reply under About you.</p>
+          <pre className="t-body mt-2 whitespace-pre-wrap font-sans">{AI_PROMPT}</pre>
+          <button type="button" onClick={copyPrompt} className="text-btn -ml-3 px-3">
+            {copied ? 'Copied' : 'Copy'}
+          </button>
+        </div>
+      )}
 
       <button
         type="button"
@@ -206,7 +295,7 @@ export function IntakeScreen() {
       >
         Bring it to the group
       </button>
-      <p className="mt-2 text-[15px] leading-[22px] text-marble-400">
+      <p className="mt-2 text-[13px] leading-[18px] text-marble-400">
         Everything below is optional. The group works with what you give it.
       </p>
 
@@ -226,58 +315,13 @@ export function IntakeScreen() {
           rows={2}
           value={text}
           onChange={(e) => setText(e.target.value)}
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => {
-            e.preventDefault()
-            takeFile(e.dataTransfer.files[0])
-          }}
-          placeholder="Paste a bio, notes or your AI’s answer, or drop a PDF, DOCX or TXT."
+          {...dropFiles}
+          placeholder="Paste a bio, notes or your AI’s answer, or drop PDF, DOCX or TXT files."
           className="field mt-2 resize-y"
         />
-        <div className="flex flex-wrap items-center gap-x-4">
-          <button type="button" onClick={readText} disabled={busy || !text.trim()} className="text-btn">
-            Read it
-          </button>
-          <button type="button" onClick={() => fileInput.current?.click()} disabled={busy} className="text-btn">
-            Pick a file
-          </button>
-          <input
-            ref={fileInput}
-            type="file"
-            accept=".pdf,.docx,.txt"
-            hidden
-            data-testid="file-input"
-            onChange={(e) => {
-              takeFile(e.target.files?.[0])
-              e.target.value = ''
-            }}
-          />
-          <button type="button" onClick={() => setShowPrompt((s) => !s)} aria-expanded={showPrompt} className="text-btn">
-            Ask your AI
-          </button>
-          <button
-            type="button"
-            onClick={voice.phase === 'idle' ? startVoice : stopVoice}
-            className={`text-btn ${voice.phase === 'idle' ? '' : 'text-candle-300'}`}
-          >
-            {voice.phase === 'idle' ? 'Talk it through' : 'Stop talking'}
-          </button>
-        </div>
-        {note && (
-          <p role="status" className="mt-2 text-[15px] leading-[22px] text-marble-100" data-testid="intake-note">
-            {note}
-          </p>
-        )}
-
-        {showPrompt && (
-          <div className="mt-2 border-l-2 border-marble-500 pl-4" data-testid="ai-prompt">
-            <p className="text-[15px] text-marble-300">Run this in ChatGPT, Claude or Gemini, then paste the reply above.</p>
-            <pre className="mt-2 whitespace-pre-wrap font-sans text-[15px] text-marble-200">{AI_PROMPT}</pre>
-            <button type="button" onClick={copyPrompt} className="text-btn -ml-3 px-3">
-              {copied ? 'Copied' : 'Copy'}
-            </button>
-          </div>
-        )}
+        <button type="button" onClick={readText} disabled={busy || !text.trim()} className="text-btn">
+          Read it
+        </button>
 
         <ul className="mt-6 space-y-6" aria-label="Your context">
           {about.map((q) => (
@@ -297,6 +341,20 @@ export function IntakeScreen() {
               />
             </li>
           ))}
+          <li>
+            <label htmlFor="f-materials" className="t-label block">
+              Materials
+            </label>
+            <textarea
+              id="f-materials"
+              rows={3}
+              maxLength={MAX_MATERIALS}
+              value={answers.materials ?? ''}
+              onChange={(e) => set('materials', e.target.value)}
+              placeholder="Anything else the group should read: notes, a plan, numbers."
+              className="field mt-2 resize-y"
+            />
+          </li>
         </ul>
       </details>
 

@@ -68,7 +68,8 @@ export interface Commitment {
   outcome_at?: string | null
 }
 
-export type Intake = Partial<Record<IntakeId, string>>
+/** The seven answers plus `materials`: raw background beyond what fits them (council-v4.3.md). */
+export type Intake = Partial<Record<IntakeId | 'materials', string>>
 
 export interface Memory {
   entries: Pick<JournalEntry, 'decision' | 'next_action' | 'status' | 'created_at'>[]
@@ -111,6 +112,7 @@ export type IntakeId = (typeof INTAKE_QUESTIONS)[number]['id']
 
 /** The gateway rejects the whole intake when one field is longer (MAX_FIELD). */
 export const MAX_FIELD = 1000
+export const MAX_MATERIALS = 8000
 
 /** What goes on the wire: trimmed, capped, blanks dropped; undefined when nothing was answered. */
 export function intakePayload(answers: Intake): Intake | undefined {
@@ -119,18 +121,20 @@ export function intakePayload(answers: Intake): Intake | undefined {
     const v = answers[id]?.trim().slice(0, MAX_FIELD)
     if (v) out[id] = v
   }
+  const m = answers.materials?.trim().slice(0, MAX_MATERIALS)
+  if (m) out.materials = m
   return Object.keys(out).length ? out : undefined
 }
 
 // v4 stored these under its own keys; old Supabase rows still carry them.
 const LEGACY: Record<string, IntakeId> = { workplace: 'organization', mode: 'working_style' }
-const STABLE: IntakeId[] = ['role', 'organization', 'working_style']
+const STABLE: (keyof Intake)[] = ['role', 'organization', 'working_style', 'materials']
 
 /** The fields that do not change between sessions, prefilled from the last intake. */
 export function stableIntake(last: Record<string, string | undefined> | null): Intake {
   const out: Intake = {}
   for (const [k, v] of Object.entries(last ?? {})) {
-    const id = (LEGACY[k] ?? k) as IntakeId
+    const id = (LEGACY[k] ?? k) as keyof Intake
     if (STABLE.includes(id) && v) out[id] = v
   }
   return out

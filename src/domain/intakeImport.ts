@@ -4,7 +4,7 @@
 // fetched (SSRF surface on the gateway, and LinkedIn blocks it anyway).
 
 import { gatewayHeaders, type StreamOptions } from './council'
-import { INTAKE_QUESTIONS, MAX_FIELD, type Intake, type IntakeId } from './mastermind'
+import { INTAKE_QUESTIONS, MAX_FIELD, MAX_MATERIALS, type Intake, type IntakeId } from './mastermind'
 
 export const LINKEDIN_HINT =
   'LinkedIn blocks apps from reading profiles. On your profile: More → Save to PDF, then drop the file here.'
@@ -76,6 +76,44 @@ export function fileProblem(file: { name: string; size: number }): string | null
   if (!/\.(pdf|docx|txt)$/i.test(file.name)) return 'Drop a PDF, DOCX or TXT file.'
   if (file.size > MAX_FILE_BYTES) return 'That file is over 5 MB. Try a shorter one, or paste the text.'
   return null
+}
+
+const SKIP_REASON = (f: { size: number }) => (f.size > MAX_FILE_BYTES ? 'over 5 MB' : 'not a PDF, DOCX or TXT')
+
+/** What the user reads after a batch of files. */
+export function importNote(o: { read: number; filled: number; overflow: boolean; skipped: { name: string; size: number }[] }): string {
+  if (!o.read && o.skipped.length === 1) return fileProblem(o.skipped[0])!
+  const parts: string[] = []
+  if (o.read > 1) parts.push(`Read ${o.read} files.`)
+  if (o.read)
+    parts.push(
+      !o.filled
+        ? 'Nothing to fill from that. Answer below instead.'
+        : `Filled ${o.filled} of ${INTAKE_QUESTIONS.length}${o.overflow ? '; the rest went to Materials.' : '. Check them below.'}`,
+    )
+  for (const f of o.skipped) parts.push(`Skipped ${f.name}: ${SKIP_REASON(f)}.`)
+  return parts.join(' ')
+}
+
+const append = (cur: string | undefined, add: string) => (cur?.trim() ? `${cur.trim()}\n\n${add}` : add)
+
+/** Adds a file's fields to what is there: appended after a blank line, cut at the cap; the rest goes to Materials. */
+export function mergeIntake(base: Intake, add: Intake): { merged: Intake; overflow: boolean } {
+  const merged = { ...base }
+  let overflow = false
+  for (const q of INTAKE_QUESTIONS) {
+    const v = add[q.id]?.trim()
+    if (!v || merged[q.id]?.includes(v)) continue
+    const all = append(merged[q.id], v)
+    merged[q.id] = all.slice(0, MAX_FIELD)
+    if (all.length > MAX_FIELD) {
+      merged.materials = append(merged.materials, `${q.label}: ${all.slice(MAX_FIELD)}`)
+      overflow = true
+    }
+  }
+  if (add.materials?.trim()) merged.materials = append(merged.materials, add.materials.trim())
+  if (merged.materials) merged.materials = merged.materials.slice(0, MAX_MATERIALS)
+  return { merged, overflow }
 }
 
 export type ExtractCode = 'quota' | 'no_converter' | 'password' | 'gateway'

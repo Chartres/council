@@ -71,6 +71,15 @@ describe('intake', () => {
     expect(intakePayload({})).toBeUndefined()
   })
 
+  it('payload carries materials, trimmed and capped at 8,000 characters', () => {
+    expect(intakePayload({ materials: '  notes  ' })).toEqual({ materials: 'notes' })
+    expect(intakePayload({ materials: 'x'.repeat(9000) })!.materials).toHaveLength(8000)
+  })
+
+  it('keeps materials between sessions like the other stable fields', () => {
+    expect(stableIntake({ role: 'CFO', goal: 'Cut churn', materials: 'plan' })).toEqual({ role: 'CFO', materials: 'plan' })
+  })
+
   it('prefills only the stable fields, mapping v4 keys to the gateway keys', () => {
     expect(stableIntake({ role: 'CFO', goal: 'Cut churn', organization: 'SaaS' })).toEqual({ role: 'CFO', organization: 'SaaS' })
     expect(stableIntake({ workplace: 'Retail', mode: 'challenge me', today: 'busy' } as never)).toEqual({
