@@ -78,11 +78,12 @@ export function fileProblem(file: { name: string; size: number }): string | null
   return null
 }
 
-const SKIP_REASON = (f: { size: number }) => (f.size > MAX_FILE_BYTES ? 'over 5 MB' : 'not a PDF, DOCX or TXT')
+type Skipped = { name: string; size: number; reason?: string }
+const SKIP_REASON = (f: Skipped) => f.reason ?? (f.size > MAX_FILE_BYTES ? 'over 5 MB' : 'not a PDF, DOCX or TXT')
 
 /** What the user reads after a batch of files. */
-export function importNote(o: { read: number; filled: number; overflow: boolean; skipped: { name: string; size: number }[] }): string {
-  if (!o.read && o.skipped.length === 1) return fileProblem(o.skipped[0])!
+export function importNote(o: { read: number; filled: number; overflow: boolean; cut?: boolean; skipped: Skipped[] }): string {
+  if (!o.read && o.skipped.length === 1 && !o.skipped[0].reason) return fileProblem(o.skipped[0])!
   const parts: string[] = []
   if (o.read > 1) parts.push(`Read ${o.read} files.`)
   if (o.read)
@@ -91,6 +92,7 @@ export function importNote(o: { read: number; filled: number; overflow: boolean;
         ? 'Nothing to fill from that. Answer below instead.'
         : `Filled ${o.filled} of ${INTAKE_QUESTIONS.length}${o.overflow ? '; the rest went to Materials.' : '. Check them below.'}`,
     )
+  if (o.cut) parts.push(`Materials was cut at ${MAX_MATERIALS.toLocaleString('en')} characters.`)
   for (const f of o.skipped) parts.push(`Skipped ${f.name}: ${SKIP_REASON(f)}.`)
   return parts.join(' ')
 }
@@ -98,7 +100,7 @@ export function importNote(o: { read: number; filled: number; overflow: boolean;
 const append = (cur: string | undefined, add: string) => (cur?.trim() ? `${cur.trim()}\n\n${add}` : add)
 
 /** Adds a file's fields to what is there: appended after a blank line, cut at the cap; the rest goes to Materials. */
-export function mergeIntake(base: Intake, add: Intake): { merged: Intake; overflow: boolean } {
+export function mergeIntake(base: Intake, add: Intake): { merged: Intake; overflow: boolean; cut: boolean } {
   const merged = { ...base }
   let overflow = false
   for (const q of INTAKE_QUESTIONS) {
@@ -112,8 +114,9 @@ export function mergeIntake(base: Intake, add: Intake): { merged: Intake; overfl
     }
   }
   if (add.materials?.trim()) merged.materials = append(merged.materials, add.materials.trim())
-  if (merged.materials) merged.materials = merged.materials.slice(0, MAX_MATERIALS)
-  return { merged, overflow }
+  const cut = (merged.materials?.length ?? 0) > MAX_MATERIALS
+  if (cut) merged.materials = merged.materials!.slice(0, MAX_MATERIALS)
+  return { merged, overflow, cut }
 }
 
 export type ExtractCode = 'quota' | 'no_converter' | 'password' | 'gateway'
@@ -142,6 +145,8 @@ function sanitize(raw: unknown): Intake {
     const c = clean(v)
     if (c) out[id] = c
   }
+  const m = (raw as Record<string, unknown>).materials
+  if (typeof m === 'string' && m.trim()) out.materials = m.trim().slice(0, MAX_MATERIALS)
   return out
 }
 

@@ -67,4 +67,54 @@ describe('IntakeScreen shortcuts', () => {
     expect(begin.mock.calls[0][0]).toMatchObject({ goal: 'cut churn', materials: `Role: ${'b'.repeat(202)}` })
     vi.unstubAllGlobals()
   })
+
+  const goal = () => screen.getByLabelText('What would you like the group to help you achieve?')
+  const pdf = (name: string) => new File(['x'], name, { type: 'application/pdf' })
+  const fail = (status: number, body: object) => new Response(JSON.stringify(body), { status })
+
+  it('keeps what she types while a file is read, and ignores a second drop mid-read', async () => {
+    let release!: (r: Response) => void
+    const fetch = vi.fn().mockReturnValueOnce(new Promise<Response>((r) => (release = r)))
+    vi.stubGlobal('fetch', fetch)
+    render(<IntakeScreen />)
+    fireEvent.drop(goal(), { dataTransfer: { files: [pdf('cv.pdf')] } })
+    await waitFor(() => expect(screen.getByTestId('intake-note')).toHaveTextContent('Reading…'))
+    fireEvent.drop(goal(), { dataTransfer: { files: [pdf('again.pdf')] } })
+    fireEvent.change(screen.getByLabelText('What is happening today?'), { target: { value: 'typed meanwhile' } })
+    release(reply({ role: 'CFO' }))
+    await waitFor(() => expect(screen.getByLabelText('Who are you professionally?')).toHaveValue('CFO'))
+    expect(screen.getByLabelText('What is happening today?')).toHaveValue('typed meanwhile')
+    expect(fetch).toHaveBeenCalledTimes(1)
+    vi.unstubAllGlobals()
+  })
+
+  it('a file that cannot be read is skipped by name and the rest are still read', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(fail(503, { error: 'no_converter' })).mockResolvedValueOnce(reply({ role: 'CFO' })))
+    render(<IntakeScreen />)
+    fireEvent.drop(goal(), { dataTransfer: { files: [pdf('scan.pdf'), pdf('cv.pdf')] } })
+    await waitFor(() =>
+      expect(screen.getByTestId('intake-note')).toHaveTextContent('Filled 1 of 7. Check them below. Skipped scan.pdf: could not be read.'),
+    )
+    expect(screen.getByLabelText('Who are you professionally?')).toHaveValue('CFO')
+    vi.unstubAllGlobals()
+  })
+
+  it('quota stops the batch', async () => {
+    const fetch = vi.fn().mockResolvedValue(fail(429, { reason: 'quota' }))
+    vi.stubGlobal('fetch', fetch)
+    render(<IntakeScreen />)
+    fireEvent.drop(goal(), { dataTransfer: { files: [pdf('a.pdf'), pdf('b.pdf')] } })
+    await waitFor(() => expect(screen.getByTestId('intake-note')).toHaveTextContent('That is enough reading for today.'))
+    expect(fetch).toHaveBeenCalledTimes(1)
+    vi.unstubAllGlobals()
+  })
+
+  it('says so when Materials is cut at 8,000', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => reply({ role: 'CFO', materials: 'x'.repeat(5000) })))
+    render(<IntakeScreen />)
+    fireEvent.drop(goal(), { dataTransfer: { files: [pdf('a.pdf'), pdf('b.pdf')] } })
+    await waitFor(() => expect(screen.getByTestId('intake-note')).toHaveTextContent('Materials was cut at 8,000 characters.'))
+    expect((screen.getByLabelText('Materials') as HTMLTextAreaElement).value).toHaveLength(8000)
+    vi.unstubAllGlobals()
+  })
 })

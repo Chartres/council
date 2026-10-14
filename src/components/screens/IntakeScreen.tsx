@@ -70,6 +70,8 @@ export function IntakeScreen() {
   const [open, setOpen] = useState(false)
   const [voice, dispatch] = useReducer(voiceReducer, VOICE_IDLE)
   const fileInput = useRef<HTMLInputElement>(null)
+  const latest = useRef(answers)
+  latest.current = answers
   const field = currentField(voice)
 
   // Signed in, the last intake arrives from Supabase after mount: fill the stable fields still empty.
@@ -108,28 +110,37 @@ export function IntakeScreen() {
   // Files are read one after another and merged into what is there; a bad file is skipped, not fatal.
   const readFiles = async (list: FileList | null | undefined) => {
     const files = Array.from(list ?? [])
-    if (!files.length) return
-    const skipped = files.filter((f) => fileProblem(f))
+    if (busy || !files.length) return
+    const skipped: { name: string; size: number; reason?: string }[] = files.filter((f) => fileProblem(f))
     const ok = files.filter((f) => !fileProblem(f))
     if (!ok.length) return setNote(importNote({ read: 0, filled: 0, overflow: false, skipped }))
     setBusy(true)
     setOpen(true)
-    let acc = answers
     let overflow = false
+    let cut = false
     const touched = new Set<string>()
     try {
       for (const [i, f] of ok.entries()) {
         setNote(ok.length > 1 ? `Reading ${i + 1} of ${ok.length}…` : 'Reading…')
-        const got = await extractIntake(f, { gatewayUrl: GATEWAY_URL, token, councilKey })
-        Object.keys(got).forEach((k) => touched.add(k))
-        const m = mergeIntake(acc, got)
-        acc = m.merged
+        let got: Intake
+        try {
+          got = await extractIntake(f, { gatewayUrl: GATEWAY_URL, token, councilKey })
+        } catch (e) {
+          const code = e instanceof ExtractError ? e.code : 'gateway'
+          if (code === 'password' || code === 'quota') return failed(e)
+          skipped.push({ name: f.name, size: f.size, reason: 'could not be read' })
+          continue
+        }
+        Object.keys(got).forEach((k) => k !== 'materials' && touched.add(k))
+        // Merge into the latest answers (not the ones at drop time) so what she typed during the read survives.
+        const m = mergeIntake(latest.current, got)
+        latest.current = m.merged
         overflow ||= m.overflow
-        setAnswers(acc)
+        cut ||= m.cut
+        setAnswers(m.merged)
       }
-      setNote(importNote({ read: ok.length, filled: touched.size, overflow, skipped }))
-    } catch (e) {
-      failed(e)
+      const read = ok.length - skipped.filter((f) => f.reason).length
+      setNote(importNote({ read, filled: touched.size, overflow, cut, skipped }))
     } finally {
       setBusy(false)
     }
