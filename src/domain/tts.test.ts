@@ -55,6 +55,17 @@ describe('speak through the gateway', () => {
     expect(FakeAudio.all[1].playbackRate).toBe(1.05)
   })
 
+  it('names the speaker so the gateway can pick their voice', async () => {
+    vi.stubGlobal('fetch', vi.fn(audioResponse))
+    speak('Start with the customer.', { pitch: 1, rate: 1 }, undefined, 'drucker')
+    speak('Plain line.', { pitch: 1, rate: 1 })
+    await flush()
+    const calls = (fetch as ReturnType<typeof vi.fn>).mock.calls
+    expect(calls[0][0]).toBe('https://gw.test/v1/tts')
+    expect(JSON.parse(calls[0][1].body)).toEqual({ text: 'Start with the customer.', speaker: 'drucker' })
+    expect(JSON.parse(calls[1][1].body)).toEqual({ text: 'Plain line.' })
+  })
+
   it('hands the line to the browser engine when the gateway cannot speak', async () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: false, headers: { get: () => 'application/json' } })))
     const spoken = vi.fn()

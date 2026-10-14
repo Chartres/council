@@ -16,7 +16,7 @@ export interface Recognition {
   abort(): void
   onresult: ((event: SpeechResultEvent) => void) | null
   onend: (() => void) | null
-  onerror: (() => void) | null
+  onerror: ((event?: { error?: string }) => void) | null
 }
 
 type RecognitionCtor = new () => Recognition

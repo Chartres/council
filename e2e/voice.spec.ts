@@ -63,10 +63,9 @@ test('she dictates her idea and listens to the debate', async ({ page }) => {
   await page.screenshot({ path: 'e2e/shots/voice-dictation.png' })
 
   await page.getByRole('button', { name: 'Convene the council' }).click()
+  // Listen is on by default (v4.3): nothing to find before the room speaks.
   const listen = page.getByTestId('listen')
   await expect(listen).toBeVisible()
-  await expect(listen).toHaveAttribute('aria-pressed', 'false')
-  await listen.click()
   await expect(listen).toHaveAttribute('aria-pressed', 'true')
 
   await expect(page.getByTestId('verdict')).toBeVisible({ timeout: 20_000 })
@@ -79,10 +78,12 @@ test('she dictates her idea and listens to the debate', async ({ page }) => {
   await page.getByTestId('verdict').scrollIntoViewIfNeeded()
   await page.screenshot({ path: 'e2e/shots/voice-listening.png' })
 
-  // The toggle is remembered.
+  // Switching it off is remembered.
+  await listen.click()
+  await expect(listen).toHaveAttribute('aria-pressed', 'false')
   await page.reload()
   await expect(page.getByLabel('What are you working on?')).toBeVisible()
-  expect(await page.evaluate(() => localStorage.getItem('council:listen'))).toBe('1')
+  expect(await page.evaluate(() => localStorage.getItem('council:listen'))).toBe('0')
 })
 
 test('no mic and no Listen toggle where the API is missing', async ({ page }) => {

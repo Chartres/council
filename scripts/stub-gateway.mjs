@@ -23,6 +23,9 @@
 //                              anything, else an intake recap), 2 contributions, floor
 //   POST /v1/council/turn      2–3 contributions + floor; the 3rd turn/control of a
 //                              session also streams a proposal
+//                              voice:true (v4.3) → speaker, one delta per sentence
+//                              (STUB_DELTA_MS apart), contribution, floor — one adviser
+//   POST /v1/tts               not served: the app falls back to the browser's voice
 //   POST /v1/council/control   pause | back_to:<id> | let:<a>,<b> | disagree | concrete |
 //                              test | wrap_up — same stream shape, counts as a turn
 //   POST /v1/council/capture   → { entry }  (canned, or the proposal named by proposal_id)
@@ -42,6 +45,7 @@ import { createServer } from 'node:http'
 
 const PORT = Number(process.env.PORT ?? 8787)
 const TURN_DELAY_MS = Number(process.env.STUB_TURN_DELAY_MS ?? 60)
+const DELTA_MS = Number(process.env.STUB_DELTA_MS ?? 30)
 const PASSWORD = process.env.STUB_PASSWORD || null
 const TIER = process.env.STUB_TIER ?? 'free'
 const MONTH_CAP_CENTS = Number(process.env.STUB_MONTH_CAP_CENTS ?? 3000)
@@ -150,7 +154,7 @@ async function streamV4(res, sessionId, events, tier) {
   const send = (event) => res.write(`data: ${JSON.stringify(event)}\n\n`)
   send({ type: 'session', session_id: sessionId, tier, model: MODEL_BY_TIER[tier] ?? MODEL_BY_TIER.free })
   for (const ev of events) {
-    await sleep(TURN_DELAY_MS)
+    await sleep(ev.type === 'delta' ? DELTA_MS : TURN_DELAY_MS)
     send(ev)
   }
   const costCents = tier === 'premium' ? 9 : 3
@@ -173,6 +177,19 @@ function opener(body) {
   const intake = body.intake ?? {}
   if (intake.goal) return `Here is what I understood: you want to ${intake.goal.replace(/\.$/, '')}. Correct me as we go. Let us hear from the group.`
   return `Welcome. The group today: ${names[body.roster] ?? 'your advisers'} — simulations, not the real people. Tell us what you are working on as we go.`
+}
+
+/** Voice turn: one adviser (rotating), streamed a sentence at a time, then the floor. */
+function voiceEvents(session) {
+  const n = session.turns++
+  const id = session.advisers[n % session.advisers.length]
+  const text = `${line(id, n)} ${line(id, n + 1)}`
+  return [
+    { type: 'speaker', speaker: id },
+    ...text.match(/[^.!?]+[.!?]+\s*/g).map((piece) => ({ type: 'delta', text: piece })),
+    { type: 'contribution', speaker: id, text },
+    { type: 'floor', question: FLOORS[n % FLOORS.length] },
+  ]
 }
 
 /** 2–3 contributions + floor (+ proposal on the 3rd), shaped by the control command. */
@@ -437,7 +454,7 @@ createServer(async (req, res) => {
     if (!session) return fail(res, 404, 'no_session')
     if (req.url === '/v1/council/turn') {
       if (!String(body.message ?? '').trim()) return fail(res, 400, 'bad_request')
-      return streamV4(res, session.id, turnEvents(session), tier)
+      return streamV4(res, session.id, body.voice === true ? voiceEvents(session) : turnEvents(session), tier)
     }
     if (req.url === '/v1/council/control') {
       if (!body.command) return fail(res, 400, 'bad_request')
