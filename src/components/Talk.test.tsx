@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import type { Item } from '@/domain/mastermind'
 import * as tts from '@/domain/tts'
-import { RETRY_MS, Talk, TALK_SILENCE_MS } from './Talk'
+import { ECHO_GRACE_MS, isEcho, RETRY_MS, Talk, TALK_SILENCE_MS } from './Talk'
 
 vi.mock('@/domain/tts', () => ({ speak: vi.fn(), cancel: vi.fn(), setFallback: vi.fn(), setSession: vi.fn(), unlock: vi.fn() }))
 
@@ -150,6 +150,63 @@ describe('Talk mode', () => {
     streaming = false
     rerender(view())
     expect(onSay).toHaveBeenCalledWith('no stop')
+  })
+
+  it('on speakerphone, the room hearing its own voice is neither a barge-in nor a message', () => {
+    const onSay = vi.fn()
+    let items: Item[] = []
+    const view = () => <Talk on onChange={() => {}} items={items} streaming={false} onSay={onSay} />
+    const { rerender } = render(view())
+    fireEvent.click(screen.getByRole('button', { name: 'Talk' }))
+    const r = Fake.all[0]!
+    items = [
+      { kind: 'contribution', speaker: 'drucker', text: 'Start with the customer. Who benefits? Then act.' },
+      { kind: 'floor', question: 'Who is the customer?' },
+    ]
+    rerender(view())
+    expect(spoken()).toHaveLength(4)
+
+    // The mic transcribes the adviser, as recognisers do: lower case, a word misheard.
+    act(() => r.say('start with'))
+    act(() => r.more('start with a customer who benefits'))
+    expect(tts.cancel).not.toHaveBeenCalled()
+    act(() => vi.advanceTimersByTime(TALK_SILENCE_MS))
+    expect(onSay).not.toHaveBeenCalled()
+
+    // The lines finish; the tail of the question still comes back a moment later.
+    for (const [, , onEnd] of vi.mocked(tts.speak).mock.calls) act(() => onEnd?.())
+    act(() => r.say('who is the customer'))
+    act(() => vi.advanceTimersByTime(TALK_SILENCE_MS))
+    expect(onSay).not.toHaveBeenCalled()
+    // A short answer in that moment is hers, even when it reuses the question's words.
+    act(() => r.say('the customer'))
+    act(() => vi.advanceTimersByTime(TALK_SILENCE_MS))
+    expect(onSay).toHaveBeenCalledWith('the customer')
+
+    // A real cut-in over the audio still works while the room is talking.
+    items = [...items, { kind: 'contribution', speaker: 'grove', text: 'Only the paranoid survive. Measure it weekly.' }]
+    rerender(view())
+    act(() => r.say('hold on that is wrong'))
+    expect(tts.cancel).toHaveBeenCalled()
+    act(() => vi.advanceTimersByTime(TALK_SILENCE_MS))
+    expect(onSay).toHaveBeenLastCalledWith('hold on that is wrong')
+
+    // Long after the room went quiet, her own words are hers, even if they echo an adviser.
+    for (const [, , onEnd] of vi.mocked(tts.speak).mock.calls) act(() => onEnd?.())
+    act(() => vi.advanceTimersByTime(ECHO_GRACE_MS))
+    act(() => r.say('who is the customer'))
+    act(() => vi.advanceTimersByTime(TALK_SILENCE_MS))
+    expect(onSay).toHaveBeenLastCalledWith('who is the customer')
+  })
+
+  it('isEcho: mostly the room’s own words, in order', () => {
+    const said = ['Start with the customer.', 'Who benefits?']
+    expect(isEcho('start with a customer who benefits', said)).toBe(true)
+    expect(isEcho('Who benefits', said)).toBe(true)
+    expect(isEcho('wait no', said)).toBe(false)
+    expect(isEcho('the customer is wrong here', said)).toBe(false)
+    expect(isEcho('benefits who', said)).toBe(false)
+    expect(isEcho('', said)).toBe(false)
   })
 
   it('remembered as on, it waits for a tap: no mic, no audio until then', () => {

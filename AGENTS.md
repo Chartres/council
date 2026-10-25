@@ -49,6 +49,10 @@ shapes are documented at the top of `src/domain/mastermind.ts` — the gateway c
 same list. Playwright runs with the password on and seeds `council:key` through `storageState`, so
 every journey goes through the real header path; `e2e/gate.spec.ts` clears it to meet the door.
 
+`POST /__tts {mode:"on"|"fail"|"off"}` makes the stub serve `/v1/tts` (a tiny WAV; a `speaker`
+needs a live v4 session, as on the gateway) or fail it; off by default, so the other journeys
+use the browser-voice fallback. `GET /__tts` lists what was asked (`e2e/talk-voice.spec.ts`).
+
 Signed-in journeys (`e2e/account.spec.ts`: export everything, delete everything) run against a
 third build on :4175 whose `VITE_SUPABASE_URL` points at `scripts/stub-supabase.mjs` (:8788):
 auth user lookup, own-row PostgREST reads/writes by the bearer token's `sub`, and
