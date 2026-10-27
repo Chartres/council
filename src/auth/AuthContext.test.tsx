@@ -44,10 +44,15 @@ describe('signup_completed', () => {
     await act(async () => {})
     act(() => auth.cb!('INITIAL_SESSION', session('u1')))
     expect(completions()).toEqual([])
+    // An existing session re-emitting SIGNED_IN (tab refocus) is not a sign-up.
+    act(() => auth.cb!('SIGNED_IN', session('u0')))
+    expect(completions()).toEqual([])
+    localStorage.setItem('council:signup-started', '1') // the sign-in panel sent a link in this browser
     act(() => auth.cb!('SIGNED_IN', session('u1')))
     act(() => auth.cb!('TOKEN_REFRESHED', session('u1')))
     act(() => auth.cb!('SIGNED_IN', session('u1'))) // tab refocus re-emits it
     expect(completions()).toEqual([['signup_completed', { method: 'email' }]])
+    localStorage.setItem('council:signup-started', '1')
     act(() => auth.cb!('SIGNED_IN', session('u2')))
     expect(completions()).toHaveLength(2)
   })

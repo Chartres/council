@@ -19,15 +19,19 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
-/** The sign-up funnel's last step: a person arriving signed in. supabase-js re-emits SIGNED_IN
- *  (tab refocus, a second tab), so it counts once per user per browser. */
+/** The sign-up funnel's last step: a person arriving signed in after asking for a link or code in
+ *  this browser (SignInPanel sets the flag). supabase-js also emits SIGNED_IN for sessions that
+ *  already existed (tab refocus, a second tab), and those are not sign-ups. */
+export const SIGNUP_FLAG = 'council:signup-started'
+
 function completed(userId: string) {
   const key = `council:signed-in:${userId}`
   try {
-    if (localStorage.getItem(key)) return
+    if (!localStorage.getItem(SIGNUP_FLAG) || localStorage.getItem(key)) return
+    localStorage.removeItem(SIGNUP_FLAG)
     localStorage.setItem(key, '1')
   } catch {
-    // Private mode: count it; a rare double beats never counting.
+    return // no storage, no way to tell a sign-up from a restored session
   }
   track('signup_completed', { method: 'email' })
 }
