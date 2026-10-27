@@ -7,6 +7,7 @@ import { OutcomeButtons } from '@/components/OutcomeButtons'
 import { PrivacyLink } from '@/components/screens/PrivacyScreen'
 import { humanDate } from '@/domain/dates'
 import { dailyQuestion, todayKey } from '@/domain/daily'
+import { stableIntake } from '@/domain/mastermind'
 import { keyAction } from '@/analytics'
 import {
   BUSINESS_DISCLOSURE,
@@ -71,7 +72,7 @@ function Today({ onOpen }: { onOpen: (question: string) => void }) {
 
 export function StartScreen() {
   const { go } = useCouncil()
-  const { roster, setRoster, advisers, toggleAdviser, memory, linkNeedsSignIn, begin } = useMastermind()
+  const { roster, setRoster, advisers, toggleAdviser, memory, linkNeedsSignIn, begin, lastIntake } = useMastermind()
   const last = memory?.entries[0]
   const inspired = ROSTERS[roster].flatMap((p) => ('inspiredBy' in p && p.inspiredBy ? [p.inspiredBy] : []))
 
@@ -100,7 +101,8 @@ export function StartScreen() {
         </section>
       )}
 
-      <Today onOpen={(goal) => begin({ goal })} />
+      {/* Who she is carries over (role, organization, working style); the question is today's goal. */}
+      <Today onOpen={(goal) => begin({ ...stableIntake(lastIntake), goal })} />
 
       <div role="group" aria-label="Roster" className="mt-12 grid grid-cols-2 gap-2">
         {(Object.keys(ROSTERS) as RosterId[]).map((r) => (

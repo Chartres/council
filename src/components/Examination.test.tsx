@@ -6,7 +6,8 @@ import { keyAction } from '@/analytics'
 
 vi.mock('@/analytics', () => ({ keyAction: vi.fn() }))
 const recordOutcome = vi.fn()
-vi.mock('@/app/MastermindContext', () => ({ useMastermind: () => ({ recordOutcome, begin: vi.fn(), lastIntake: null }) }))
+const begin = vi.fn()
+vi.mock('@/app/MastermindContext', () => ({ useMastermind: () => ({ recordOutcome, begin, lastIntake: null }) }))
 
 const c = (id: string, due_date: string, outcome: Commitment['outcome'] = null): Commitment => ({
   id,
@@ -35,6 +36,13 @@ describe('Examination', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Done' }))
     expect(recordOutcome).toHaveBeenCalledWith('a', 'done')
     expect(keyAction).toHaveBeenCalledWith('examined', { outcome: 'Done' })
+  })
+
+  it('"Not yet" in the examination records it and stays on the Journal (no new session)', () => {
+    render(<Examination commitments={[c('a', '2026-10-27')]} now={at(20)} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Not yet' }))
+    expect(recordOutcome).toHaveBeenCalledWith('a', 'later')
+    expect(begin).not.toHaveBeenCalled()
   })
 
   it('not before evening, and not when nothing is due', () => {

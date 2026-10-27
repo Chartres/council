@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useAuth } from '@/auth/AuthContext'
+import { SIGNUP_FLAG, useAuth } from '@/auth/AuthContext'
 import { track } from '@/analytics'
 
 /**
@@ -20,6 +20,11 @@ export function SignInPanel({ reason, title = 'Keep this idea' }: { reason?: str
     // signup_completed fires when the link or code actually signs them in (AuthContext).
     if (res.ok) {
       setSent(true)
+      try {
+        localStorage.setItem(SIGNUP_FLAG, '1') // AuthContext counts the sign-in that follows
+      } catch {
+        // Private mode: the completion goes uncounted.
+      }
     } else setError(res.error ?? 'Something went wrong.')
   }
 

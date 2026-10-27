@@ -47,12 +47,20 @@ describe('quaestio', () => {
     })
   })
 
-  it('no map, or no challenge: no objections (the card then says no one argued against it)', () => {
-    expect(quaestio({ ...entry, map: null }).objections).toEqual([])
+  it('no map: objections unknown (null), not "none"; a map with no challenge: none', () => {
+    expect(quaestio({ ...entry, map: null }).objections).toBeNull()
     expect(quaestio({ ...entry, map: null }).question).toBeNull()
     const quiet = { ...map, edges: map.edges.filter((e) => e.kind !== 'challenges') }
     expect(quaestio({ ...entry, map: quiet }).objections).toEqual([])
   })
+})
+
+it('a rebuttal (a claim challenging an objection) is not itself an objection; only claims count', () => {
+  const m: CouncilMap = {
+    nodes: [...map.nodes, { id: 'c4', kind: 'claim', label: 'Costs fall after month two', speaker: 'seneca' }, { id: 'as', kind: 'assumption', label: 'Winter demand holds' }],
+    edges: [...map.edges, { from: 'c4', to: 'c2', kind: 'challenges' }, { from: 'as', to: 'p', kind: 'challenges' }],
+  }
+  expect(quaestio({ ...entry, map: m }).objections!.map((o) => o.text)).toEqual(['A van doubles the fixed costs', 'You have not priced your evenings'])
 })
 
 describe('verifiedLine — "on the contrary"', () => {
@@ -64,6 +72,16 @@ describe('verifiedLine — "on the contrary"', () => {
       said('socrates', 'Test it first.'),
     ]
     expect(verifiedLine(items)).toEqual({ speaker: 'seneca', text: 'While we are postponing, life speeds by.', source: 'Letter 1' })
+  })
+
+  it('looks only before the proposal and skips the advisers who objected', () => {
+    const items = [
+      said('seneca', 'As I wrote, "While we are postponing, life speeds by." Begin.', { quotes: 1, verified: 1, sources: ['Letter 1'] }),
+      said('socrates', 'I said "The unexamined life is not worth living for a man." Wait.', { quotes: 1, verified: 1, sources: ['Apology'] }),
+      { kind: 'floor', question: 'Next?' } as Item,
+      said('marcus-aurelius', 'Later: "Do not act as if thou wert going to live ten thousand years."', { quotes: 1, verified: 1, sources: ['IV.17'] }),
+    ]
+    expect(verifiedLine(items, { before: 3, exclude: ['socrates'] })?.speaker).toBe('seneca')
   })
 
   it('never uses a quote that was not verified, or one it cannot attribute to a single source', () => {

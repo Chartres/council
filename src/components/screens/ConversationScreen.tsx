@@ -371,6 +371,7 @@ function ProposalCard({ item, index, steer }: { item: Proposal; index: number; s
   const decisionField = useRef<HTMLTextAreaElement>(null)
   const { entry, state } = item
   const committed = journal.commitments.find((c) => c.journal_id === entry.id)
+  const q = quaestio(entry)
 
   return (
     <section
@@ -428,8 +429,8 @@ function ProposalCard({ item, index, steer }: { item: Proposal; index: number; s
         </p>
       )}
       <Quaestio
-        q={quaestio(entry)}
-        contra={verifiedLine(conversation?.items ?? [])}
+        q={q}
+        contra={verifiedLine(conversation?.items ?? [], { before: index, exclude: (q.objections ?? []).flatMap((o) => (o.speaker ? [o.speaker] : [])) })}
         busy={steer?.busy}
         onTest={
           state === 'open' && steer
@@ -489,7 +490,14 @@ function ProposalCard({ item, index, steer }: { item: Proposal; index: number; s
                 <textarea rows={1} value={mine} onChange={(e) => setMine(e.target.value)} className={`t-body mt-1 min-h-11 text-marble-100 ${bare}`} />
               </label>
             ) : (
-              <button type="button" onClick={() => setPartly(true)} className="text-btn -ml-3 px-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setMine(entry.next_action) // the accepted text, with her edits
+                  setPartly(true)
+                }}
+                className="text-btn -ml-3 px-3"
+              >
                 Partly
               </button>
             )}
@@ -529,7 +537,7 @@ function ProposalCard({ item, index, steer }: { item: Proposal; index: number; s
               <SignInPanel title="Where should the reminder go?" />
             </div>
           )}
-          <button type="submit" form={`commit-${index}`} className="slab mt-6">
+          <button type="submit" form={`commit-${index}`} disabled={partly && !mine.trim()} className="slab mt-6 disabled:opacity-40">
             Commit
           </button>
         </>

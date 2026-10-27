@@ -8,7 +8,7 @@ import { keyAction } from '@/analytics'
 vi.mock('@/app/CouncilContext', () => ({ useCouncil: () => ({ go: vi.fn() }) }))
 const begin = vi.hoisted(() => vi.fn())
 vi.mock('@/app/MastermindContext', () => ({
-  useMastermind: () => ({ roster: 'business', setRoster: vi.fn(), advisers: ['drucker'], toggleAdviser: vi.fn(), memory: null, linkNeedsSignIn: false, begin }),
+  useMastermind: () => ({ roster: 'business', setRoster: vi.fn(), advisers: ['drucker'], toggleAdviser: vi.fn(), memory: null, linkNeedsSignIn: false, begin, lastIntake: { role: 'Baker', goal: 'old goal', situation: 'old situation' } }),
 }))
 vi.mock('@/analytics', () => ({ keyAction: vi.fn() }))
 
@@ -19,7 +19,8 @@ describe("StartScreen today's question", () => {
     const card = screen.getByTestId('today')
     expect(card).toHaveTextContent(q)
     await userEvent.click(screen.getByRole('button', { name: /Take it to the council/ }))
-    expect(begin).toHaveBeenCalledWith({ goal: q })
+    // The stable answers (who she is) carry over; this session's goal is the question.
+    expect(begin).toHaveBeenCalledWith({ role: 'Baker', goal: q })
     expect(keyAction).toHaveBeenCalledWith('daily_opened', { day: todayKey() })
   })
 })

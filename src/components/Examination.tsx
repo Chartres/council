@@ -37,7 +37,7 @@ export function Examination({ commitments, now = new Date() }: { commitments: Co
         {due.map((c) => (
           <li key={c.id}>
             <p className="t-body text-marble-100">You said you’d {c.what}.</p>
-            <OutcomeButtons id={c.id} />
+            <OutcomeButtons id={c.id} newRound={false} />
           </li>
         ))}
       </ul>

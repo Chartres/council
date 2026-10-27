@@ -32,27 +32,29 @@ export function Quaestio({
   return (
     <div data-testid="quaestio" className="mt-6">
       {q.question && <Part label="Question">{q.question}</Part>}
-      <Part label="It seems not, because">
-        {q.objections.length ? (
-          <ol className="space-y-2">
-            {q.objections.map((o, i) => (
-              <li key={i}>
-                {o.text}
-                {o.speaker && <span className="text-marble-400"> — {personaName(o.speaker)}</span>}
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <>
-            <p>No one argued against this yet.</p>
-            {onTest && (
-              <button type="button" disabled={busy} onClick={onTest} className="text-btn -ml-3 px-3">
-                Test it
-              </button>
-            )}
-          </>
-        )}
-      </Part>
+      {q.objections && (
+        <Part label="It seems not, because">
+          {q.objections.length ? (
+            <ol className="space-y-2">
+              {q.objections.map((o, i) => (
+                <li key={i}>
+                  {o.text}
+                  {o.speaker && <span className="text-marble-400"> — {personaName(o.speaker)}</span>}
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <>
+              <p>No one argued against this yet.</p>
+              {onTest && (
+                <button type="button" disabled={busy} onClick={onTest} className="text-btn -ml-3 px-3">
+                  Test it
+                </button>
+              )}
+            </>
+          )}
+        </Part>
+      )}
       {contra && (
         <Part label="On the contrary">
           <p className="font-display text-[19px] leading-[27px] text-marble-100">“{contra.text.replace(/^["“]|["”]$/g, '')}”</p>
