@@ -114,7 +114,7 @@ ${qs
 <p class="lede">${esc(TOPICS[topic])}</p>
 <p class="small">${esc(METHOD)}</p>
 ${sections}
-<p class="cta">Facing a decision about ${esc(topic)}? <a href="/">Bring it to the Council</a>: advisers modelled on these thinkers talk it through with you and quote only what they actually wrote. The Council is in private beta; these pages are open to everyone.</p>
+<p class="cta">Facing a decision about ${esc(topic)}? <a href="/">Bring it to the Council</a>: advisers modelled on these thinkers talk it through with you, and a line they put in quotation marks has to check out against their works. The Council is in private beta; these pages are open to everyone.</p>
 <p class="small">The advisers in the app are AI simulations, not the historical people. The quotes on this page are theirs.</p>`
   const jsonld = {
     '@context': 'https://schema.org',
@@ -152,7 +152,7 @@ export function indexPage(quotes) {
 ${rows.map(([t, n]) => `<li><a href="/on/${t}/">${esc(t[0].toUpperCase() + t.slice(1))}</a> <span class="small">· ${n} quotes</span></li>`).join('\n')}
 </ul>
 <h2>How the quotes are checked</h2>
-<p class="small">Each thinker has a bank of lines taken from one public-domain translation: Gummere's Seneca, George Long's Marcus Aurelius, Jowett's Plato, Legge's Analects, Müller's Dhammapada with Bhikkhu Sujato's suttas, Anne E. George's Montessori, and Franklin's own Autobiography and Way to Wealth. A script downloaded each edition and checked that every line is a contiguous match in the named letter, book, chapter or verse. In the app, a quotation an adviser makes is checked against the source passages before it is shown; one that cannot be found is shown as paraphrase, not in quotation marks.</p>
+<p class="small">Each thinker has a bank of lines taken from one public-domain translation: Gummere's Seneca, George Long's Marcus Aurelius, Jowett's Plato, Legge's Analects, Müller's Dhammapada with Bhikkhu Sujato's suttas, Anne E. George's Montessori, and Franklin's own Autobiography and Way to Wealth. A script downloaded each edition and checked that every line is a contiguous match in the named letter, book, chapter or verse. In the app, a quotation an adviser makes is checked against the source passages before it is shown; one that cannot be found is removed before you see it.</p>
 <p class="cta"><a href="/">Open the Council</a></p>`
   const jsonld = { '@context': 'https://schema.org', '@type': 'CollectionPage', name: title, description, url: `${HOST}/on/` }
   return { path: '/on/', html: page({ path: '/on/', title, description, body, jsonld }) }
@@ -171,7 +171,7 @@ export function adviserPage(quotes, id) {
 <h1>${esc(p.name)}, as an adviser on your decision</h1>
 <p class="lede">${esc(p.brings)}</p>
 <h2>What this adviser draws on</h2>
-<p>${esc(p.edition)}. In a session the adviser is an AI simulation written from this text. When it quotes, the quote is checked against the text before you see it; a line that cannot be found is shown as paraphrase, not in quotation marks. ${mine.length} lines are in its verified bank.</p>
+<p>${esc(p.edition)}. In a session the adviser is an AI simulation written from this text. When it quotes, the quote is checked against the text before you see it; a line that cannot be found is removed before you see it. ${mine.length} lines are in its verified bank.</p>
 <h2>Some of the lines it can quote</h2>
 ${sample
   .map(
@@ -253,7 +253,9 @@ export function build(quotes, lastmod) {
   for (const id of Object.keys(PERSONAS)) out[`public/advisers/${id}/index.html`] = adviserPage(quotes, id).html
   out['public/how-it-works/index.html'] = howItWorks().html
   out['public/sitemap.xml'] = sitemap(
-    ['/', '/quick', '/privacy', '/how-it-works/', '/advisers/', ...Object.keys(PERSONAS).map((id) => `/advisers/${id}/`), '/on/', ...Object.keys(TOPICS).map((t) => `/on/${t}/`)],
+    // Only pages with their own canonical: /quick and /privacy are app routes whose shell
+    // points canonical at /, so listing them would tell crawlers to fold them into the home page.
+    ['/', '/how-it-works/', '/advisers/', ...Object.keys(PERSONAS).map((id) => `/advisers/${id}/`), '/on/', ...Object.keys(TOPICS).map((t) => `/on/${t}/`)],
     lastmod,
   )
   return out
