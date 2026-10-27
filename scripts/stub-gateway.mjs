@@ -25,7 +25,11 @@
 //                              session also streams a proposal
 //                              voice:true (v4.3) → speaker, one delta per sentence
 //                              (STUB_DELTA_MS apart), contribution, floor — one adviser
-//   POST /v1/tts               not served: the app falls back to the browser's voice
+//   POST /v1/tts               off by default (404: the app falls back to the browser's
+//                              voice). POST /__tts {mode:"on"|"fail"|"off"}: "on" answers a
+//                              tiny WAV per line (a speaker needs a live v4 session_id, else
+//                              401 sign_in, as on the gateway), "fail" answers 502.
+//                              GET /__tts → every request seen {text, speaker, session_id}
 //   POST /v1/council/control   pause | back_to:<id> | let:<a>,<b> | disagree | concrete |
 //                              test | wrap_up — same stream shape, counts as a turn
 //   POST /v1/council/capture   → { entry }  (canned, or the proposal named by proposal_id)
@@ -235,6 +239,10 @@ function turnEvents(session, command) {
 
 let anonUsed = false
 let rotateConsumed = false
+let ttsMode = 'off'
+let ttsSeen = []
+// 44-byte header + 2 samples of silence: enough for the browser to call it audio/wav.
+const WAV = Buffer.from('UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQQAAACAgICA', 'base64')
 let usage = {
   day_cents: 0,
   week_cents: 0,
@@ -331,6 +339,8 @@ createServer(async (req, res) => {
   if (req.url === '/__reset') {
     anonUsed = false
     rotateConsumed = false
+    ttsMode = 'off'
+    ttsSeen = []
     feedbackCount = 0
     v4.clear()
     captured.entries = []
@@ -345,6 +355,12 @@ createServer(async (req, res) => {
       by_model: {},
     }
     return res.writeHead(200, { 'content-type': 'application/json' }).end('{"ok":true}')
+  }
+
+  if (req.url === '/__tts') {
+    if (req.method === 'GET') return res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(ttsSeen))
+    ttsMode = (await readBody(req)).mode ?? 'off'
+    return res.writeHead(204).end()
   }
 
   // The private-beta door, ahead of everything else the gateway knows.
@@ -391,6 +407,13 @@ createServer(async (req, res) => {
   }
 
   const body = await readBody(req)
+
+  if (req.url === '/v1/tts' && req.method === 'POST' && ttsMode !== 'off') {
+    ttsSeen.push({ text: body.text, speaker: body.speaker ?? null, session_id: body.session_id ?? null })
+    if (ttsMode === 'fail') return fail(res, 502, 'upstream')
+    if (body.speaker && !v4.has(body.session_id)) return fail(res, 401, 'sign_in')
+    return res.writeHead(200, { 'content-type': 'audio/wav' }).end(WAV)
+  }
 
   if (req.url === '/v1/feedback' && req.method === 'POST') {
     const text = String(body.text ?? '').trim()

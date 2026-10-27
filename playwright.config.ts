@@ -29,6 +29,11 @@ export default defineConfig({
           origin: 'http://localhost:4174',
           localStorage: [{ name: 'council:key', value: STUB_PASSWORD }],
         },
+        {
+          // The signed-in build (e2e/account.spec.ts) against the stub Supabase.
+          origin: 'http://localhost:4175',
+          localStorage: [{ name: 'council:key', value: STUB_PASSWORD }],
+        },
       ],
     },
   },
@@ -59,6 +64,26 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
       timeout: 180_000,
       env: { VITE_GATEWAY_URL: 'http://localhost:8787', VITE_E2E_ADMIN: '1' },
+    },
+    {
+      // Stand-in Supabase for the signed-in journeys: auth lookups, own-row reads, the
+      // council_delete_me() RPC (scripts/stub-supabase.mjs).
+      command: 'node scripts/stub-supabase.mjs',
+      url: 'http://localhost:8788/health',
+      reuseExistingServer: !process.env.CI,
+      timeout: 30_000,
+    },
+    {
+      // Auth only ever points at the stub here; separate outDir/port like the admin build.
+      command: 'vite build --outDir dist-e2e-auth && vite preview --outDir dist-e2e-auth --port 4175',
+      url: 'http://localhost:4175',
+      reuseExistingServer: !process.env.CI,
+      timeout: 180_000,
+      env: {
+        VITE_GATEWAY_URL: 'http://localhost:8787',
+        VITE_SUPABASE_URL: 'http://localhost:8788',
+        VITE_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_stub',
+      },
     },
   ],
 })
