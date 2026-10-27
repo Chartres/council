@@ -35,7 +35,8 @@ export type CouncilEvent =
   | { type: 'done'; usage?: { cost_cents?: number } }
   | { type: 'error'; reason: string; message?: string }
 
-export type FailureReason = 'password' | 'sign_in' | 'quota' | 'cap' | 'gateway'
+/** `turns` / `captures`: one session's own limits (gateway 429), not the daily council quota. */
+export type FailureReason = 'password' | 'sign_in' | 'quota' | 'turns' | 'captures' | 'cap' | 'gateway'
 
 export class CouncilError extends Error {
   constructor(
@@ -195,6 +196,8 @@ export const FAILURE_COPY: Record<FailureReason, string> = {
   password: 'That password was not accepted. Check it with Pavol and try again.',
   sign_in: 'Your free session is used up. Sign in to keep this idea and convene again.',
   quota: 'You have reached today’s limit of three councils. Come back tomorrow.',
+  turns: 'This session has had all its turns. Wrap up to keep the decision, or start a new council.',
+  captures: 'This session has saved all the decisions it can. Start a new council to record more.',
   cap: 'The council is closed for this month — the running budget is spent. It reopens on the 1st.',
   gateway: 'The council could not be reached. Try again in a moment.',
 }

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { FAKE_VOICE } from './fakeVoice'
 
 // Talk mode (flywheel/docs/expansion/council-v4.3.md). Lenka puts the phone down and talks:
 // she speaks, the adviser answers aloud sentence by sentence, she cuts in, and nothing is typed.
@@ -10,41 +11,6 @@ test.use({ viewport: { width: 390, height: 844 } })
 test.beforeEach(async ({ request }) => {
   await request.post('http://localhost:8787/__reset')
 })
-
-const FAKE_VOICE = `
-  class FakeRecognition {
-    constructor() { window.__rec = this; this.results = [] }
-    start() { window.__started = (window.__started ?? 0) + 1 }
-    stop() { this.onend?.() }
-    abort() {}
-  }
-  window.__hear = (text) => {
-    const r = window.__rec
-    r.results.push(Object.assign([{ transcript: text }], { isFinal: true }))
-    r.onresult?.({ results: r.results })
-  }
-  Object.defineProperty(window, 'SpeechRecognition', { value: FakeRecognition })
-  Object.defineProperty(window, 'webkitSpeechRecognition', { value: FakeRecognition })
-  Object.defineProperty(window, 'SpeechSynthesisUtterance', {
-    value: class { constructor(text) { this.text = text } },
-  })
-  // A queue like a real engine; each line "plays" for 2 s, so the room is still talking when she cuts in.
-  Object.defineProperty(window, 'speechSynthesis', {
-    value: {
-      spoken: [],
-      cancels: 0,
-      queue: [],
-      timer: null,
-      speak(u) { this.spoken.push(u.text); this.queue.push(u); if (!this.timer) this.next() },
-      next() {
-        const u = this.queue.shift()
-        this.timer = u ? setTimeout(() => { this.timer = null; u.onend?.(); this.next() }, 2000) : null
-      },
-      cancel() { this.cancels++; clearTimeout(this.timer); this.timer = null; this.queue = [] },
-      getVoices() { return [{ lang: 'en-GB' }] },
-    },
-  })
-`
 
 type Synth = { spoken: string[]; cancels: number }
 const synth = (page: import('@playwright/test').Page) =>

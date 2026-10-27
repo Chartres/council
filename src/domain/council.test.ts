@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   CouncilError,
+  FAILURE_COPY,
+  callJson,
   gatewayHeaders,
   openSession,
   parseSse,
@@ -110,6 +112,15 @@ describe('the gateway call', () => {
       { gatewayUrl: 'https://llm.example', councilKey: 'wrong' },
     )
     await expect(events.next()).rejects.toMatchObject({ reason: 'password' })
+  })
+
+  it('names a session limit (turns, captures) instead of the daily council quota', async () => {
+    for (const reason of ['turns', 'captures'] as const) {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ reason }), { status: 429 })))
+      await expect(callJson('/v1/council/capture', {}, { gatewayUrl: 'https://llm.example' })).rejects.toMatchObject({ reason })
+      expect(FAILURE_COPY[reason]).not.toMatch(/three councils/)
+    }
+    expect(FAILURE_COPY.turns).toMatch(/this session/i)
   })
 
   it('still maps a bare 401 to the sign-in wall', async () => {
