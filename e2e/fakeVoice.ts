@@ -30,7 +30,9 @@ export const FAKE_VOICE = `
       speak(u) { this.spoken.push(u.text); this.queue.push(u); if (!this.timer) this.next() },
       next() {
         const u = this.queue.shift()
-        this.timer = u ? setTimeout(() => { this.timer = null; u.onend?.(); this.next() }, 2000) : null
+        // The tap's silent primer (one space) ends at once; real lines take 2 s.
+        const ms = u && u.text.trim() ? 2000 : 0
+        this.timer = u ? setTimeout(() => { this.timer = null; u.onend?.(); this.next() }, ms) : null
       },
       cancel() { this.cancels++; clearTimeout(this.timer); this.timer = null; this.queue = [] },
       getVoices() { return [{ lang: 'en-GB' }] },

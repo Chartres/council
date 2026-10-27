@@ -18,12 +18,13 @@ const BARGE_IN_WORDS = 2
 /** After an engine error (network, aborted, no-speech) wait this long before listening again. */
 export const RETRY_MS = 1000
 const FATAL = ['not-allowed', 'service-not-allowed', 'audio-capture']
-/** After the room goes quiet, its own voice can still arrive from the recogniser this late. */
-export const ECHO_GRACE_MS = 4000
-/** Share of the heard words that must be the room's recent words, in order, to count as echo. */
+/** After a line ends, its echo can still arrive from the recogniser this late. Short on purpose:
+ *  her answer to the question comes after it, and may reuse the question's words. */
+export const ECHO_GRACE_MS = 1500
+/** Share of the heard words that must match the room's words, in order and nearly contiguous. */
 const ECHO_SHARE = 0.75
-/** Lines remembered for the echo check. */
-const ECHO_LINES = 8
+/** Extra words a matching run may span beyond what was heard (misheard or dropped words). */
+const ECHO_SLACK = 2
 
 const words = (t: string) => t.split(/\s+/).filter(Boolean).length
 const tokens = (t: string) =>
@@ -33,23 +34,33 @@ const tokens = (t: string) =>
     .split(' ')
     .filter(Boolean)
 
-/**
- * On speakerphone the mic hears the adviser. True when `heard` is mostly `said` coming back:
- * the longest run of heard words found in order (gaps allowed, for misheard words) covers
- * ECHO_SHARE of what was heard. A cut-in ("wait, no") shares little with the room's words.
- */
-export function isEcho(heard: string, said: string[]): boolean {
-  const h = tokens(heard)
-  if (!h.length) return false
-  const s = tokens(said.join(' '))
-  // Longest common subsequence, one row at a time.
-  let prev = new Array<number>(s.length + 1).fill(0)
-  for (const w of h) {
+/** Longest common subsequence of two token lists. */
+function lcs(a: string[], b: string[]): number {
+  let prev = new Array<number>(b.length + 1).fill(0)
+  for (const w of a) {
     const row = [0]
-    for (let j = 1; j <= s.length; j++) row[j] = w === s[j - 1] ? prev[j - 1] + 1 : Math.max(prev[j], row[j - 1])
+    for (let j = 1; j <= b.length; j++) row[j] = w === b[j - 1] ? prev[j - 1] + 1 : Math.max(prev[j], row[j - 1])
     prev = row
   }
-  return prev[s.length] / h.length >= ECHO_SHARE
+  return prev[b.length]
+}
+
+/**
+ * On speakerphone the mic hears the adviser. True when `heard` is the room's own `lines` coming
+ * back: some window of the lines no longer than what was heard plus ECHO_SLACK words contains
+ * ECHO_SHARE of the heard words in order. Contiguity is the point: an answer that reuses a few
+ * common words from a long line ("it is working") does not line up the way an echo does.
+ */
+export function isEcho(heard: string, lines: string[]): boolean {
+  const h = tokens(heard)
+  if (!h.length) return false
+  const s = tokens(lines.join(' '))
+  const width = h.length + ECHO_SLACK
+  const need = Math.ceil(h.length * ECHO_SHARE)
+  for (let i = 0; i <= Math.max(0, s.length - width); i++) {
+    if (lcs(h, s.slice(i, i + width)) >= need) return true
+  }
+  return false
 }
 
 export function Talk({
@@ -84,27 +95,26 @@ export function Talk({
   const rec = useRef<Recognition | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined) // silence or retry
   const held = useRef('') // words that finished while the group was still answering
-  const said = useRef<string[]>([]) // the room's last lines, for the echo check
-  const quietAt = useRef(0) // when the room last stopped talking
-  /** While the room talks any match is echo; just after, only a longer one (a short answer
-   *  to the question may well reuse its words). */
-  const echoOf = (heard: string) =>
-    (queued.current > 0 || (Date.now() - quietAt.current < ECHO_GRACE_MS && words(heard) >= 3)) &&
-    isEcho(heard, said.current)
+  // The room's lines for the echo check: queued or playing (ended null), or ended moments ago.
+  const lines = useRef<{ text: string; ended: number | null }[]>([])
+  const echoOf = (heard: string) => {
+    const now = Date.now()
+    lines.current = lines.current.filter((l) => l.ended === null || now - l.ended < ECHO_GRACE_MS)
+    return isEcho(heard, lines.current.map((l) => l.text))
+  }
   const live = useRef({ active, streaming, onSay, onChange })
   live.current = { active, streaming, onSay, onChange }
 
   const voice = (text: string, speaker: string) => {
     if (muted.current) return
     queued.current += 1
-    said.current = [...said.current, text].slice(-ECHO_LINES)
+    const line = { text, ended: null as number | null }
+    lines.current.push(line)
     if (speaker !== 'facilitator') setTalker(speaker)
     const done = () => {
+      line.ended = Date.now()
       queued.current = Math.max(0, queued.current - 1)
-      if (!queued.current) {
-        quietAt.current = Date.now()
-        setTalker(null)
-      }
+      if (!queued.current) setTalker(null)
     }
     speak(text, speaker === 'facilitator' ? FACILITATOR_VOICE : personaVoice(speaker), done, speaker)
   }
@@ -112,7 +122,8 @@ export function Talk({
   const hush = () => {
     cancel()
     queued.current = 0
-    quietAt.current = Date.now()
+    const now = Date.now()
+    for (const l of lines.current) l.ended ??= now
     setTalker(null)
   }
 
@@ -132,30 +143,29 @@ export function Talk({
     r.interimResults = true
     let offset = 0 // results before this index were already sent
     let seen = 0
-    let heard = ''
-    let echo = false // these words came while the room was (or had just been) talking, and match it
+    let heard = '' // her words since the last flush; the room's own echo is left out
     let error: string | null = null
     const flush = () => {
       clearTimeout(timer.current)
       offset = seen
       const text = heard
       heard = ''
-      const wasEcho = echo
-      echo = false
       if (rec.current !== r || !text) return
-      // The adviser's own voice through the speaker is not her message.
-      if (wasEcho) return
       // A cough or one word over the audio is not a message.
       if (queued.current && words(text) < BARGE_IN_WORDS) return
       send(text)
     }
     r.onresult = (e) => {
       seen = e.results.length
+      // Each recogniser segment is judged on its own: the adviser's voice through the speaker
+      // is dropped, and what is left is hers, so a cut-in is heard even mid-echo.
       let t = ''
-      for (let i = offset; i < seen; i++) t += ` ${e.results[i][0]?.transcript ?? ''}`
+      for (let i = offset; i < seen; i++) {
+        const part = e.results[i][0]?.transcript ?? ''
+        if (!echoOf(part)) t += ` ${part}`
+      }
       heard = t.replace(/\s+/g, ' ').trim()
-      echo = echoOf(heard)
-      if (queued.current && !echo && words(heard) >= BARGE_IN_WORDS) {
+      if (queued.current && words(heard) >= BARGE_IN_WORDS) {
         muted.current = true
         hush()
       }

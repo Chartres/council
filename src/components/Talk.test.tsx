@@ -178,35 +178,52 @@ describe('Talk mode', () => {
     act(() => r.say('who is the customer'))
     act(() => vi.advanceTimersByTime(TALK_SILENCE_MS))
     expect(onSay).not.toHaveBeenCalled()
-    // A short answer in that moment is hers, even when it reuses the question's words.
+    // Once that moment has passed, a short answer is hers, even when it reuses the question's words.
+    act(() => vi.advanceTimersByTime(ECHO_GRACE_MS))
     act(() => r.say('the customer'))
     act(() => vi.advanceTimersByTime(TALK_SILENCE_MS))
     expect(onSay).toHaveBeenCalledWith('the customer')
 
-    // A real cut-in over the audio still works while the room is talking.
+    // She cuts in while the mic has been hearing the room with no pause between: her words stop
+    // the audio and go alone; the room's words around them are dropped.
     items = [...items, { kind: 'contribution', speaker: 'grove', text: 'Only the paranoid survive. Measure it weekly.' }]
     rerender(view())
+    act(() => r.say('only the paranoid survive'))
+    expect(tts.cancel).not.toHaveBeenCalled()
     act(() => r.say('hold on that is wrong'))
     expect(tts.cancel).toHaveBeenCalled()
     act(() => vi.advanceTimersByTime(TALK_SILENCE_MS))
     expect(onSay).toHaveBeenLastCalledWith('hold on that is wrong')
 
-    // Long after the room went quiet, her own words are hers, even if they echo an adviser.
+    // A one-word tail of the last line, just after the room stopped, is not a message either.
+    items = [...items, { kind: 'contribution', speaker: 'grove', text: 'Measure it weekly.' }]
+    rerender(view())
     for (const [, , onEnd] of vi.mocked(tts.speak).mock.calls) act(() => onEnd?.())
+    act(() => r.say('weekly'))
+    act(() => vi.advanceTimersByTime(TALK_SILENCE_MS))
+    expect(onSay).toHaveBeenCalledTimes(2)
+
+    // Long after the room went quiet, her own words are hers, even if they echo an adviser.
     act(() => vi.advanceTimersByTime(ECHO_GRACE_MS))
     act(() => r.say('who is the customer'))
     act(() => vi.advanceTimersByTime(TALK_SILENCE_MS))
     expect(onSay).toHaveBeenLastCalledWith('who is the customer')
   })
 
-  it('isEcho: mostly the room’s own words, in order', () => {
-    const said = ['Start with the customer.', 'Who benefits?']
-    expect(isEcho('start with a customer who benefits', said)).toBe(true)
-    expect(isEcho('Who benefits', said)).toBe(true)
-    expect(isEcho('wait no', said)).toBe(false)
-    expect(isEcho('the customer is wrong here', said)).toBe(false)
-    expect(isEcho('benefits who', said)).toBe(false)
-    expect(isEcho('', said)).toBe(false)
+  it('isEcho: a near-contiguous run of the room’s own words, not scattered ones', () => {
+    const lines = ['Start with the customer.', 'Who benefits?']
+    expect(isEcho('start with a customer who benefits', lines)).toBe(true) // one word misheard
+    expect(isEcho('Who benefits', lines)).toBe(true)
+    expect(isEcho('customer who', lines)).toBe(true) // across the line boundary
+    expect(isEcho('wait no', lines)).toBe(false)
+    expect(isEcho('the customer is wrong here', lines)).toBe(false)
+    expect(isEcho('benefits who', lines)).toBe(false)
+    expect(isEcho('', lines)).toBe(false)
+    // Answers that reuse common words from a long line are hers.
+    const long = ['It matters what is said in the room, and the working hours count for the first of them.']
+    expect(isEcho('it is working', long)).toBe(false)
+    expect(isEcho('the first month', long)).toBe(false)
+    expect(isEcho('I can not afford to wait', ['You cannot afford to wait for certainty.'])).toBe(false)
   })
 
   it('remembered as on, it waits for a tap: no mic, no audio until then', () => {

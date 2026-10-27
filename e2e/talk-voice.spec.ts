@@ -72,11 +72,13 @@ test('Talk speaks through the gateway: one element unlocked in the tap, adviser 
   const firstLine = (await talkLines())[0]!
   expect(firstLine.streaming).toBe(true)
 
-  // The room's own voice through the speaker is not her message and does not stop the audio.
+  // While the room is talking, its own voice through the speaker comes back through the mic:
+  // not her message, and the rest of the answer is still spoken.
+  const growing = (await page.locator('[data-testid="contribution"][data-streaming] .t-body').textContent())!
+  const firstSentence = growing.match(/[^.!?]+[.!?]+/)![0].trim().toLowerCase().replace(/[.,!?]/g, '')
+  await hear(page, firstSentence)
   await expect(page.getByTestId('floor')).toHaveCount(2, { timeout: 20_000 })
   const answer = (await page.getByTestId('contribution').last().locator('.t-body').textContent())!
-  const firstSentence = answer.match(/[^.!?]+[.!?]+/)![0].trim().toLowerCase().replace(/[.,!?]/g, '')
-  await hear(page, firstSentence)
   await page.waitForTimeout(1600) // past the 1.2 s pause that would have sent it
   await expect(page.getByTestId('user')).toHaveCount(1)
 
