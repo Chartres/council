@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { conversion, logError, track } from '@/analytics'
+import { conversion, keyAction, logError } from '@/analytics'
 import { useAuth } from '@/auth/AuthContext'
 import { supabase } from '@/auth/supabase'
 import { defaultAdvisers, nextPicked, type RosterId } from '@/content/personas'
@@ -154,7 +154,7 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
     (e: unknown) => {
       const reason: FailureReason = e instanceof CouncilError ? e.reason : 'gateway'
       if (!(e instanceof CouncilError)) logError(e, { where: 'mastermind' })
-      track('council_blocked', { reason, v: 4 })
+      keyAction('blocked', { reason, v: 4 })
       if (reason === 'password') lockDoor()
       update((c) => ({ streaming: false, failure: reason, items: settleItems(c.items) }))
     },
@@ -227,7 +227,7 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
       setConversation(convo.current)
       if (intake) setLastIntake(intake)
       go('conversation')
-      track('council_convened', { personas: advisers.length, roster, v: 4, memory: Boolean(memory) })
+      keyAction('convened', { personas: advisers.length, roster, v: 4, memory: Boolean(memory) })
       void consume(
         startCouncil({ roster, advisers, ...(intake ? { intake } : {}), ...(memory ? { memory } : {}) }, opts()),
       )
@@ -240,7 +240,7 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
       const id = convo.current?.sessionId
       if (!id) return
       update((c) => ({ items: [...c.items, { kind: 'user', text: message }] }))
-      track('council_replied', { v: 4, voice })
+      keyAction('replied', { v: 4, voice })
       void consume(sendTurn({ session_id: id, message, ...(voice ? { voice: true as const } : {}) }, opts()))
     },
     [update, consume, opts],
@@ -258,6 +258,7 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
         update({ streaming: true, failure: null })
         void capture({ session_id: id }, opts())
           .then(({ entry }) => {
+            keyAction('captured', { v: 4 })
             update((cv) => ({
               streaming: false,
               items: [
@@ -345,6 +346,7 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
           }
           dispatch({ type: 'commit', commitment: saved })
           setItem(index, { state: 'committed' })
+          keyAction('committed', { v: 4, remind })
           if (sb && user) void saveRemoteCommitment(sb, user.id, saved).catch(logError)
         })
         .catch(fail)

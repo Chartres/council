@@ -17,9 +17,9 @@ export function SignInPanel({ reason, title = 'Keep this idea' }: { reason?: str
     setError(null)
     track('signup_started')
     const res = await signInWithEmail(email)
+    // signup_completed fires when the link or code actually signs them in (AuthContext).
     if (res.ok) {
       setSent(true)
-      track('signup_completed')
     } else setError(res.error ?? 'Something went wrong.')
   }
 
