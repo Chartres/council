@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { isAuthConfigured, supabase } from './supabase'
-import { identify } from '@/analytics'
+import { identify, track } from '@/analytics'
 
 export interface AuthUser {
   id: string
@@ -19,6 +19,19 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
+/** The sign-up funnel's last step: a person arriving signed in. supabase-js re-emits SIGNED_IN
+ *  (tab refocus, a second tab), so it counts once per user per browser. */
+function completed(userId: string) {
+  const key = `council:signed-in:${userId}`
+  try {
+    if (localStorage.getItem(key)) return
+    localStorage.setItem(key, '1')
+  } catch {
+    // Private mode: count it; a rare double beats never counting.
+  }
+  track('signup_completed', { method: 'email' })
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [token, setToken] = useState<string | null>(null)
@@ -36,7 +49,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       apply(data.session)
       setLoading(false)
     })
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => apply(session))
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      apply(session)
+      if (event === 'SIGNED_IN' && session?.user) completed(session.user.id)
+    })
     return () => sub.subscription.unsubscribe()
   }, [])
 

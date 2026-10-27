@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useCouncil } from '@/app/CouncilContext'
 import { useMastermind, type Item } from '@/app/MastermindContext'
 import { useAuth } from '@/auth/AuthContext'
+import { keyAction } from '@/analytics'
 import { ListenToggle, useListen, useNarration, usePref } from '@/components/Listen'
 import { MicButton } from '@/components/MicButton'
 import { Talk, TALK_STORAGE } from '@/components/Talk'
@@ -60,6 +61,7 @@ export function ConversationScreen() {
     setListen(on)
   }
   const onTalk = (on: boolean) => {
+    if (on) keyAction('talk_on')
     readFrom.current = on ? null : turns.length
     setTalk(on)
   }
