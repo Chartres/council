@@ -121,6 +121,17 @@ cookieless, fire-and-forget. Events: `page_view`, `council_convened`, `council_r
 `council_blocked` (with the gateway's reason), `signup_started`/`signup_completed`, `error`, and
 `conversion` on a completed verdict — the aha moment, and `activation_event` in the portfolio record.
 
+## Topic pages (`/on/`, crawlable)
+Plain HTML, no JavaScript: what the classical thinkers wrote about common decisions (time, fear,
+money, …), built only from the verified Classics quote banks. Never business-roster lines, never
+anything from a user's session. After the gateway's banks change:
+```bash
+node scripts/quotes.mjs ../flywheel/gateway/prompts/council/classics/quotes   # → src/content/verified-quotes.json
+node scripts/prerender.mjs                                                    # → public/on/**, public/sitemap.xml
+```
+`scripts/prerender.test.mjs` (runs in `npm test`) fails when the committed pages are stale or
+when anything in quotation marks is not a bank line.
+
 ## Content rules (legal record, not style)
 Every screen carries the fictional-interpretation + AI disclosure line. No portraits, ever —
 personas render as monograms (`src/components/Monogram.tsx`). The Montessori non-affiliation line

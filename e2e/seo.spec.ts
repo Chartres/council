@@ -36,6 +36,24 @@ test('llms.txt is plain text in llmstxt.org shape', async ({ request }) => {
   expect(body).toContain(`${HOST}/`)
 })
 
+test('topic pages are plain HTML a crawler can read without JavaScript, and are in the sitemap', async ({ request }) => {
+  const res = await request.get('/on/time/')
+  expect(res.status()).toBe(200)
+  expect(res.headers()['content-type']).toContain('text/html')
+  const html = await res.text()
+  expect(html).toContain('<h1>What the classics wrote about time</h1>')
+  expect(html).toContain('“While we are postponing, life speeds by.”')
+  expect(html).toContain('https://en.wikisource.org/wiki/Moral_letters_to_Lucilius/Letter_1')
+  expect(html).not.toContain('<script type="module"')
+  expect(html).toContain(`<link rel="canonical" href="${HOST}/on/time/" />`)
+  const index = await (await request.get('/on/')).text()
+  expect(index).toContain('href="/on/fear/"')
+  const xml = await (await request.get('/sitemap.xml')).text()
+  expect(xml).toContain(`<loc>${HOST}/on/time/</loc>`)
+  const llms = await (await request.get('/llms.txt')).text()
+  expect(llms).toContain(`${HOST}/on/`)
+})
+
 test('security.txt is served and not expired', async ({ request }) => {
   const res = await request.get('/.well-known/security.txt')
   expect(res.status()).toBe(200)
