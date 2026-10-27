@@ -75,6 +75,19 @@ describe('speak through the gateway', () => {
     expect(FakeAudio.all).toHaveLength(1)
   })
 
+  it('unlock also primes the browser voice with a silent line, so the fallback can speak later (iOS)', () => {
+    const spoken: { text: string; volume: number }[] = []
+    vi.stubGlobal('SpeechSynthesisUtterance', class { volume = 1; constructor(public text: string) {} })
+    vi.stubGlobal('speechSynthesis', { speak: (u: { text: string; volume: number }) => spoken.push({ text: u.text, volume: u.volume }) })
+    unlock()
+    expect(spoken).toEqual([{ text: ' ', volume: 0 }])
+  })
+
+  it('unlock without a browser voice is harmless', () => {
+    vi.stubGlobal('speechSynthesis', undefined)
+    expect(() => unlock()).not.toThrow()
+  })
+
   it('names the speaker and the session so the gateway can pick their voice', async () => {
     vi.stubGlobal('fetch', vi.fn(audioResponse))
     setSession('s-1')
