@@ -117,9 +117,12 @@ The client never holds an Anthropic key. All model work happens in the gateway W
 
 ## Analytics (Common Platform)
 Vendored client: `src/platform/flywheel-client.ts`, wrapped by `src/analytics.ts`. First-party,
-cookieless, fire-and-forget. Events: `page_view`, `council_convened`, `council_replied`,
-`council_blocked` (with the gateway's reason), `signup_started`/`signup_completed`, `error`, and
-`conversion` on a completed verdict — the aha moment, and `activation_event` in the portfolio record.
+cookieless, fire-and-forget. Only shared-taxonomy names reach the events table (its insert
+policy drops anything else); `src/analytics.contract.test.ts` fails CI otherwise. Steps:
+`page_view`, `key_action` with `action` = convened / replied / talk_on / blocked (with the
+gateway's reason) / captured / committed (`keyAction()` in `src/analytics.ts`),
+`signup_started` (email submitted), `signup_completed` (first real sign-in per user per
+browser), and `conversion` when a proposal is accepted into the journal (v3: a completed verdict) — the aha moment, and `activation_event` in the portfolio record.
 
 ## Content rules (legal record, not style)
 Every screen carries the fictional-interpretation + AI disclosure line. No portraits, ever —
