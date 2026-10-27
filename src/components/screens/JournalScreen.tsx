@@ -3,7 +3,10 @@ import { useCouncil } from '@/app/CouncilContext'
 import { useMastermind } from '@/app/MastermindContext'
 import { useAuth } from '@/auth/AuthContext'
 import { CouncilMap } from '@/components/CouncilMap'
+import { Quaestio } from '@/components/Quaestio'
+import { quaestio } from '@/domain/quaestio'
 import { OutcomeButtons } from '@/components/OutcomeButtons'
+import { Examination } from '@/components/Examination'
 import { humanDate } from '@/domain/dates'
 import { isOpen } from '@/domain/mastermind'
 
@@ -31,6 +34,7 @@ export function JournalScreen() {
       <p className="t-body mt-2 text-marble-400">
         {user ? 'Kept on your account.' : 'Kept in this browser only. Sign in to keep it across devices.'}
       </p>
+      <Examination commitments={journal.commitments} />
 
       {entries.length === 0 ? (
         <div className="mt-12">
@@ -49,6 +53,10 @@ export function JournalScreen() {
                   {e.status} · {humanDate(e.created_at, { weekday: false })}
                   {e.confidence !== null && ` · ${e.confidence} % confident`}
                 </p>
+                <details className="mt-2" data-testid="journal-quaestio">
+                  <summary className="text-btn cursor-pointer leading-[44px]">The question, examined</summary>
+                  <Quaestio q={quaestio(e)} />
+                </details>
                 {e.map && (
                   <details open={entries.length === 1} className="mt-2" data-testid="journal-map">
                     <summary className="text-btn cursor-pointer leading-[44px]">Map</summary>

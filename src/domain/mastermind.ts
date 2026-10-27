@@ -91,7 +91,7 @@ export type MastermindEvent =
 export type Item =
   | { kind: 'facilitator'; text: string }
   /** `streaming` while a voice turn's deltas are still arriving; the final `contribution` replaces it. */
-  | { kind: 'contribution'; speaker: string; text: string; confidence?: number; streaming?: boolean }
+  | { kind: 'contribution'; speaker: string; text: string; confidence?: number; streaming?: boolean; grounding?: unknown }
   | { kind: 'floor'; question: string }
   | { kind: 'user'; text: string }
   | {
@@ -121,7 +121,13 @@ export function itemsReducer(items: Item[], ev: MastermindEvent): Item[] {
     case 'delta':
       return growing ? [...items.slice(0, -1), { ...growing, text: growing.text + ev.text }] : items
     case 'contribution': {
-      const done: Item = { kind: 'contribution', speaker: ev.speaker, text: ev.text, confidence: ev.confidence }
+      const done: Item = {
+        kind: 'contribution',
+        speaker: ev.speaker,
+        text: ev.text,
+        confidence: ev.confidence,
+        ...(ev.grounding === undefined ? {} : { grounding: ev.grounding }),
+      }
       return growing ? [...items.slice(0, -1), done] : [...items, done]
     }
     case 'floor':

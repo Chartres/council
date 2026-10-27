@@ -6,6 +6,8 @@ import { SignInPanel } from '@/components/SignInPanel'
 import { OutcomeButtons } from '@/components/OutcomeButtons'
 import { PrivacyLink } from '@/components/screens/PrivacyScreen'
 import { humanDate } from '@/domain/dates'
+import { dailyQuestion, todayKey } from '@/domain/daily'
+import { keyAction } from '@/analytics'
 import {
   BUSINESS_DISCLOSURE,
   DISCLOSURE,
@@ -44,9 +46,32 @@ function ConnectPanel() {
 
 const ROSTER_LABEL: Record<RosterId, string> = { business: 'Business', classics: 'Classics' }
 
+/** One question a day, the same for everyone (docs/SIGNATURE.md "Today's question"). */
+function Today({ onOpen }: { onOpen: (question: string) => void }) {
+  const day = todayKey()
+  const question = dailyQuestion(day)
+  return (
+    <section aria-label="Today's question" data-testid="today" className="mt-2">
+      {/* The whole card is the control: the question is what she taps (and the fold's first control). */}
+      <button
+        type="button"
+        onClick={() => {
+          keyAction('daily_opened', { day })
+          onOpen(question)
+        }}
+        className="block w-full rounded-card py-2 text-left"
+      >
+        <span className="t-label block">Today’s question</span>
+        <span className="t-title mt-2 block">{question}</span>
+        <span className="t-body mt-1 block font-semibold text-candle-300">Take it to the council ›</span>
+      </button>
+    </section>
+  )
+}
+
 export function StartScreen() {
   const { go } = useCouncil()
-  const { roster, setRoster, advisers, toggleAdviser, memory, linkNeedsSignIn } = useMastermind()
+  const { roster, setRoster, advisers, toggleAdviser, memory, linkNeedsSignIn, begin } = useMastermind()
   const last = memory?.entries[0]
   const inspired = ROSTERS[roster].flatMap((p) => ('inspiredBy' in p && p.inspiredBy ? [p.inspiredBy] : []))
 
@@ -75,7 +100,9 @@ export function StartScreen() {
         </section>
       )}
 
-      <div role="group" aria-label="Roster" className={`grid grid-cols-2 gap-2 ${memory ? 'mt-12' : 'mt-2'}`}>
+      <Today onOpen={(goal) => begin({ goal })} />
+
+      <div role="group" aria-label="Roster" className="mt-12 grid grid-cols-2 gap-2">
         {(Object.keys(ROSTERS) as RosterId[]).map((r) => (
           <button
             key={r}

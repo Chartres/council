@@ -6,6 +6,9 @@ forms that thinkers used for two thousand years to examine a decision and keep t
 puts a small modern machine under them: verified quotes, a journal you own, a reminder that
 arrives on the day.
 
+Status 2026-10-27: the quaestio, the evening examination, "in your power" and today's
+question are built (council PR "Signature mechanics"); letters are in the gateway (flywheel PR).
+
 ## Lineage
 
 | Source | What it gives us | changes: |
@@ -36,8 +39,8 @@ arrives on the day.
 | **The question, examined** | The proposal card and the journal entry, read as a quaestio: *Question* · *It seems not, because…* (each objection, with who raised it) · *On the contrary* (a verified line from the session, with its source) · *I answer* (decision and reasoning) · *What must hold* (the assumptions). With no objection: "No one argued against this yet" and a one-tap "Test it" control. | Aquinas | Share of accepted entries with at least one objection (from the map's `challenges` edges); `key_action` `action: "tested"` per session. Target: half of accepted entries carry an objection. |
 | **The evening examination** | On the Journal screen after 17:00 local time, when something is due: Seneca's three questions and today's commitments with Done / Not yet / Drop. | Seneca, *De Ira* III.36 | `key_action` `action: "examined"`; share of commitments with an outcome within 24 h of their due date. Target: above 40 %. |
 | **Letters, not notifications** | The reminder email: "From your council, greetings." The commitment, one line from Seneca's Letters with its letter number, the three outcome links, "Farewell." | Seneca, *Letters* | Outcome-link clicks per reminder sent (the `/c/:id?outcome=` route). Baseline: today's plain reminder. |
-| **In your power** | Under the next action, before committing: "In your power?" with Epictetus' line. "Partly" opens the field to rewrite the part that is the user's. | Epictetus, *Enchiridion* 1 | Share of commitments marked fully in the user's power, and their completion rate against the rest. |
-| **Today's question** | On the start screen, the day's question, the same for everyone; one tap opens it as a council with the Classics roster. | Plato, *Apology* | `key_action` `convened` with `daily: true`, and visitors who come back on a second day. |
+| **In your power** | Under the next action, before committing: "In your power?" with Epictetus' line. "Partly" opens the field to rewrite the part that is the user's. | Epictetus, *Enchiridion* 1 | `key_action` `committed` with `rewritten: true` (she kept only her part), and the completion rate of those against the rest. |
+| **Today's question** | At the top of the start screen, the day's question, the same for everyone; one tap opens it as a council with the advisers picked there. | Plato, *Apology* | `key_action` `daily_opened` per visitor per day, and visitors who come back on a second day. |
 
 ## Visual signature
 

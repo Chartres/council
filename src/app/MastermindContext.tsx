@@ -77,7 +77,8 @@ interface Value {
   control: (c: Control) => void
   accept: (index: number, edits: { decision: string; next_action: string }) => void
   decline: (index: number) => void
-  commitTo: (index: number, dueDate: string, remind: boolean) => void
+  /** `what`: the part of the next action that is in her power, when she rewrote it. */
+  commitTo: (index: number, dueDate: string, remind: boolean, what?: string) => void
   recordOutcome: (id: string, outcome: Outcome) => void
   setRemind: (id: string, remind: boolean) => void
   exportText: () => string
@@ -321,7 +322,7 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
   const decline = useCallback((index: number) => setItem(index, { state: 'declined' }), [setItem])
 
   const commitTo = useCallback(
-    (index: number, dueDate: string, remind: boolean) => {
+    (index: number, dueDate: string, remind: boolean, what?: string) => {
       const c = convo.current
       const item = c?.items[index]
       if (!c?.sessionId || item?.kind !== 'proposal') return
@@ -331,7 +332,7 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
         due_date: dueDate,
         remind,
         id: crypto.randomUUID(),
-        what: item.entry.next_action,
+        what: what?.trim() || item.entry.next_action,
       }
       void commit(body, opts())
         .then(({ commitment }) => {
@@ -346,7 +347,7 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
           }
           dispatch({ type: 'commit', commitment: saved })
           setItem(index, { state: 'committed' })
-          keyAction('committed', { v: 4, remind })
+          keyAction('committed', { v: 4, remind, rewritten: Boolean(what?.trim()) })
           if (sb && user) void saveRemoteCommitment(sb, user.id, saved).catch(logError)
         })
         .catch(fail)

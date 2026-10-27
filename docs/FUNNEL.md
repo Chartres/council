@@ -12,10 +12,13 @@ The insert policy accepts only the shared taxonomy, so every step below uses a t
 | Start a council | `key_action` | `action: "convened"`, roster, advisers, `v` | `/start` (v4) or `/session` (v3, `/quick`) is sent |
 | Reply | `key_action` | `action: "replied"`, `voice` | A typed or spoken turn is sent |
 | Talk mode on | `key_action` | `action: "talk_on"` | The Talk control is switched on |
+| Today's question | `key_action` | `action: "daily_opened"`, `day` | The day's question is opened as a council |
+| Test it | `key_action` | `action: "tested"` | "Test it" on a proposal no one has argued against |
+| Evening examination | `key_action` | `action: "examined"`, `outcome` | An outcome is tapped in Tonight's examination |
 | Hit a gate | `key_action` | `action: "blocked"`, `reason` | sign_in, quota, turns, captures, cap, password, gateway |
 | **Activation** | `conversion` | roster, `v` | A proposal is accepted into the journal (v4); a verdict arrives (v3) |
 | Capture in own words | `key_action` | `action: "captured"` | Free-text capture returns an entry |
-| Commit | `key_action` | `action: "committed"`, `remind` | A commitment with a due date is saved |
+| Commit | `key_action` | `action: "committed"`, `remind`, `rewritten` | A commitment with a due date is saved (`rewritten`: she kept only the part in her power) |
 | Sign-up started | `signup_started` | — | The email is submitted |
 | Sign-up completed | `signup_completed` | `method` | The person arrives signed in (first `SIGNED_IN` per user per browser) |
 
