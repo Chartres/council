@@ -84,7 +84,9 @@ const SILENT_WAV =
 let player: HTMLAudioElement | null = null
 const element = () => (player ??= new Audio())
 
-/** Call inside a tap: plays the silent clip on the shared element so later lines may play. */
+/** Call inside a tap: plays the silent clip on the shared element so later lines may play,
+ *  and speaks one silent line on the browser engine, which iOS also lets speak on its own
+ *  only after a tap used it — without this, the fallback for a failed line is silent there. */
 export function unlock(): void {
   try {
     const a = element()
@@ -92,6 +94,14 @@ export function unlock(): void {
     void a.play().catch(() => {})
   } catch {
     // No audio element: the browser engine still speaks.
+  }
+  try {
+    if (typeof speechSynthesis === 'undefined' || !speechSynthesis) return
+    const u = new SpeechSynthesisUtterance(' ')
+    u.volume = 0
+    speechSynthesis.speak(u)
+  } catch {
+    // No browser engine: nothing to prime.
   }
 }
 
