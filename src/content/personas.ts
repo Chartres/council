@@ -48,7 +48,7 @@ export const PERSONAS: Persona[] = [
     name: 'Buddha',
     monogram: 'SG',
     brings: 'Names the attachment driving the plan.',
-    source: 'Pali Canon (Rhys Davids translation)',
+    source: 'Dhammapada (Müller translation) and suttas (Sujato translation)',
     defaultOn: false,
   },
   {

@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { build, LASTMOD, TOPICS } from './prerender.mjs'
+import { PERSONAS } from './quotes.mjs'
 import { parseBank, sourceUrl } from './quotes.mjs'
 
 const quotes = JSON.parse(readFileSync('src/content/verified-quotes.json', 'utf8'))
@@ -30,10 +31,31 @@ describe('prerendered topic pages', () => {
     for (const name of ['Drucker', 'Steve Jobs', 'Andy Grove', 'Grove']) expect(all).not.toContain(name)
   })
 
+  it('one page per Classics adviser: what it draws on, verified lines, an honest caveat', () => {
+    const bank = new Set(quotes.map((q) => q.text))
+    for (const [id, p] of Object.entries(PERSONAS)) {
+      const html = out[`public/advisers/${id}/index.html`]
+      expect(html, id).toContain(`<h1>${p.name.replace('’', '’')}`)
+      expect(html).toContain('an AI simulation')
+      const lines = [...html.matchAll(/<blockquote>“([\s\S]*?)”<cite>/g)].map((m) => unescape(m[1]))
+      expect(lines.length, id).toBeGreaterThanOrEqual(6)
+      expect(lines.filter((l) => !bank.has(l)), id).toEqual([])
+    }
+    expect(out['public/advisers/index.html']).toContain('href="/advisers/marcus-aurelius/"')
+  })
+
+  it('a how-it-works page names only what is live', () => {
+    const html = out['public/how-it-works/index.html']
+    expect(html).toContain('<h1>How a council session works</h1>')
+    for (const step of ['facilitator', 'journal', 'commitment', 'Talk mode', 'https://llm.dravec.org/mcp', 'private beta']) expect(html).toContain(step)
+  })
+
   it('the sitemap lists the app and every topic page', () => {
     const xml = out['public/sitemap.xml']
     expect(xml).toContain('<loc>https://council.dravec.org/</loc>')
     for (const t of Object.keys(TOPICS)) expect(xml).toContain(`<loc>https://council.dravec.org/on/${t}/</loc>`)
+    for (const id of Object.keys(PERSONAS)) expect(xml).toContain(`<loc>https://council.dravec.org/advisers/${id}/</loc>`)
+    expect(xml).toContain('<loc>https://council.dravec.org/how-it-works/</loc>')
   })
 })
 

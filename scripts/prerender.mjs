@@ -158,6 +158,83 @@ ${rows.map(([t, n]) => `<li><a href="/on/${t}/">${esc(t[0].toUpperCase() + t.sli
   return { path: '/on/', html: page({ path: '/on/', title, description, body, jsonld }) }
 }
 
+/** One page per Classics adviser: what it draws on and lines it can quote (AIO fix 2). */
+export function adviserPage(quotes, id) {
+  const p = PERSONAS[id]
+  const mine = quotes.filter((q) => q.persona === id)
+  const sample = mine.slice(0, 8)
+  const topics = Object.keys(TOPICS).filter((t) => mine.filter((q) => q.tags.includes(t)).length >= 2)
+  const path = `/advisers/${id}/`
+  const title = `Talk a decision through with ${p.name}, as an AI adviser — Mastermind Council`
+  const description = `The Council's ${p.name} is an AI simulation written from ${p.edition}. ${mine.length} lines it can quote, each checked word for word against that text.`
+  const body = `<nav><a href="/">Mastermind Council</a> › <a href="/advisers/">The advisers</a></nav>
+<h1>${esc(p.name)}, as an adviser on your decision</h1>
+<p class="lede">${esc(p.brings)}</p>
+<h2>What this adviser draws on</h2>
+<p>${esc(p.edition)}. In a session the adviser is an AI simulation written from this text. When it quotes, the quote is checked against the text before you see it; a line that cannot be found is shown as paraphrase, not in quotation marks. ${mine.length} lines are in its verified bank.</p>
+<h2>Some of the lines it can quote</h2>
+${sample
+  .map(
+    (q) =>
+      `<blockquote>“${esc(q.text)}”<cite>${esc(p.work)}, ${esc(q.locator)}${p.translator ? ` · trans. ${esc(p.translator)}` : ''} · <a href="${esc(q.url)}">source</a></cite></blockquote>`,
+  )
+  .join('\n')}
+${topics.length ? `<h2>${esc(p.name)} on</h2>\n<p>${topics.map((t) => `<a href="/on/${t}/">${t}</a>`).join(' · ')}</p>` : ''}
+<p class="cta"><a href="/">Bring your decision to the Council</a> and seat ${esc(p.name)} with up to three others. The Council is in private beta; these pages are open to everyone.</p>
+<p class="small">The adviser is an AI simulation, not ${esc(p.name)}, and speaks for no estate or school. The quotes above are from the edition named.</p>`
+  const jsonld = {
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    name: title,
+    description,
+    url: `${HOST}${path}`,
+    about: { '@type': 'Person', name: p.name },
+    isPartOf: { '@type': 'WebSite', name: 'Mastermind Council', url: `${HOST}/` },
+  }
+  return { path, html: page({ path, title, description, body, jsonld }) }
+}
+
+export function advisersIndex(quotes) {
+  const title = 'The Council’s advisers and the texts they are held to'
+  const description = 'Seneca, Marcus Aurelius, Socrates, Confucius, Benjamin Franklin, the Buddha and Maria Montessori: AI advisers written from public-domain translations, quoting only checked lines.'
+  const body = `<nav><a href="/">Mastermind Council</a></nav>
+<h1>The advisers and the texts they are held to</h1>
+<p class="lede">Each Classics adviser is an AI simulation written from one public-domain translation, and quotes only lines found in it.</p>
+<ul class="topics">
+${Object.entries(PERSONAS)
+  .map(([id, p]) => `<li><a href="/advisers/${id}/">${esc(p.name)}</a> <span class="small">· ${esc(p.brings)} · ${quotes.filter((q) => q.persona === id).length} verified lines</span></li>`)
+  .join('\n')}
+</ul>
+<p class="cta"><a href="/how-it-works/">How a session works</a> · <a href="/on/">The classics on common decisions</a></p>`
+  const jsonld = { '@context': 'https://schema.org', '@type': 'CollectionPage', name: title, description, url: `${HOST}/advisers/` }
+  return { path: '/advisers/', html: page({ path: '/advisers/', title, description, body, jsonld }) }
+}
+
+/** What happens in a session, as it is live today. */
+export function howItWorks() {
+  const title = 'How a council session works — Mastermind Council'
+  const description = 'Pick up to four advisers, say what you are deciding, talk it through with them and a neutral facilitator, and keep the decision in a journal with one next action.'
+  const steps = [
+    ['Pick the room', 'Choose a roster, Classics or Business, and seat up to four advisers. A neutral facilitator is always there and keeps the session moving.'],
+    ['Say what you are deciding', 'One screen of short questions: the goal, the situation, what you have tried. Paste text, drop a file, ask your own AI to fill it in, or say it aloud. Every question can be skipped.'],
+    ['Talk it through', 'The advisers answer in turn and the facilitator puts one question on the floor. You reply, or steer: go back to an earlier point, let two advisers explore it between them, ask for disagreement, ask for something concrete, or wrap up.'],
+    ['Keep the decision', 'When the group lands somewhere, it proposes a decision with its reasoning, assumptions and one next action. You edit it and accept it into your journal.'],
+    ['Commit and follow up', 'Give the next action a due date as a commitment and, if you are signed in, an email reminder on that day. Next time, the session opens with "Last time…" and asks how it went.'],
+    ['Talk mode', 'A spoken conversation instead of typing: the mic stays open, each adviser answers in a distinct synthetic voice, and you can cut in.'],
+    ['From your own AI', 'The same council works inside Claude or ChatGPT as a connector: https://llm.dravec.org/mcp, signed in by email.'],
+  ]
+  const body = `<nav><a href="/">Mastermind Council</a></nav>
+<h1>How a council session works</h1>
+<p class="lede">${esc(description)}</p>
+${steps.map(([h, t]) => `<h2>${esc(h)}</h2>\n<p>${esc(t)}</p>`).join('\n')}
+<h2>Quotes are checked</h2>
+<p>The Classics advisers are written from public-domain translations, and any line an adviser puts in quotation marks is checked against those texts first. See <a href="/advisers/">the advisers</a> and <a href="/on/">what the classics wrote</a>.</p>
+<p class="cta">The Council is in private beta: the app asks for a password for now. <a href="/privacy">What we store</a>.</p>
+<p class="small">The advisers are AI simulations, not the historical people. No medical, legal or financial advice.</p>`
+  const jsonld = { '@context': 'https://schema.org', '@type': 'HowTo', name: 'How a council session works', description, step: steps.map(([h, t], i) => ({ '@type': 'HowToStep', position: i + 1, name: h, text: t })) }
+  return { path: '/how-it-works/', html: page({ path: '/how-it-works/', title, description, body, jsonld }) }
+}
+
 export function sitemap(paths, lastmod) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
@@ -172,7 +249,13 @@ export function build(quotes, lastmod) {
   const index = indexPage(quotes)
   out['public/on/index.html'] = index.html
   for (const t of Object.keys(TOPICS)) out[`public/on/${t}/index.html`] = topicPage(quotes, t).html
-  out['public/sitemap.xml'] = sitemap(['/', '/quick', '/privacy', '/on/', ...Object.keys(TOPICS).map((t) => `/on/${t}/`)], lastmod)
+  out['public/advisers/index.html'] = advisersIndex(quotes).html
+  for (const id of Object.keys(PERSONAS)) out[`public/advisers/${id}/index.html`] = adviserPage(quotes, id).html
+  out['public/how-it-works/index.html'] = howItWorks().html
+  out['public/sitemap.xml'] = sitemap(
+    ['/', '/quick', '/privacy', '/how-it-works/', '/advisers/', ...Object.keys(PERSONAS).map((id) => `/advisers/${id}/`), '/on/', ...Object.keys(TOPICS).map((t) => `/on/${t}/`)],
+    lastmod,
+  )
   return out
 }
 

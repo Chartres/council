@@ -11,13 +11,13 @@ import { readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 export const PERSONAS = {
-  seneca: { name: 'Seneca', work: 'Letters to Lucilius', translator: 'Richard M. Gummere' },
-  'marcus-aurelius': { name: 'Marcus Aurelius', work: 'Meditations', translator: 'George Long' },
-  socrates: { name: 'Socrates', work: 'Plato’s dialogues', translator: 'Benjamin Jowett' },
-  confucius: { name: 'Confucius', work: 'Analects', translator: 'James Legge' },
-  franklin: { name: 'Benjamin Franklin', work: 'Autobiography and The Way to Wealth', translator: null },
-  buddha: { name: 'The Buddha', work: 'Dhammapada and the suttas', translator: 'F. Max Müller; Bhikkhu Sujato' },
-  montessori: { name: 'Maria Montessori', work: 'The Montessori Method', translator: 'Anne E. George' },
+  seneca: { name: 'Seneca', work: 'Letters to Lucilius', translator: 'Richard M. Gummere', edition: 'Epistulae Morales ad Lucilium, trans. Richard M. Gummere, Loeb Classical Library (1917–1925), via Wikisource', brings: 'Counts the cost in time and money before anyone counts the upside.' },
+  'marcus-aurelius': { name: 'Marcus Aurelius', work: 'Meditations', translator: 'George Long', edition: 'Meditations (The Thoughts of the Emperor Marcus Aurelius Antoninus), trans. George Long (1862), via Wikisource', brings: 'Strips the idea down to what is actually in your control.' },
+  socrates: { name: 'Socrates', work: 'Plato’s dialogues', translator: 'Benjamin Jowett', edition: 'Plato, Apology, Crito, Meno, Theaetetus and Republic, trans. Benjamin Jowett, via Project Gutenberg', brings: 'Asks the question you are avoiding, then asks it again.' },
+  confucius: { name: 'Confucius', work: 'Analects', translator: 'James Legge', edition: 'Analects (Lun Yu), trans. James Legge, via Project Gutenberg', brings: 'Weighs duty, relationships and who carries the work.' },
+  franklin: { name: 'Benjamin Franklin', work: 'Autobiography and The Way to Wealth', translator: null, edition: 'Autobiography and The Way to Wealth (1758), via Project Gutenberg', brings: 'Turns the idea into a cheap experiment you can run this week.' },
+  buddha: { name: 'The Buddha', work: 'Dhammapada and the suttas', translator: 'F. Max Müller; Bhikkhu Sujato', edition: 'Dhammapada, trans. F. Max Müller (1881), via Project Gutenberg, and suttas in Bhikkhu Sujato’s CC0 translation, via SuttaCentral', brings: 'Names the attachment driving the plan.' },
+  montessori: { name: 'Maria Montessori', work: 'The Montessori Method', translator: 'Anne E. George', edition: 'The Montessori Method, trans. Anne E. George (1912), via Project Gutenberg', brings: 'Asks what you learn by doing, not by being told.' },
 }
 
 const PLATO = { Apology: 1656, Crito: 1657, Meno: 1643, Republic: 1497, Theaetetus: 1726 }
