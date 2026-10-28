@@ -9,12 +9,13 @@
 > reminder. In private beta in October 2026: the app asks for a password.
 
 ## What is different
-- Quotes are checked. Each Classics adviser draws on one public-domain translation (Gummere's
+- Quotes are checked. Each Classics adviser draws on named public-domain editions (Gummere's
   Seneca, Long's Marcus Aurelius, Jowett's Plato, Legge's Analects, Müller's Dhammapada and
   Sujato's suttas, Anne E. George's Montessori, Franklin's Autobiography and Way to Wealth).
   A quotation an adviser makes is checked against the source passages before it is shown; one
   that cannot be found is removed.
-- "Last time…": a signed-in user's earlier decisions and open commitments open the next session.
+- "Last time…": your earlier decisions and open commitments open the next session (kept in the
+  browser, or in your account when signed in).
 - One shared question a day, the same for everyone.
 - Talk mode: a spoken conversation, each adviser in a distinct synthetic voice.
 - Works inside Claude or ChatGPT as an MCP connector: https://llm.dravec.org/mcp (OAuth sign-in
