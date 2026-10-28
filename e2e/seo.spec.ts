@@ -24,6 +24,8 @@ test('sitemap.xml lists the canonical root', async ({ request }) => {
   const xml = await res.text()
   expect(xml).toContain(`<loc>${HOST}/</loc>`)
   expect(xml).toContain('<lastmod>')
+  // Exactly the live URLs: /quick, /privacy and /c/:id are SPA routes whose canonical is /.
+  expect([...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1])).toEqual([`${HOST}/`])
 })
 
 test('llms.txt is plain text in llmstxt.org shape', async ({ request }) => {
@@ -34,6 +36,10 @@ test('llms.txt is plain text in llmstxt.org shape', async ({ request }) => {
   expect(body.startsWith('# ')).toBe(true)
   expect(body).toContain('> ')
   expect(body).toContain(`${HOST}/`)
+  // Names only what is live: no unshipped page types, no v3-era "no account" promise.
+  expect(body).not.toContain('/on/')
+  expect(body).not.toContain('/advisers/')
+  expect(body).not.toMatch(/no account needed/i)
 })
 
 test('security.txt is served and not expired', async ({ request }) => {
