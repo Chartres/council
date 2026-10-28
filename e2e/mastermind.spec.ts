@@ -67,6 +67,12 @@ test('Business roster → intake → three turns with controls → capture → c
   // v4.2: the council map comes first on the card.
   await expect(proposal.getByTestId('council-map')).toBeVisible()
   await expect(proposal.getByTestId('council-map')).toHaveAttribute('aria-label', /Grove challenges the proposal/)
+  // Signature: the record reads as a quaestio, the objection named with who raised it.
+  const q = proposal.getByTestId('quaestio')
+  await expect(q.getByTestId('rubric').first()).toHaveText('Question')
+  await expect(q).toContainText('It seems not, because')
+  await expect(q).toContainText('— Grove')
+  await expect(q).toContainText('I answer')
   await proposal.getByTestId('council-map').evaluate((el) => el.scrollIntoView({ block: 'center' }))
   await settle(page)
   await page.screenshot({ path: 'e2e/shots/council-map.png' })
@@ -85,6 +91,11 @@ test('Business roster → intake → three turns with controls → capture → c
   await captured.getByRole('button', { name: 'Accept → journal' }).click()
   await expect(captured).toContainText('In your journal')
 
+  // In your power? Only partly: she keeps the part that is hers.
+  await expect(captured.getByTestId('in-power')).toContainText('Some things are in our control and others not.')
+  await captured.getByRole('button', { name: 'Partly' }).click()
+  await captured.getByLabel('The part that is yours').fill('Ask Sven for an hour on Monday')
+
   // Commitment: a date and an opt-in email reminder.
   await captured.getByLabel('Due').fill('2026-10-15')
   await captured.getByLabel('Remind me by email on that day').check()
@@ -102,7 +113,7 @@ test('Business roster → intake → three turns with controls → capture → c
   await page.getByRole('button', { name: /^Journal · 1$/ }).click()
   const journal = page.getByTestId('journal')
   await expect(journal).toContainText('Talk to Sven before committing budget to the premium pilot.')
-  await expect(page.getByTestId('commitment')).toContainText('by Thursday 15 October')
+  await expect(page.getByTestId('commitment')).toContainText('Ask Sven for an hour on Monday by Thursday 15 October')
   await expect(page.getByTestId('commitment').getByLabel('Remind me by email')).toBeChecked()
   await page.getByRole('button', { name: 'Export (copy as text)' }).click()
   const clip = await page.evaluate(() => navigator.clipboard.readText())

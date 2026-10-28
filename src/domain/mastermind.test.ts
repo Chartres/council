@@ -204,6 +204,12 @@ describe('voice turn', () => {
     expect(items[2]).toEqual({ kind: 'floor', question: 'Who is it?' })
   })
 
+  it('keeps the gateway\'s grounding on a contribution (the quaestio\'s "on the contrary" reads it)', () => {
+    const grounding = { quotes: 1, verified: 1, sources: ['Letter 1'] }
+    const items = itemsReducer([], { type: 'contribution', speaker: 'seneca', text: 'x', grounding })
+    expect(items[0]).toEqual({ kind: 'contribution', speaker: 'seneca', text: 'x', confidence: undefined, grounding })
+  })
+
   it('appends a typed turn\'s contribution and ignores a delta with nothing streaming', () => {
     const items: Item[] = [{ kind: 'floor', question: 'q' }]
     expect(itemsReducer(items, { type: 'delta', text: 'x' })).toBe(items)

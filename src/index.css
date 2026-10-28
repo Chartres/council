@@ -121,6 +121,17 @@ body {
     line-height: 26px;
     color: var(--color-marble-200);
   }
+  /* Rubric (docs/SIGNATURE.md): the quaestio's part labels, small capitals in clay, as the
+     printed Summa marked its articles. Used for those labels only. */
+  .rubric {
+    font-family: var(--font-display);
+    font-variant-caps: all-small-caps;
+    font-weight: 600;
+    font-size: 17px;
+    line-height: 22px;
+    letter-spacing: 0.06em;
+    color: var(--color-clay-400);
+  }
   .t-label {
     font-family: var(--font-sans);
     font-weight: 500;

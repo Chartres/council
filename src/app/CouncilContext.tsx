@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { conversion, logError, track } from '@/analytics'
+import { conversion, keyAction, logError } from '@/analytics'
 import { useAuth } from '@/auth/AuthContext'
 import { supabase } from '@/auth/supabase'
 import { DEFAULT_PERSONA_IDS, nextPicked } from '@/content/personas'
@@ -222,7 +222,7 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
         }
       } catch (e) {
         if (e instanceof CouncilError) {
-          track('council_blocked', { reason: e.reason })
+          keyAction('blocked', { reason: e.reason })
           commit({ streaming: false, failure: e.reason })
           // The key that opened the panel was fine a moment ago and just got rotated.
           // Reopen the door (gateState reacts to failure:'password') but keep the idea
@@ -262,7 +262,7 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
       }
       setSession(base)
       go('session')
-      track('council_convened', { personas: picked.length, daily: Boolean(dailyKey) })
+      keyAction('convened', { personas: picked.length, daily: Boolean(dailyKey) })
       void consume(
         openSession(
           { idea, personas: picked, anon: !token },
@@ -294,7 +294,7 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
       abort.current = controller
       const base: SessionState = { ...session, streaming: true, failure: null, verdict: null }
       setSession(base)
-      track('council_replied')
+      keyAction('replied')
       void consume(
         replyToSession(
           { session_id: session.sessionId, message },
