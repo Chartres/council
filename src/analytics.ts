@@ -6,8 +6,9 @@ import { createFlywheelClient, type SupabaseLike } from './platform/flywheel-cli
  * flywheel app — flywheel repo docs/ARCHITECTURE "Common Platform"). First-party,
  * cookieless, fire-and-forget; no-ops when Supabase isn't configured.
  *
- * The aha moment is a finished verdict → `conversion` (activation_event in the
- * portfolio record).
+ * The aha moment is a proposal accepted into the journal (v3: a finished verdict) →
+ * `conversion` (activation_event in the portfolio record; MastermindContext.activation.test).
+ * Automated browsers (Playwright, crawlers) send nothing: flywheel-client drops them.
  */
 const fw = createFlywheelClient({
   app: 'council',
