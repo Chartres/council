@@ -2,6 +2,9 @@
 
 Prepared 2026-10-27. Nothing has been submitted, published, or signed up for. Each step below is for Pavol to run.
 
+> **Depends on #17 (2026-10-28).** Every mention of `/on/` pages and "365 verified lines" assumes the public reading pages, which wait for Pavol's pick (docs/SIGNATURE.md, Proposal: The classics on…). If he picks option 2 or 3, cut those sentences before posting.
+
+
 ## Endpoint facts checked on 2026-10-27 (read-only, no sign-in)
 
 - `POST https://llm.dravec.org/mcp` without a token → **401** with `WWW-Authenticate: Bearer realm="OAuth", resource_metadata="https://llm.dravec.org/.well-known/oauth-protected-resource/mcp"`. Directories that auto-detect OAuth via RFC 9728 (Smithery, Claude) need exactly this: 401, not 403.
@@ -21,7 +24,7 @@ Prepared 2026-10-27. Nothing has been submitted, published, or signed up for. Ea
 | mcp.so | Paid $39 fast-track shown. A free reviewed path isn't confirmed on the page | Yes ("Remote Server" type) | Don't pay. Use the free path only if it exists |
 | awesome-mcp-servers (punkpeye) | Free (PR) | **No**, only self-hosted servers with a public repo. Remote-only servers go to the list below | n/a |
 | awesome-remote-mcp-servers (jaw9c) | Free (PR) | Yes, OAuth 2.0/2.1 only | Prefers "official", production-ready, established servers. A solo beta may be declined |
-| Claude Connectors Directory | Free to submit, but needs **a paid Claude plan** (Pavol has Max) | Yes | Needs a reviewer test account, privacy policy URL, docs URL, tool annotations, a beta that is open to reviewers |
+| Claude Connectors Directory | Free to submit, but needs **a paid Claude plan** | Yes | Needs a reviewer test account, privacy policy URL, docs URL, tool annotations, a beta that is open to reviewers |
 | ChatGPT (apps → plugins portal) | Cost not stated | Yes (OAuth) | Identity verification. Reviewer login must work **without email codes or magic links** (email sign-in likely fails this). Demo video, ToS + privacy URLs, 5+3 test cases |
 
 AI-tool directories (AIO baseline):
@@ -129,7 +132,7 @@ Optional additions:
 
 **Entry:**
 - Name: `Mastermind Council`
-- Short description: `Think through a decision with AI advisers modelled on Seneca, Marcus Aurelius, Socrates and other classics. Quotes are checked against public-domain translations; unverifiable ones are shown as paraphrase. Ends in a journal entry with one next action.`
+- Short description: `Think through a decision with AI advisers modelled on Seneca, Marcus Aurelius, Socrates and other classics. Quotes are checked against public-domain translations; unverifiable ones are removed. Ends in a journal entry with one next action.`
 - URL: `https://llm.dravec.org/mcp`
 
 ---
@@ -145,7 +148,7 @@ Optional additions:
 
 **Entry:**
 - Display name: `Mastermind Council`
-- Description: `A facilitated decision session with AI advisers modelled on historical thinkers (Seneca, Marcus Aurelius, Socrates, Confucius, Franklin, the Buddha, Montessori; or a business roster inspired by Drucker, Jobs and Grove). Classic quotes are checked against one public-domain translation per thinker before they are shown. Unverifiable ones come back as paraphrase. The session ends in a journal entry: decision, reasoning, assumptions, one next action, optional dated reminder. Sign-in: OAuth, email. Free beta.`
+- Description: `A facilitated decision session with AI advisers modelled on historical thinkers (Seneca, Marcus Aurelius, Socrates, Confucius, Franklin, the Buddha, Montessori; or a business roster inspired by Drucker, Jobs and Grove). Classic quotes are checked against one public-domain translation per thinker before they are shown. Unverifiable ones are removed. The session ends in a journal entry: decision, reasoning, assumptions, one next action, optional dated reminder. Sign-in: OAuth, email. Free beta.`
 - Homepage: `https://council.dravec.org`
 
 **Optional `/.well-known/mcp/server-card.json`** (only needed if the scan can't get past auth. Fill in the real tool names):
@@ -229,13 +232,13 @@ Optional additions:
 - Description (≤2000):
 > Mastermind Council runs a short, facilitated session on a decision you're facing. A neutral facilitator brings in AI advisers modelled on historical thinkers. The Classics roster is Seneca, Marcus Aurelius, Socrates, Confucius, Benjamin Franklin, the Buddha and Maria Montessori. The Business roster has simulations inspired by Peter Drucker, Steve Jobs and Andy Grove, plus Socrates. The advisers are AI simulations, not the historical people.
 >
-> Quotes are checked. Each Classics adviser draws on one public-domain translation: Gummere's Seneca, Long's Marcus Aurelius, Jowett's Plato, Legge's Analects, Müller and Sujato for the Buddha, Anne E. George's Montessori translation, and Franklin's own writing. A quotation is matched against the source passages before it's shown. If it can't be verified, it's presented as paraphrase.
+> Quotes are checked. Each Classics adviser draws on one public-domain translation: Gummere's Seneca, Long's Marcus Aurelius, Jowett's Plato, Legge's Analects, Müller and Sujato for the Buddha, Anne E. George's Montessori translation, and Franklin's own writing. A quotation is matched against the source passages before it's shown. If it can't be verified, it is removed.
 >
 > Each session ends in a journal entry: the decision, your reasoning, the assumptions, one next action, and optionally a dated commitment with an email reminder. When you return, the council can recall your last entry.
 >
 > Sign in with your email address via OAuth. Free, currently in beta.
 - Categories: Productivity; Education (or the closest available)
-- Docs URL: `https://council.dravec.org/<connector-docs page, to create>`. Privacy URL: `https://council.dravec.org/<privacy, to create or confirm>`
+- Docs URL: `https://council.dravec.org/<connector-docs page, to create>`. Privacy URL: `https://council.dravec.org/privacy` (live)
 - Use cases: reflecting on a personal or work decision; getting several viewpoints on a choice; keeping a decision journal with follow-up reminders.
 - Data handling: own API (the founder's gateway). No health data. No sponsored content.
 
@@ -279,7 +282,7 @@ Sources: https://alternativeto.net/faq (403 here; content via search summary), h
   - Tags: decision-making, journaling, stoicism, ai-assistant, philosophy, mcp
   - Alternative to: SynthBoard (closest), plus general decision-journal and journaling apps the site already lists (pick existing entries)
   - Description:
-  > Mastermind Council is a web app for thinking through a decision with AI advisers modelled on historical thinkers: Seneca, Marcus Aurelius, Socrates, Confucius, Benjamin Franklin, the Buddha and Maria Montessori, or a business roster inspired by Drucker, Jobs and Grove. A neutral facilitator runs the session. Quotes are checked against one public-domain translation per thinker before they are shown, and unverifiable ones are shown as paraphrase. Each session ends in a journal entry with your decision, reasoning, assumptions and one next action, with an optional dated email reminder. Also has a voice mode, a daily question, and an MCP connector for Claude and ChatGPT. Free.
+  > Mastermind Council is a web app for thinking through a decision with AI advisers modelled on historical thinkers: Seneca, Marcus Aurelius, Socrates, Confucius, Benjamin Franklin, the Buddha and Maria Montessori, or a business roster inspired by Drucker, Jobs and Grove. A neutral facilitator runs the session. Quotes are checked against one public-domain translation per thinker before they are shown, and unverifiable ones are removed. Each session ends in a journal entry with your decision, reasoning, assumptions and one next action, with an optional dated email reminder. Also has a voice mode, a daily question, and an MCP connector for Claude and ChatGPT. Free.
 
 ### There's An AI For That: no free permanent listing
 Sources: https://theresanaiforthat.com/submit/ (403 Cloudflare challenge here), https://vantaige.io/blog/where-to-list-your-ai-tool-2026, https://orangebot.ai/blog/where-to-submit-your-ai-tool-2026 (secondary, accessed 2026-10-27)
@@ -311,7 +314,7 @@ Sources: https://www.toolmage.com/en/pages/submission-policy/ (accessed 2026-10-
 >
 > There are two rosters. The Classics roster is Seneca, Marcus Aurelius, Socrates, Confucius, Benjamin Franklin, the Buddha and Maria Montessori. The Business roster has simulations inspired by Peter Drucker, Steve Jobs and Andy Grove, joined by Socrates. All advisers are AI simulations. They aren't the people themselves, and the app doesn't pretend otherwise.
 >
-> What sets Mastermind Council apart is how it handles quotations. AI tools that imitate historical figures routinely invent quotes and attribute them confidently. Here, each Classics adviser draws on a single public-domain translation: Richard Gummere's translation of Seneca's letters, George Long's Marcus Aurelius, Benjamin Jowett's Plato for Socrates, James Legge's Analects for Confucius, the Müller and Sujato translations for the Buddha, Anne E. George's translation of Montessori, and Franklin's own writing. Before a quotation appears in a session, it is checked against those source passages. If a line can't be verified, it's shown as a paraphrase instead of a quote, so you always know which words are the thinker's and which are the model's. 365 lines have passed this check so far.
+> What sets Mastermind Council apart is how it handles quotations. AI tools that imitate historical figures routinely invent quotes and attribute them confidently. Here, each Classics adviser draws on a single public-domain translation: Richard Gummere's translation of Seneca's letters, George Long's Marcus Aurelius, Benjamin Jowett's Plato for Socrates, James Legge's Analects for Confucius, the Müller and Sujato translations for the Buddha, Anne E. George's translation of Montessori, and Franklin's own writing. Before a quotation appears in a session, it is checked against those source passages. If a line can't be verified, it is removed, so anything in quotation marks is the thinker's own words in that translation. 365 lines have passed this check so far.
 >
 > Those verified lines are also published as public pages grouped by topic, for example time, fear, anger and work, at council.dravec.org/on/. You can read them without an account.
 >

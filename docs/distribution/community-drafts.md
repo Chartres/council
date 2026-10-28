@@ -2,6 +2,9 @@
 
 Prepared 2026-10-27. Nothing here has been posted. Every draft needs Pavol's sign-off before it goes anywhere (CLAUDE.md rule).
 
+> **Depends on #17 (2026-10-28).** Every mention of `/on/` pages and "365 verified lines" assumes the public reading pages, which wait for Pavol's pick (docs/SIGNATURE.md, Proposal: The classics on…). If he picks option 2 or 3, cut those sentences before posting.
+
+
 ## Read this first
 
 - **Beta gate.** The web app asks for a password, so most launch venues (Show HN, Product Hunt, r/SideProject) only make sense once it is open, or once there is a public password or invite link printed in the post itself. The /on/ quote pages are public, but they are reading material. On their own they don't count as "something people can try" for Show HN.
@@ -49,7 +52,7 @@ Alternative (75 chars): `Show HN: A decision council of AI Stoics whose quotes a
 
 > I built a small web app for thinking through a decision with a panel of advisers modelled on historical thinkers. You pick a roster. Classics: Seneca, Marcus Aurelius, Socrates, Confucius, Benjamin Franklin, the Buddha, Maria Montessori. Business: simulations "inspired by" Drucker, Jobs and Grove, plus Socrates. A neutral facilitator runs the session. The advisers are AI simulations, not the people themselves.
 >
-> The part I spent most time on is quotes. Chatbots that "speak as Seneca" invent Seneca quotes freely. Here each Classics adviser draws on one public-domain translation (Gummere's Seneca, Long's Marcus Aurelius, Jowett's Plato, Legge's Analects, Müller/Sujato for the Buddha, Anne E. George's Montessori translation, Franklin's own writing). Before a quotation is shown, it is checked against the source passages. If it can't be verified, it is shown as paraphrase, not in quote marks. There are 365 verified lines so far, and you can browse them by topic without signing in: https://council.dravec.org/on/ (for example /on/time/ and /on/fear/).
+> The part I spent most time on is quotes. Chatbots that "speak as Seneca" invent Seneca quotes freely. Here each Classics adviser draws on one public-domain translation (Gummere's Seneca, Long's Marcus Aurelius, Jowett's Plato, Legge's Analects, Müller/Sujato for the Buddha, Anne E. George's Montessori translation, Franklin's own writing). Before a quotation is shown, it is checked against the source passages. If it can't be verified, it is removed before you see it. There are 365 verified lines so far, and you can browse them by topic without signing in: https://council.dravec.org/on/ (for example /on/time/ and /on/fear/).
 >
 > A session ends in a journal entry: the decision, your reasoning, the assumptions, one next action, and optionally a dated commitment with an email reminder. If you're signed in, the next session opens with "Last time…". There is also a voice mode and one shared daily question.
 >
@@ -74,7 +77,7 @@ Alternative (75 chars): `Show HN: A decision council of AI Stoics whose quotes a
 
 > Subject: Question before posting: verified Seneca/Marcus quotes project
 >
-> Hi. I've built a free tool that checks Stoic quotations against public-domain translations (Gummere's Seneca, Long's Marcus Aurelius) before showing them. Anything it can't verify is labelled as paraphrase. There's a public page of 365 verified lines by topic at council.dravec.org/on/. It's part of an AI app, which I know is a sensitive topic here. Would a discussion post about misattributed Stoic quotes, with a link to the verified list, be acceptable? If not, I won't post it. Thanks. Pavol
+> Hi. I've built a free tool that checks Stoic quotations against public-domain translations (Gummere's Seneca, Long's Marcus Aurelius) before showing them. Anything it can't verify is removed. There's a public page of 365 verified lines by topic at council.dravec.org/on/. It's part of an AI app, which I know is a sensitive topic here. Would a discussion post about misattributed Stoic quotes, with a link to the verified list, be acceptable? If not, I won't post it. Thanks. Pavol
 
 **Post draft (only if the mods allow it):**
 
@@ -82,7 +85,7 @@ Title: `How many "Seneca quotes" online are actually in Seneca? I checked lines 
 
 > A lot of the Stoic quotes circulating online don't appear in the letters at all, or they are heavily rewritten. I ran into this while building a tool that uses Stoic texts, so I started checking every quotation against one public-domain translation per author: Gummere for Seneca's letters, George Long for Marcus Aurelius.
 >
-> The rule I ended up with: if a line can't be matched to a passage, it isn't shown as a quote. It's labelled as a paraphrase. 365 lines have passed so far, and they're grouped by topic here: council.dravec.org/on/ (e.g. /on/time/, /on/fear/).
+> The rule I ended up with: if a line can't be matched to a passage, it isn't shown at all. 365 lines have passed so far, and they're grouped by topic here: council.dravec.org/on/ (e.g. /on/time/, /on/fear/).
 >
 > Disclosure: I made this, and it's part of an app where AI simulations of these thinkers discuss a decision with you. I'm not posting to promote the app. The quote list is free and public. I'm more interested in whether people here know of misattributions I should look for, or whether Gummere and Long are the right translations to check against.
 
@@ -106,7 +109,7 @@ Title: `How many "Seneca quotes" online are actually in Seneca? I checked lines 
 >
 > **What it does:** you bring a decision. A neutral facilitator runs a short session with a panel of AI advisers modelled on historical thinkers. The Classics roster is Seneca, Marcus Aurelius, Socrates, Confucius, Benjamin Franklin, the Buddha and Maria Montessori. The Business roster has simulations "inspired by" Drucker, Jobs and Grove, plus Socrates. They're simulations, and the app says so.
 >
-> **The part I care about:** quotes are checked. Each classic adviser draws on one public-domain translation (Gummere's Seneca, Long's Marcus Aurelius, Jowett's Plato, Legge's Analects and so on). A quotation is matched against the source passages before it's shown. Anything unverifiable is shown as paraphrase. There are 365 verified lines so far, and you can browse them publicly at council.dravec.org/on/.
+> **The part I care about:** quotes are checked. Each classic adviser draws on one public-domain translation (Gummere's Seneca, Long's Marcus Aurelius, Jowett's Plato, Legge's Analects and so on). A quotation is matched against the source passages before it's shown. Anything unverifiable is removed. There are 365 verified lines so far, and you can browse them publicly at council.dravec.org/on/.
 >
 > **How it ends:** a journal entry with your decision, reasoning, assumptions and one next action, plus an optional dated commitment with an email reminder. Signed-in users get a "Last time…" recap next time. There's also a voice mode, a daily shared question, and an MCP connector for Claude and ChatGPT (llm.dravec.org/mcp).
 >
@@ -114,7 +117,7 @@ Title: `How many "Seneca quotes" online are actually in Seneca? I checked lines 
 >
 > **Status:** [BETA OPEN / password: ____]. Free, no paid plan.
 >
-> What I'd like feedback on: is the journal step at the end worth the extra minute, and does the quote/paraphrase distinction come across?
+> What I'd like feedback on: is the journal step at the end worth the extra minute, and does the quote checking come across?
 
 ---
 
@@ -128,7 +131,7 @@ Title: `How many "Seneca quotes" online are actually in Seneca? I checked lines 
 
 **Share-thread comment draft:**
 
-> **Mastermind Council** (council.dravec.org). A decision-thinking tool. AI advisers modelled on Seneca, Marcus Aurelius, Socrates and others (or a business roster inspired by Drucker, Jobs and Grove) talk through your decision with a neutral facilitator. It ends in a journal entry with one next action and an optional dated reminder. Quotes are checked against public-domain source translations, and unverifiable ones are labelled as paraphrase.
+> **Mastermind Council** (council.dravec.org). A decision-thinking tool. AI advisers modelled on Seneca, Marcus Aurelius, Socrates and others (or a business roster inspired by Drucker, Jobs and Grove) talk through your decision with a neutral facilitator. It ends in a journal entry with one next action and an optional dated reminder. Quotes are checked against public-domain source translations, and unverifiable ones are removed.
 > Stage: free beta, solo founder (Czech Republic). No revenue, no paid plan yet.
 > Looking for: people who make one real decision a week and will tell me whether the journal step helps.
 
@@ -175,7 +178,7 @@ Title: `What I learned capping my own AI costs as a solo founder (no link)`
 >
 > **How Claude is involved:** [Pavol: fill in honestly, e.g. "I built most of it in Claude Code sessions", and which model the council itself runs on, if that's something you want to disclose.]
 >
-> **What's different:** each classic adviser draws on one public-domain translation, and quotations are checked against the source passages before they're shown. Unverifiable ones come back as paraphrase. 365 verified lines so far, public at council.dravec.org/on/.
+> **What's different:** each classic adviser draws on one public-domain translation, and quotations are checked against the source passages before they're shown. Unverifiable ones are removed. 365 verified lines so far, public at council.dravec.org/on/.
 >
 > It's free and in beta. The web app at council.dravec.org is still password-gated [or: open]. Solo project, Czech Republic. Feedback on the tool design is welcome, especially whether five tools is the right split.
 
@@ -197,7 +200,7 @@ Title: `What I learned capping my own AI costs as a solo founder (no link)`
 > Auth: OAuth 2.1 with PKCE (S256), protected-resource metadata at `/.well-known/oauth-protected-resource/mcp`, dynamic client registration, email sign-in. Unauthenticated calls return 401 with a `WWW-Authenticate` header pointing at the metadata, so Claude and ChatGPT connect without manual client setup.
 > Tools: five, covering the flow: [Pavol: list the five tool names + one line each].
 >
-> What it does: runs a facilitated session where AI advisers modelled on Seneca, Marcus Aurelius, Socrates, Confucius and others weigh in on a decision, and it ends in a journal entry (decision, reasoning, assumptions, one next action, optional dated reminder). Quotations are checked against a public-domain translation per thinker before they're returned. Unverifiable ones are returned as paraphrase.
+> What it does: runs a facilitated session where AI advisers modelled on Seneca, Marcus Aurelius, Socrates, Confucius and others weigh in on a decision, and it ends in a journal entry (decision, reasoning, assumptions, one next action, optional dated reminder). Quotations are checked against a public-domain translation per thinker before they're returned. Unverifiable ones are removed.
 >
 > Built on Workers. Model calls go through my own gateway with a monthly cap, so it's free but rate-limited. Solo project, beta. I'd like to hear from anyone who has run into client differences between Claude and ChatGPT with OAuth MCP servers.
 
@@ -217,7 +220,7 @@ Title: `What I learned capping my own AI costs as a solo founder (no link)`
 
 > I'm Pavol, a solo founder in the Czech Republic. I'm building Mastermind Council: you bring a decision, and a facilitator runs a short session with AI advisers modelled on Seneca, Marcus Aurelius, Socrates, Confucius, Franklin, the Buddha and Montessori (or a business roster inspired by Drucker, Jobs and Grove). It ends in a journal entry with one next action and an optional dated reminder.
 >
-> **Decision 1: verified quotes instead of vibes.** AI "Seneca" invents Seneca quotes. I tied each classic adviser to one public-domain translation and check quotations against the source passages before showing them. Unverifiable ones become paraphrase. 365 lines have passed so far. Those lines also became public topic pages (council.dravec.org/on/), which are my main bet for search traffic.
+> **Decision 1: verified quotes instead of vibes.** AI "Seneca" invents Seneca quotes. I tied each classic adviser to one public-domain translation and check quotations against the source passages before showing them. Unverifiable ones are removed. 365 lines have passed so far. Those lines also became public topic pages (council.dravec.org/on/), which are my main bet for search traffic.
 >
 > **Decision 2: free, with a cap.** Everything runs on Cloudflare Workers, and model calls go through my own gateway with a monthly spending cap. No paid plan yet. The cap is the reason the app is still a password-gated beta.
 >
@@ -242,7 +245,7 @@ Title: `What I learned capping my own AI costs as a solo founder (no link)`
 **Name:** `Mastermind Council`
 **Tagline (57 chars):** `Think a decision through with Seneca, Socrates and others`
 **Description (253 chars):**
-> AI advisers modelled on Stoics and classics talk through your decision, led by a neutral facilitator. Quotes are checked against public-domain source texts; unverifiable ones are shown as paraphrase. Each session ends in a journal entry and one next action.
+> AI advisers modelled on Stoics and classics talk through your decision, led by a neutral facilitator. Quotes are checked against public-domain source texts; unverifiable ones are removed. Each session ends in a journal entry and one next action.
 
 **Topics:** Productivity, Artificial Intelligence, Journaling (pick from PH's list)
 **Pricing tag:** Free
@@ -252,7 +255,7 @@ Title: `What I learned capping my own AI costs as a solo founder (no link)`
 
 > Hi, I'm Pavol. I built this alone in the Czech Republic.
 >
-> I wanted a way to think through decisions with the Stoics that didn't put invented quotes in their mouths. The advisers here are AI simulations, but each classic one is tied to a single public-domain translation (Gummere's Seneca, Long's Marcus Aurelius, Jowett's Plato, Legge's Analects and others), and a quotation is checked against the source before you see it. If it can't be verified, it's shown as paraphrase. You can browse the 365 verified lines by topic without an account: council.dravec.org/on/
+> I wanted a way to think through decisions with the Stoics that didn't put invented quotes in their mouths. The advisers here are AI simulations, but each classic one is tied to a single public-domain translation (Gummere's Seneca, Long's Marcus Aurelius, Jowett's Plato, Legge's Analects and others), and a quotation is checked against the source before you see it. If it can't be verified, it is removed. You can browse the 365 verified lines by topic without an account: council.dravec.org/on/
 >
 > A session ends with a journal entry: decision, reasoning, assumptions, one next action, and optionally a dated commitment with an email reminder. If you sign in, the next session starts with "Last time…". There's also a voice mode, a shared daily question, and an MCP connector for Claude and ChatGPT (llm.dravec.org/mcp).
 >
