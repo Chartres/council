@@ -134,6 +134,12 @@ policy drops anything else); `src/analytics.contract.test.ts` fails CI otherwise
 gateway's reason) / captured / committed (`keyAction()` in `src/analytics.ts`),
 `signup_started` (email submitted), `signup_completed` (first real sign-in per user per
 browser), and `conversion` when a proposal is accepted into the journal (v3: a completed verdict) — the aha moment, and `activation_event` in the portfolio record.
+`src/platform/flywheel-events.json` is the vendored copy of flywheel's `data/signals/allowlist.json`;
+`src/platform/flywheel-events.contract.test.ts` fails CI on any name outside it (refresh the copy,
+never add a name here first). The client drops events from automated browsers
+(`isAutomatedBrowser`: webdriver or a bot/headless UA), so Playwright and crawlers never count.
+A test that asserts an insert builds its own client with `isAutomated: () => false`
+(`src/platform/flywheel-client.test.ts`); the bundled client in a Playwright build sends nothing.
 
 ## Content rules (legal record, not style)
 Every screen carries the fictional-interpretation + AI disclosure line. No portraits, ever —
