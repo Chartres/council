@@ -2,12 +2,15 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useCouncil } from '@/app/CouncilContext'
 import { useMastermind, type Item } from '@/app/MastermindContext'
 import { useAuth } from '@/auth/AuthContext'
+import { keyAction } from '@/analytics'
 import { ListenToggle, useListen, useNarration, usePref } from '@/components/Listen'
 import { MicButton } from '@/components/MicButton'
 import { Talk, TALK_STORAGE } from '@/components/Talk'
 import { Monogram } from '@/components/Monogram'
 import { CouncilMap } from '@/components/CouncilMap'
 import { SignInPanel } from '@/components/SignInPanel'
+import { Quaestio } from '@/components/Quaestio'
+import { quaestio, verifiedLine } from '@/domain/quaestio'
 import { BUSINESS_DISCLOSURE, DISCLOSURE, personaName } from '@/content/personas'
 import { FAILURE_COPY, type Turn } from '@/domain/council'
 import { humanDate } from '@/domain/dates'
@@ -60,6 +63,7 @@ export function ConversationScreen() {
     setListen(on)
   }
   const onTalk = (on: boolean) => {
+    if (on) keyAction('talk_on')
     readFrom.current = on ? null : turns.length
     setTalk(on)
   }
@@ -338,14 +342,11 @@ function ItemView({ item, index, steer }: { item: Item; index: number; steer?: S
   }
 }
 
-/** Why, what it rests on, who owns it and when to look again: one paragraph, no label-colon list. */
-const aboutEntry = (e: Proposal['entry']) => {
-  const n = e.assumptions.length
-  const rests = n ? `It rests on ${['', 'one assumption', 'two assumptions', 'three assumptions'][n] ?? `${n} assumptions`}. ${e.assumptions.map(sentence).join(' ')}` : ''
+/** Who owns it and when to look again; the reasoning and assumptions are in the quaestio. */
+const ownerLine = (e: Proposal['entry']) => {
   const who = /^(you|me)$/i.test(e.owner) ? 'You own it' : `${e.owner} owns it`
-  return [e.reasoning, rests, `${who}; check back ${when(e.review_trigger)}.`].filter(Boolean).join(' ')
+  return `${who}; check back ${when(e.review_trigger)}.`
 }
-const sentence = (t: string) => (/[.!?]$/.test(t.trim()) ? t.trim() : `${t.trim()}.`)
 // ponytail: plain-English join for the gateway's trigger phrases ("End of week two", "Thursday", "When …").
 const when = (t: string) => {
   const s = t.trim().replace(/\.$/, '')
@@ -358,15 +359,19 @@ const bare =
   'block w-full resize-none bg-transparent [field-sizing:content] focus-visible:shadow-[inset_0_-2px_0_var(--color-candle-400)]'
 
 function ProposalCard({ item, index, steer }: { item: Proposal; index: number; steer?: Steer }) {
-  const { accept, decline, commitTo, journal } = useMastermind()
+  const { accept, decline, commitTo, journal, conversation } = useMastermind()
   const { user } = useAuth()
   const [decision, setDecision] = useState(item.entry.decision)
   const [nextAction, setNextAction] = useState(item.entry.next_action)
   const [due, setDue] = useState(inAWeek)
   const [remind, setRemind] = useState(false)
+  // Epictetus, Enchiridion 1: commit to the part that is in her power.
+  const [partly, setPartly] = useState(false)
+  const [mine, setMine] = useState(item.entry.next_action)
   const decisionField = useRef<HTMLTextAreaElement>(null)
   const { entry, state } = item
   const committed = journal.commitments.find((c) => c.journal_id === entry.id)
+  const q = quaestio(entry)
 
   return (
     <section
@@ -423,7 +428,20 @@ function ProposalCard({ item, index, steer }: { item: Proposal; index: number; s
           </span>
         </p>
       )}
-      <p className="t-body mt-6 text-marble-300">{aboutEntry(entry)}</p>
+      <Quaestio
+        q={q}
+        contra={verifiedLine(conversation?.items ?? [], { before: index, exclude: (q.objections ?? []).flatMap((o) => (o.speaker ? [o.speaker] : [])) })}
+        busy={steer?.busy}
+        onTest={
+          state === 'open' && steer
+            ? () => {
+                keyAction('tested')
+                steer.run({ kind: 'test' })
+              }
+            : undefined
+        }
+      />
+      <p className="t-body mt-6 text-marble-300">{ownerLine(entry)}</p>
 
       {state === 'open' && (
         <>
@@ -462,12 +480,34 @@ function ProposalCard({ item, index, steer }: { item: Proposal; index: number; s
 
       {state === 'accepted' && (
         <>
+          <div className="mt-6" data-testid="in-power">
+            <p className="rubric">In your power?</p>
+            <p className="t-body mt-1 text-marble-200">“Some things are in our control and others not.”</p>
+            <p className="mt-1 text-[13px] text-marble-400">Epictetus, Enchiridion 1</p>
+            {partly ? (
+              <label className="mt-2 block">
+                <span className="t-label">The part that is yours</span>
+                <textarea rows={1} value={mine} onChange={(e) => setMine(e.target.value)} className={`t-body mt-1 min-h-11 text-marble-100 ${bare}`} />
+              </label>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setMine(entry.next_action) // the accepted text, with her edits
+                  setPartly(true)
+                }}
+                className="text-btn -ml-3 px-3"
+              >
+                Partly
+              </button>
+            )}
+          </div>
           <form
             id={`commit-${index}`}
             className="field mt-6 flex flex-wrap items-center gap-x-4 py-1"
             onSubmit={(e) => {
               e.preventDefault()
-              commitTo(index, due, remind)
+              commitTo(index, due, remind, partly ? mine : undefined)
             }}
           >
             <label className="flex min-w-0 flex-1 items-center gap-3">
@@ -497,7 +537,7 @@ function ProposalCard({ item, index, steer }: { item: Proposal; index: number; s
               <SignInPanel title="Where should the reminder go?" />
             </div>
           )}
-          <button type="submit" form={`commit-${index}`} className="slab mt-6">
+          <button type="submit" form={`commit-${index}`} disabled={partly && !mine.trim()} className="slab mt-6 disabled:opacity-40">
             Commit
           </button>
         </>

@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { isAuthConfigured, supabase } from './supabase'
-import { identify } from '@/analytics'
+import { identify, track } from '@/analytics'
 
 export interface AuthUser {
   id: string
@@ -19,6 +19,23 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
+/** The sign-up funnel's last step: a person arriving signed in after asking for a link or code in
+ *  this browser (SignInPanel sets the flag). supabase-js also emits SIGNED_IN for sessions that
+ *  already existed (tab refocus, a second tab), and those are not sign-ups. */
+export const SIGNUP_FLAG = 'council:signup-started'
+
+function completed(userId: string) {
+  const key = `council:signed-in:${userId}`
+  try {
+    if (!localStorage.getItem(SIGNUP_FLAG) || localStorage.getItem(key)) return
+    localStorage.removeItem(SIGNUP_FLAG)
+    localStorage.setItem(key, '1')
+  } catch {
+    return // no storage, no way to tell a sign-up from a restored session
+  }
+  track('signup_completed', { method: 'email' })
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [token, setToken] = useState<string | null>(null)
@@ -36,7 +53,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       apply(data.session)
       setLoading(false)
     })
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => apply(session))
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      apply(session)
+      if (event === 'SIGNED_IN' && session?.user) completed(session.user.id)
+    })
     return () => sub.subscription.unsubscribe()
   }, [])
 
