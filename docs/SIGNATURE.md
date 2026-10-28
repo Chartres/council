@@ -1,76 +1,61 @@
-# Signature — Mastermind Council
+# Mastermind Council — signature
+The part of the Council that could only have come from Pavol. Nothing in "Signature moves" is built before Pavol has picked it.
 
-2026-10-27. Pavol: "I'm not about the latest whoever, Tim Ferriss — I'm going back to the Stoics
-and the philosophers." The Council does not imitate a podcast-era mastermind. It takes the
-forms that thinkers used for two thousand years to examine a decision and keep to it, and
-puts a small modern machine under them: verified quotes, a journal you own, a reminder that
-arrives on the day.
-
-Status 2026-10-27: the quaestio, the evening examination, "in your power" and today's
-question are built (council PR "Signature mechanics"); letters are in the gateway (flywheel PR).
+Pavol, 2026-10-27: "I'm not about the latest whoever, Tim Ferriss — I'm going back to the Stoics
+and the philosophers." The Council takes the forms thinkers used for two thousand years to
+examine a decision and keep to it, and puts a small modern machine under them: verified quotes,
+a journal you own, a reminder that arrives on the day.
 
 ## Lineage
-
-| Source | What it gives us | changes: |
+| Source | Year | changes: |
 |---|---|---|
-| Thomas Aquinas, *Summa Theologiae* (1265–1274), the *quaestio* form of the scholastic *disputatio*: question, objections ("it seems that…"), on the contrary (*sed contra*), I answer (*respondeo*), replies to the objections. <https://www.newadvent.org/summa/1002.htm> | A decision is not examined until the strongest case against it has been stated and answered. | The decision record reads as a quaestio: the question, the objections an adviser actually raised, one verified line on the contrary, the answer, and what still has to hold. A decision nobody objected to is shown as not yet examined. |
-| Seneca, *De Ira* III.36 (c. 45 AD), the evening self-examination he learned from Sextius: "quod hodie malum tuum sanasti? cui vitio obstitisti? qua parte melior es?" <https://www.thelatinlibrary.com/sen/sen.ira3.shtml> | A short review at the end of the day, about what you did, not how you felt. | The Journal holds an evening examination: today's and overdue commitments, Seneca's three questions, and one tap per commitment — done, not yet, drop. |
-| Seneca, *Epistulae Morales ad Lucilium* (c. 65 AD), trans. Gummere (Loeb, 1917–1925). <https://en.wikisource.org/wiki/Moral_letters_to_Lucilius> | Counsel kept up by letter: a greeting, one point, one line worth keeping, a farewell. | The commitment reminder is a short letter in that form, carrying one verified line from the Letters (e.g. Letter 1: "While we are postponing, life speeds by."). The subject line stays generic. |
-| Epictetus, *Enchiridion* 1 (c. 125 AD), trans. Carter: "Some things are in our control and others not." <https://classics.mit.edu/Epictetus/epicench.html> | The only useful next action is one that is in your power. | The next action is checked against that line before it becomes a commitment: if it depends on someone else, the user rewrites the part that is theirs. |
-| Plato, *Apology* 38a (399 BC): the unexamined life. <https://www.gutenberg.org/ebooks/1656> | Examination as a daily practice, in company. | One shared question a day for everyone, the same one, opened as a council on the start screen. |
+| Thomas Aquinas, *Summa Theologiae*, the *quaestio* (question, objections, *sed contra*, *respondeo*). <https://www.newadvent.org/summa/1002.htm> | 1265–1274 | The decision record reads as a quaestio: the objections an adviser actually raised, one verified line on the contrary, the answer, what still has to hold. A decision nobody objected to is shown as not yet examined. |
+| Seneca, *De Ira* III.36, the evening self-examination learned from Sextius. <https://www.thelatinlibrary.com/sen/sen.ira3.shtml> | c. 45 | The Journal holds an evening examination: today's and overdue commitments, Seneca's three questions, one tap each — done, not yet, drop. |
+| Seneca, *Epistulae Morales ad Lucilium*, trans. Gummere. <https://en.wikisource.org/wiki/Moral_letters_to_Lucilius> | c. 65 | The commitment reminder is a short letter: greeting, the commitment, one verified line from the Letters with its number, farewell. |
+| Epictetus, *Enchiridion* 1: "Some things are in our control and others not." <https://classics.mit.edu/Epictetus/epicench.html> | c. 125 | Before committing, the next action is checked against that line; "Partly" lets the user keep only the part that is theirs. |
+| Plato, *Apology* 38a, the unexamined life. <https://www.gutenberg.org/ebooks/1656> | 399 BC | One shared question a day, the same for everyone, opened as a council from the start screen. |
+| The florilegium / commonplace book (*loci communes*; Erasmus, *Adagia*, 1500–1536) | medieval–1536 | Proposal only (below): what the classics wrote, gathered under the question a reader brings, each line with its source. |
 
 ## Refused
-
-- Guru-of-the-month advisers and productivity slogans. Every adviser is a thinker with a body
-  of work, and anything in quotation marks has been checked against that work (row 13 of the
-  charter; `flywheel/gateway/src/verify.ts`).
-- Streaks, badges, confetti, mascots, "✨". The evening examination does not count days in a
-  row and does not scold a missed night.
-- Engagement bought with flattery. The facilitator does not tell the user the idea is great,
-  and the record shows the objections that were raised against it.
-- The generic AI-app look: no gradients, no blobs, no chat bubbles with avatars. Advisers are
-  monograms; there are no portraits and no imitated voices (provenance rules).
+- Guru-of-the-month advisers and productivity slogans. Every adviser has a body of work, and anything in quotation marks has been checked against it; a line that cannot be found is removed, not paraphrased (`flywheel/gateway/src/verify.ts`).
+- Streaks, badges, confetti, mascots, "✨". The examination does not count days in a row or scold a missed night.
+- Engagement bought with flattery. The facilitator does not call the idea great; the record keeps the objections.
+- The generic AI-app look: no gradients, blobs or chat bubbles with avatars. Monograms, no portraits, no imitated voices.
 - Absolution. The council does not tell the user a past act was fine (gateway rule).
+- Dark patterns: no fake urgency in reminders, no tricks in sign-up or pricing.
 
-## Signature mechanics
+## Signature moves
+| Move | What the user sees | From | Metric (event in kpi_event_map) | Status |
+|---|---|---|---|---|
+| Quaestio view | Proposal card and journal entry as *Question · It seems not, because… · On the contrary · I answer · What must hold*; with no objection, "No one argued against this yet" and **Test it**. | Aquinas | `key_action` `tested`; share of accepted entries (`conversion`) with ≥1 objection | live (#16, 2026-10-28), awaiting Pavol: keep / change / revert |
+| Tonight's examination | On the Journal after 17:00, when something is due: Seneca's three questions, Done / Not yet / Drop per commitment. | Seneca, *De Ira* III.36 | `key_action` `examined` | live (#16, 2026-10-28), awaiting Pavol |
+| Letters, not notifications | The reminder email as a short letter with one verified line from Seneca's Letters and the three outcome links. | Seneca, *Letters* | outcome-link opens of `/c/:id?outcome=` per reminder sent | live (gateway, flywheel), awaiting Pavol |
+| In your power | "In your power?" with Epictetus' line under the next action; "Partly" rewrites it to the user's part. | Epictetus, *Enchiridion* 1 | `key_action` `committed` with `rewritten: true` | live (#16, 2026-10-28), awaiting Pavol |
+| Today's question | The day's shared question at the top of the start screen; one tap opens it as a council. | Plato, *Apology* | `key_action` `daily_opened` | live (#16, 2026-10-28), awaiting Pavol |
+| The classics on… (public reading pages) | Crawlable pages of verified lines grouped by the question a reader brings. | Florilegium / commonplace book | `page_view` on the pages, then `key_action` `convened` from them | proposed (#17, branch `claude/evergreen-pages`) |
 
-| Mechanic | What the user sees | From | How we will know it works |
-|---|---|---|---|
-| **The question, examined** | The proposal card and the journal entry, read as a quaestio: *Question* · *It seems not, because…* (each objection, with who raised it) · *On the contrary* (a verified line from the session, with its source) · *I answer* (decision and reasoning) · *What must hold* (the assumptions). With no objection: "No one argued against this yet" and a one-tap "Test it" control. | Aquinas | Share of accepted entries with at least one objection (from the map's `challenges` edges); `key_action` `action: "tested"` per session. Target: half of accepted entries carry an objection. |
-| **The evening examination** | On the Journal screen after 17:00 local time, when something is due: Seneca's three questions and today's commitments with Done / Not yet / Drop. | Seneca, *De Ira* III.36 | `key_action` `action: "examined"`; share of commitments with an outcome within 24 h of their due date. Target: above 40 %. |
-| **Letters, not notifications** | The reminder email: "From your council, greetings." The commitment, one line from Seneca's Letters with its letter number, the three outcome links, "Farewell." | Seneca, *Letters* | Outcome-link clicks per reminder sent (the `/c/:id?outcome=` route). Baseline: today's plain reminder. |
-| **In your power** | Under the next action, before committing: "In your power?" with Epictetus' line. "Partly" opens the field to rewrite the part that is the user's. | Epictetus, *Enchiridion* 1 | `key_action` `committed` with `rewritten: true` (she kept only her part), and the completion rate of those against the rest. |
-| **Today's question** | At the top of the start screen, the day's question, the same for everyone; one tap opens it as a council with the advisers picked there. | Plato, *Apology* | `key_action` `daily_opened` per visitor per day, and visitors who come back on a second day. |
+Status: proposed → approved (dated) → live → or changed / reverted.
+
+### Proposal: The classics on… (public reading pages)
+#17 built 20 static pages: `/on/` + ten topics (time, fear, money, work, failure, risk, relationships, habit, death, power), `/advisers/` + seven advisers, and `/how-it-works/`. Every quoted line is a bank line the gateway verifies, with its letter/book/verse and a link to the public-domain edition; `scripts/prerender.test.mjs` fails on any line that is not. They are the only public content while the beta password is on. Screenshots: `docs/review/2026-10-28/`.
+
+- **Option 1 — topic and adviser pages as built (20 URLs).** `opt1-on-index-*.png`, `opt1-on-time-*.png`, `opt1-advisers-seneca-*.png`, `opt1-how-it-works-*.png`. Cost: none left to build; upkeep is re-running `scripts/quotes.mjs` + `scripts/prerender.mjs` when the banks change. Risk: 30–40 quotes per page reads as a quote dump, not one answer.
+- **Option 2 — one page of questions, quotes inline, no per-topic URLs.** `opt2-questions-mock-*.png` (a mock assembled from the same pages). Cost: small (one generator template). Gives up per-question search entry points; one long page competes for nothing in particular.
+- **Option 3 — neither.** `opt3-live-root-*.png`: today a visitor from search meets the password door. Cost: zero. No public surface until the beta opens.
+
+What Zbrojní's 837 question pages taught: static HTML, one claim per page, the source quoted on the page. Search and answer engines cite a page that answers one question with its source, not a page that lists many.
+
+**Recommendation: Option 1, trimmed to that lesson before it ships** — each topic page opens with the question a reader brings ("What if I keep putting it off?") and the single strongest verified line with its source, then the rest; adviser pages and `/how-it-works/` ship with them. It rests on the florilegium: the commonplace book arranged lines under the question, always with the author and place. Default taken this round: nothing merged; #17 stays merge-ready on its branch.
 
 ## Visual signature
-
-The Renaissance printed book. The display face is already EB Garamond, a revival of
-Claude Garamond's 16th-century types. The quaestio and the letters take two more habits from
-the printed editions of the *Summa* and the Loeb classics:
-
-- **Rubrics.** Section words (*Question*, *Objection 1*, *On the contrary*, *I answer*) are set
-  in small capitals in the clay red already in the palette, the way rubricated headings marked
-  the parts of an article. Red is used for these labels and nowhere else.
-- **Marginal references.** A quote's source (letter, book and chapter) sits under the quote as
-  a reference line, not as a link chip.
-
-Nothing else changes: the marble-on-ink palette, the four-step type scale, 44 px targets, the
-fold and contrast gates stay as they are (`flywheel/docs/standards/taste.md`, `mobile-ux.md`).
+The Renaissance printed book: EB Garamond (a revival of Claude Garamond's 16th-century types); rubrics — section words in clay-red small capitals, the colour used for nothing else; the source under a quote as a reference line, as in the Loeb and the printed *Summa*. Marble-on-ink palette, four-step type scale, 44 px targets and the fold and contrast gates are unchanged (`flywheel/docs/standards/taste.md`, `mobile-ux.md`).
 
 ## Founder lens
+Constitution articles that bind it: II, VI, VIII.
 
-- **II (the order).** The evening examination is a few minutes and closes itself. Nothing in
-  the Council asks for attention in the morning or at night beyond the one reminder the user
-  set.
-- **VI (the moat is distribution, reputation, frozen judgment, relationships).** The frozen
-  judgment is the quote verification and the user's own record of decisions and outcomes. The
-  quaestio and the examination are what make that record worth keeping. Distribution comes
-  from the daily question and from crawlable pages of what the thinkers actually wrote.
-- **VIII (never lie, cheat or trick).** Only checked quotes appear in quotation marks; an
-  unverified line is shown as paraphrase. No fake urgency in reminders, no dark patterns in
-  sign-up or pricing.
-
-Differentiation that follows: competitors (`docs/research/competition-2026-10.md`) give you a
-board that argues (SynthBoard, Moot) or a quote a day (Stoic apps). None writes the decision
-up in a form that keeps the objections, holds the quotes to the source, and follows up in the
-evening and by letter.
+## Decision log
+| Date | Options shown | Pavol chose | Note |
+|---|---|---|---|
+| 2026-10-27 | Stoics and philosophers vs. trend gurus | Stoics and philosophers | The founding quote above. |
+| 2026-10-28 | Five live moves: keep / change / revert each | pending | Built before rule 7; default taken: keep, pending review. |
+| 2026-10-28 | Public pages: (1) as built, (2) one questions page, (3) neither | pending | Default taken: not merged; recommendation Option 1 trimmed to one claim up top. |
