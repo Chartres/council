@@ -137,8 +137,9 @@ browser), and `conversion` when a proposal is accepted into the journal (v3: a c
 `src/platform/flywheel-events.json` is the vendored copy of flywheel's `data/signals/allowlist.json`;
 `src/platform/flywheel-events.contract.test.ts` fails CI on any name outside it (refresh the copy,
 never add a name here first). The client drops events from automated browsers
-(`isAutomatedBrowser`: webdriver or a bot/headless UA), so Playwright and crawlers never count;
-an e2e that asserts an insert must pass `isAutomated: () => false`.
+(`isAutomatedBrowser`: webdriver or a bot/headless UA), so Playwright and crawlers never count.
+A test that asserts an insert builds its own client with `isAutomated: () => false`
+(`src/platform/flywheel-client.test.ts`); the bundled client in a Playwright build sends nothing.
 
 ## Content rules (legal record, not style)
 Every screen carries the fictional-interpretation + AI disclosure line. No portraits, ever —
