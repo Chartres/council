@@ -24,7 +24,7 @@ export function track(event: string, props?: Record<string, unknown>): void {
  * convened → (conversion: a decision accepted into the journal) → captured / committed;
  * replied and talk_on measure depth; blocked is a gate the person hit (sign_in, quota, cap…).
  */
-export const KEY_ACTIONS = ['convened', 'replied', 'blocked', 'captured', 'committed', 'talk_on'] as const
+export const KEY_ACTIONS = ['convened', 'replied', 'blocked', 'captured', 'committed', 'talk_on', 'tested', 'examined', 'daily_opened'] as const
 export type KeyAction = (typeof KEY_ACTIONS)[number]
 
 export function keyAction(action: KeyAction, props?: Record<string, unknown>): void {
