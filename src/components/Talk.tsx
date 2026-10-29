@@ -118,6 +118,9 @@ export function Talk({
 
   const voice = (text: string, speaker: string) => {
     if (muted.current) return
+    // The room speaks: the gateway's mic closes so the phone plays through its speaker and
+    // the advisers' words are never recorded as hers.
+    if (ears === 'server') shutMic()
     queued.current += 1
     const line = { text, ended: null as number | null }
     lines.current.push(line)
@@ -128,7 +131,7 @@ export function Talk({
       if (queued.current) return
       setTalker(null)
       // The room went quiet: her turn. (The browser recogniser never closed.)
-      if (ears === 'server' && !live.current.streaming) listen()
+      if (ears === 'server') void listenClip()
     }
     speak(text, VOICE, done, speaker)
   }
@@ -150,11 +153,29 @@ export function Talk({
     live.current.onSay(text)
   }
 
+  // Server ears. Every recording belongs to a generation; shutting the mic (the room speaks,
+  // she sends by hand, Talk goes off, the screen goes away) moves to the next one, and whatever
+  // the old generation was still opening or transcribing is dropped when it comes back.
+  const gen = useRef(0)
+  const mounted = useRef(true)
+  const shutMic = () => {
+    gen.current += 1
+    opening.current = false
+    clip.current?.cancel()
+    clip.current = null
+    setWriting(false)
+  }
+  /** Her turn may open: Talk on, nobody speaking, and the group not answering (unless she cut in). */
+  const herTurn = () => {
+    const { active, streaming } = live.current
+    return mounted.current && active && !queued.current && (!streaming || muted.current)
+  }
+
   /** One turn of hers through the gateway: record until a pause, transcribe, send. */
   const listenClip = async () => {
-    const { active, streaming } = live.current
-    if (clip.current || opening.current || !active || streaming || queued.current) return
+    if (clip.current || opening.current || !herTurn()) return
     opening.current = true
+    const g = gen.current
     let r: Recording
     try {
       r = await record({
@@ -162,7 +183,7 @@ export function Talk({
         maxMs: 60_000,
         // Nothing said for a while: drop the clip and keep listening with a fresh one.
         idleMs: 30_000,
-        onSilence: () => void heardClip(r),
+        onSilence: () => void heardClip(r, g),
         onIdle: () => {
           if (clip.current !== r) return
           clip.current = null
@@ -171,16 +192,21 @@ export function Talk({
         },
       })
     } catch (e) {
+      if (g !== gen.current) return
       opening.current = false
       return stopFor(e instanceof SttError ? e.reason : 'unavailable')
     }
+    // Shut while the mic was opening, or the room started talking meanwhile: not her turn.
+    if (g !== gen.current || !herTurn()) {
+      if (g === gen.current) opening.current = false
+      return r.cancel()
+    }
     opening.current = false
-    if (!live.current.active) return r.cancel()
     clip.current = r
   }
 
-  const heardClip = async (r: Recording) => {
-    if (clip.current !== r) return
+  const heardClip = async (r: Recording, g: number) => {
+    if (clip.current !== r || g !== gen.current) return
     clip.current = null
     opening.current = true
     setWriting(true)
@@ -189,25 +215,29 @@ export function Talk({
     try {
       text = audio.size ? await transcribe(audio) : ''
     } catch (e) {
+      if (g !== gen.current) return
       opening.current = false
       setWriting(false)
       return stopFor(e instanceof SttError ? e.reason : 'unavailable')
     }
+    if (g !== gen.current) return // Talk went off or the screen went away: her words stay unsaid
     opening.current = false
     setWriting(false)
     if (text) send(text)
     // Nothing intelligible: listen again.
-    else if (live.current.active) void listenClip()
+    else void listenClip()
   }
 
   /** A failure the room cannot talk past: say it, log it, switch Talk off. */
-  const stopFor = (reason: string) => {
-    keyAction('mic_failed', { engine: 'server', reason, talk: true })
+  const stopFor = (reason: string, engine: 'server' | 'browser' = 'server') => {
+    keyAction('mic_failed', { engine, reason, talk: true })
+    if (!mounted.current) return
     setProblem(micProblem(reason))
     live.current.onChange(false)
   }
 
-  /** Server ears, while an adviser speaks: stop the room and open the mic now. */
+  /** Server ears, while an adviser speaks: stop the room and open the mic now, even mid-answer
+   *  (what she says waits for the answer to finish, like any message sent while it streams). */
   const cutIn = () => {
     unlockAudioInput()
     muted.current = true
@@ -259,7 +289,7 @@ export function Talk({
       if (rec.current !== r) return
       flush()
       rec.current = null
-      if (error && FATAL.includes(error)) return live.current.onChange(false)
+      if (error && FATAL.includes(error)) return stopFor(error, 'browser')
       if (!live.current.active) return
       // ponytail: engines end on their own (Chrome after ~8 s of quiet): listen again at once;
       // after an error (network, aborted) wait a second so a dead engine is not a tight loop.
@@ -275,8 +305,7 @@ export function Talk({
     const r = rec.current
     rec.current = null
     r?.abort()
-    clip.current?.cancel()
-    clip.current = null
+    shutMic()
   }
 
   // On: listen (already started inside the tap). Off: mic and audio stop, the turn is let go.
@@ -288,11 +317,22 @@ export function Talk({
     muted.current = false
     if (chunk.current) onQuiet?.()
   }, [active])
-  useEffect(() => () => (close(), cancel()), [])
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+      close()
+      cancel()
+    }
+  }, [])
 
   // Words that finished while the group was answering go as soon as it is done.
   useEffect(() => {
-    if (streaming) return
+    if (streaming) {
+      // She sent by hand or tapped a chip while the mic was open: the group answers now.
+      if (ears === 'server' && !muted.current) shutMic()
+      return
+    }
     if (!held.current) {
       // Server ears: an answer that left nothing to speak hands the turn straight back.
       if (ears === 'server' && active && !queued.current) void listenClip()

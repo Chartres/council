@@ -117,4 +117,70 @@ describe('Talk with the gateway’s ears (iPhone)', () => {
     expect(onChange).toHaveBeenLastCalledWith(false)
     expect(analytics.keyAction).toHaveBeenCalledWith('mic_failed', { engine: 'server', reason: 'denied', talk: true })
   })
+
+  it('a typed reply or a chip while the mic is open shuts it: the answer is never recorded as hers', async () => {
+    const onSay = vi.fn()
+    const view = (items: Item[], streaming: boolean) => <Talk on onChange={() => {}} items={items} streaming={streaming} onSay={onSay} />
+    const { rerender } = render(view([], false))
+    fireEvent.click(screen.getByRole('button', { name: 'Talk' }))
+    await act(async () => rerender(view([], false)))
+    expect(clips).toHaveLength(1)
+    await act(async () => rerender(view([], true))) // she typed and sent; the group answers
+    expect(clips[0]!.cancel).toHaveBeenCalled()
+    stt.transcribe.mockResolvedValue('the room talking')
+    await act(async () => clips[0]!.opts.onSilence?.())
+    expect(onSay).not.toHaveBeenCalled()
+  })
+
+  it('the last question and the end of the stream in one render: the mic waits for the question to be read', async () => {
+    const view = (items: Item[], streaming: boolean) => <Talk on onChange={() => {}} items={items} streaming={streaming} onSay={() => {}} />
+    const { rerender } = render(view([], false))
+    fireEvent.click(screen.getByRole('button', { name: 'Talk' }))
+    await act(async () => rerender(view([], false)))
+    stt.transcribe.mockResolvedValue('go on')
+    await act(async () => clips[0]!.opts.onSilence?.())
+    await act(async () => rerender(view([{ kind: 'user', text: 'go on' } as Item], true)))
+    await act(async () => rerender(view([{ kind: 'user', text: 'go on' } as Item, { kind: 'floor', question: 'Which first?' }], false)))
+    // A clip may have been opened by the stream ending, but the question's voice shut it.
+    expect(clips.slice(1).every((c) => c.cancel.mock.calls.length > 0)).toBe(true)
+    const done = vi.mocked(tts.speak).mock.calls.at(-1)![2] as () => void
+    await act(async () => done())
+    expect(clips.at(-1)!.cancel).not.toHaveBeenCalled()
+  })
+
+  it('Cut in while the answer is still streaming opens the mic; her words wait for the answer to end', async () => {
+    const onSay = vi.fn()
+    const growing = { kind: 'contribution', speaker: 'grove', text: 'First, cut the scope. Then', streaming: true } as Item
+    const view = (items: Item[], streaming: boolean) => <Talk on onChange={() => {}} items={items} streaming={streaming} onSay={onSay} />
+    const { rerender } = render(view([], false))
+    fireEvent.click(screen.getByRole('button', { name: 'Talk' }))
+    await act(async () => rerender(view([], false)))
+    stt.transcribe.mockResolvedValueOnce('first one')
+    await act(async () => clips[0]!.opts.onSilence?.())
+    await act(async () => rerender(view([growing], true)))
+    await act(async () => fireEvent.click(screen.getByTestId('cut-in')))
+    expect(stt.record).toHaveBeenCalledTimes(2)
+    stt.transcribe.mockResolvedValueOnce('wait, no')
+    await act(async () => clips[1]!.opts.onSilence?.())
+    expect(onSay).toHaveBeenCalledTimes(1)
+    await act(async () => rerender(view([{ ...growing, streaming: false } as Item], false)))
+    expect(onSay).toHaveBeenLastCalledWith('wait, no')
+  })
+
+  it('leaving the screen, or switching Talk off while it writes her words down, drops them and closes the mic', async () => {
+    const onSay = vi.fn()
+    let finish: (t: string) => void = () => {}
+    stt.transcribe.mockImplementation(() => new Promise<string>((res) => (finish = res)))
+    const view = (on: boolean) => <Talk on={on} onChange={() => {}} items={[]} streaming={false} onSay={onSay} />
+    const { rerender, unmount } = render(view(false))
+    fireEvent.click(screen.getByRole('button', { name: 'Talk' }))
+    await act(async () => rerender(view(true)))
+    await act(async () => void clips[0]!.opts.onSilence?.())
+    expect(screen.getByRole('status')).toHaveTextContent('Writing it down…')
+    await act(async () => rerender(view(false)))
+    await act(async () => finish('too late'))
+    expect(onSay).not.toHaveBeenCalled()
+    unmount()
+    expect(stt.record).toHaveBeenCalledTimes(1)
+  })
 })

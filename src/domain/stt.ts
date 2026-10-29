@@ -50,11 +50,16 @@ export function serverEars(hasRecognition: boolean, nav: Nav = navigator): boole
 
 const gatewayUrl = () => (import.meta.env.VITE_GATEWAY_URL as string | undefined) ?? ''
 
+/** Longer than this and the mic stops waiting: a stalled request must not leave it stuck. */
+export const STT_TIMEOUT_MS = 20_000
+
 /** The clip's words, trimmed ('' when Whisper heard nothing). Throws SttError. */
-export async function transcribe(clip: Blob, signal?: AbortSignal): Promise<string> {
+export async function transcribe(clip: Blob): Promise<string> {
   const base = gatewayUrl()
   if (!base) throw new SttError('unavailable')
   const key = loadKey()
+  const abort = new AbortController()
+  const timer = setTimeout(() => abort.abort(), STT_TIMEOUT_MS)
   let res: Response
   try {
     res = await fetch(`${base}/v1/stt`, {
@@ -62,10 +67,12 @@ export async function transcribe(clip: Blob, signal?: AbortSignal): Promise<stri
       headers: { 'content-type': clip.type || 'audio/webm', ...(key ? { 'x-council-key': key } : {}) },
       credentials: 'include',
       body: clip,
-      signal,
+      signal: abort.signal,
     })
   } catch {
     throw new SttError('network')
+  } finally {
+    clearTimeout(timer)
   }
   if (res.ok) {
     const body = (await res.json().catch(() => ({}))) as { text?: unknown }
@@ -110,9 +117,9 @@ export interface Recording {
   cancel(): void
 }
 
-/** iOS Safari records AAC in MP4; Chrome and Firefox Opus in WebM. Whisper takes either. */
+/** Opus in WebM where the browser has it (smaller), else AAC in MP4 (older iOS Safari). */
 function mimeType(): string | undefined {
-  for (const t of ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus']) {
+  for (const t of ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm', 'audio/ogg;codecs=opus']) {
     if (typeof MediaRecorder.isTypeSupported === 'function' && MediaRecorder.isTypeSupported(t)) return t
   }
   return undefined
@@ -139,12 +146,18 @@ export async function record(opts: {
     throw new SttError(name === 'NotFoundError' || name === 'OverconstrainedError' ? 'no_mic' : 'denied')
   }
   const type = mimeType()
-  const recorder = new MediaRecorder(stream, type ? { mimeType: type } : undefined)
+  let recorder: MediaRecorder
   const chunks: Blob[] = []
-  recorder.ondataavailable = (e) => {
-    if (e.data?.size) chunks.push(e.data)
+  try {
+    recorder = new MediaRecorder(stream, type ? { mimeType: type } : undefined)
+    recorder.ondataavailable = (e) => {
+      if (e.data?.size) chunks.push(e.data)
+    }
+    recorder.start(250)
+  } catch {
+    for (const t of stream.getTracks()) t.stop()
+    throw new SttError('unavailable')
   }
-  recorder.start(250)
 
   // Loudness watch. Without Web Audio (or a suspended context) only a tap or maxMs ends it.
   let heard = false
@@ -175,7 +188,8 @@ export async function record(opts: {
         }
         if (fired) return
         if (heard && now - lastLoud > opts.silenceMs) fire(opts.onSilence)
-        else if (!heard && opts.idleMs && now - began > opts.idleMs) fire(opts.onIdle)
+        // A suspended context (iOS, no tap) reads as silence: never call that "nothing said".
+        else if (!heard && opts.idleMs && now - began > opts.idleMs && ctx?.state === 'running') fire(opts.onIdle)
       }, 100)
     }
   } catch {

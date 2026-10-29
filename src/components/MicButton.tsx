@@ -106,7 +106,10 @@ export function MicButton({
     onDone?.(text)
   }
 
+  const opening = useRef(false) // getUserMedia pending: a second tap must not open a second mic
   const startClip = async () => {
+    if (opening.current || clip.current) return
+    opening.current = true
     base.current = value
     setState('listening')
     let r: Recording
@@ -126,10 +129,19 @@ export function MicButton({
         },
       })
     } catch (e) {
+      opening.current = false
+      if (!mounted.current) return
       setState('idle')
       return fail('server', e instanceof SttError ? e.reason : 'unavailable')
     }
-    if (!mounted.current || stopped.current) return r.cancel()
+    opening.current = false
+    // Unmounted, or stopped before the mic opened: nothing was said.
+    if (!mounted.current) return r.cancel()
+    if (stopped.current) {
+      r.cancel()
+      setState('idle')
+      return
+    }
     clip.current = r
   }
 
@@ -138,6 +150,7 @@ export function MicButton({
   const stop = () => {
     stopped.current = true
     if (clip.current) return void finishClip(clip.current)
+    if (opening.current) return // the clip is dropped as soon as the mic opens
     rec.current?.stop()
     setState('idle')
   }
