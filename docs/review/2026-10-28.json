@@ -59,7 +59,8 @@
     "Concurrency: one group per ref (ci-${{ github.ref }}); cancel-in-progress is now false on main (it was true everywhere).",
     "Activation: src/app/MastermindContext.activation.test.tsx asserts that accepting a proposal calls conversion({v:4, roster}) exactly once and not before. Mutation-checked: removing the call fails the test.",
     "Live insert policy 'log known events' (anon, authenticated) accepts conversion. An anon insert of a council conversion row passed RLS inside a rolled-back transaction, so no row was written.",
-    "no_activation explained: 6 page_view rows in 14 days and no other events. The beta password stops visitors before a proposal. Some of those views were probably our own automated browsers, which are now dropped."
+    "no_activation explained: 6 page_view rows in 14 days and no other events. The beta password stops visitors before a proposal. Some of those views were probably our own automated browsers, which are now dropped.",
+    "Bundle-guard regex fix (Autoškola finding: supabase-js itself carries '*.supabase.co'): not applicable to council. This repo neither vendors nor runs scripts/check-analytics.mjs, because Cloudflare Pages builds the deploy. The live checks above matched a project URL (https://chgwirzbpspoaoposuwg.supabase.co), not the bare host, so they are not affected."
   ],
   "signature": {
     "mechanics": [
