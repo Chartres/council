@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useCouncil } from '@/app/CouncilContext'
 import { useAuth } from '@/auth/AuthContext'
@@ -14,6 +14,12 @@ export function Header() {
   const { gate } = useCouncil()
   const [open, setOpen] = useState<'account' | 'feedback' | null>(null)
   const [drawer, setDrawer] = useState(false)
+  const menu = useRef<HTMLButtonElement>(null)
+  // Closing hands focus back to the button that opened the sheet.
+  const closeDrawer = useCallback(() => {
+    setDrawer(false)
+    menu.current?.focus()
+  }, [])
   const toggle = (panel: 'account' | 'feedback') => setOpen((o) => (o === panel ? null : panel))
 
   return (
@@ -25,6 +31,7 @@ export function Header() {
         <div className="flex items-center">
           {gate === 'ready' && (
             <button
+              ref={menu}
               type="button"
               onClick={() => setDrawer(true)}
               aria-expanded={drawer}
@@ -93,7 +100,7 @@ export function Header() {
         </div>
       )}
       {/* Outside the header: its backdrop blur would make it the box a fixed sheet sits in. */}
-      {drawer && createPortal(<DiscussionsDrawer onClose={() => setDrawer(false)} />, document.body)}
+      {drawer && createPortal(<DiscussionsDrawer onClose={closeDrawer} />, document.body)}
     </header>
   )
 }

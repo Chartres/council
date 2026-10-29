@@ -22,7 +22,13 @@ export function DiscussionsDrawer({ onClose }: { onClose: () => void }) {
     first.current?.focus()
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    // The page under the sheet stays put while she scrolls the list.
+    const overflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.overflow = overflow
+    }
   }, [onClose])
 
   const leave = (f: () => void) => () => {
@@ -35,8 +41,12 @@ export function DiscussionsDrawer({ onClose }: { onClose: () => void }) {
       <button type="button" aria-label="Close discussions" tabIndex={-1} className="absolute inset-0 bg-ink-950/70" onClick={onClose} />
       <nav
         aria-label="Discussions"
-        className="absolute inset-y-0 left-0 flex w-[min(88vw,360px)] flex-col overflow-y-auto border-r border-ink-800 bg-ink-900 px-4 pb-10"
-        style={{ paddingTop: 'max(8px, env(safe-area-inset-top))', paddingLeft: 'max(16px, env(safe-area-inset-left))' }}
+        className="absolute inset-y-0 left-0 flex w-[min(88vw,360px)] flex-col overflow-y-auto overscroll-contain border-r border-ink-800 bg-ink-900 px-4"
+        style={{
+          paddingTop: 'max(8px, env(safe-area-inset-top))',
+          paddingLeft: 'max(16px, env(safe-area-inset-left))',
+          paddingBottom: 'max(40px, env(safe-area-inset-bottom))',
+        }}
         data-testid="discussions"
       >
         <div className="flex items-center justify-between">

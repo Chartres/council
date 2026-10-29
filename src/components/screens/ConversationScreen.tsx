@@ -21,7 +21,13 @@ import type { Control } from '@/domain/mastermind'
 
 type Proposal = Extract<Item, { kind: 'proposal' }>
 
+/** One screen per discussion: notes, a draft and the read-aloud place never carry across. */
 export function ConversationScreen() {
+  const { conversation } = useMastermind()
+  return <ConversationView key={conversation?.localId ?? 'none'} />
+}
+
+function ConversationView() {
   const { go } = useCouncil()
   const { conversation, say, control, journal, continueDiscussion } = useMastermind()
   const { token } = useAuth()
@@ -63,7 +69,8 @@ export function ConversationScreen() {
     setQuiet(false)
   }, [streaming, quiet])
   // Talk speaks for itself; read-aloud waits while it is on (it is gone once the session ended).
-  useNarration(turns, null, listen && !quiet && !(talk && !conversation?.ended), readFrom.current ?? current)
+  // A past discussion is read on screen, never aloud: nothing there turns it on or off.
+  useNarration(turns, null, listen && !conversation?.past && !quiet && !(talk && !conversation?.ended), readFrom.current ?? current)
   const onListen = (on: boolean) => {
     readFrom.current = null
     setListen(on)
@@ -103,7 +110,8 @@ export function ConversationScreen() {
     (at, it, i) => (!past && i >= earlier && it.kind === 'proposal' && it.state === 'open' ? i : at),
     -1,
   )
-  const committing = !replyOpen && conversation.items.some((it) => it.kind === 'proposal' && it.state === 'accepted')
+  const committing =
+    !replyOpen && !past && conversation.items.some((it, i) => i >= earlier && it.kind === 'proposal' && it.state === 'accepted')
 
   const noted = Object.entries(notes).flatMap(([i, n]) => {
     const it = conversation.items[Number(i)]
@@ -429,8 +437,9 @@ const bare =
   'block w-full resize-none bg-transparent [field-sizing:content] focus-visible:shadow-[inset_0_-2px_0_var(--color-candle-400)]'
 
 function ProposalCard({ item: raw, index, steer, inert }: { item: Proposal; index: number; steer?: Steer; inert: boolean }) {
-  // An earlier session's open proposal was left open; it can no longer be accepted there.
-  const item = inert && raw.state === 'open' ? { ...raw, state: 'declined' as const } : raw
+  // An earlier session's proposal is a record: one left open can no longer be accepted there,
+  // and one accepted without a date can no longer be committed (that session is gone).
+  const item = !inert ? raw : raw.state === 'open' ? { ...raw, state: 'declined' as const } : raw.state === 'accepted' ? { ...raw, state: 'committed' as const } : raw
   const { accept, decline, commitTo, journal, conversation } = useMastermind()
   const { user } = useAuth()
   const [decision, setDecision] = useState(item.entry.decision)
