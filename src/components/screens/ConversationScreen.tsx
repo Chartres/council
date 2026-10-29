@@ -7,6 +7,8 @@ import { ListenToggle, useListen, useNarration, usePref } from '@/components/Lis
 import { MicButton } from '@/components/MicButton'
 import { Talk, TALK_STORAGE } from '@/components/Talk'
 import { Monogram } from '@/components/Monogram'
+import { MarginNote, NotesTray } from '@/components/MarginNote'
+import { composeMessage, quoteOf, type Note } from '@/domain/notes'
 import { CouncilMap } from '@/components/CouncilMap'
 import { SignInPanel } from '@/components/SignInPanel'
 import { Quaestio } from '@/components/Quaestio'
@@ -26,6 +28,8 @@ export function ConversationScreen() {
   const [message, setMessage] = useState('')
   const [more, setMore] = useState(false)
   const [replyOpen, setReplyOpen] = useState(false)
+  // Margin notes, by the contribution's index; they go with her next message (Eyal, 29 Oct).
+  const [notes, setNotes] = useState<Record<number, Pick<Note, 'stance' | 'text'>>>({})
   const [listen, setListen] = useListen()
   const [talk, setTalk] = usePref(TALK_STORAGE, false)
   // Where read-aloud starts when it comes on: the turn on screen; after Talk, nothing already heard.
@@ -96,12 +100,29 @@ export function ConversationScreen() {
   const openAt = conversation.items.reduce((at, it, i) => (it.kind === 'proposal' && it.state === 'open' ? i : at), -1)
   const committing = !replyOpen && conversation.items.some((it) => it.kind === 'proposal' && it.state === 'accepted')
 
+  const noted = Object.entries(notes).flatMap(([i, n]) => {
+    const it = conversation.items[Number(i)]
+    return it?.kind === 'contribution' ? [{ ...n, speaker: it.speaker, quote: quoteOf(it.text) }] : []
+  })
+  /** Her words with her notes in front; the notes are spent. */
+  const withNotes = (text: string) => {
+    if (!noted.length) return text
+    keyAction('noted', { count: noted.length, push: noted.filter((n) => n.stance === 'push').length })
+    setNotes({})
+    return composeMessage(noted, text, personaName)
+  }
+  const setNote = (index: number) => (next: Pick<Note, 'stance' | 'text'> | null) =>
+    setNotes((all) => {
+      const { [index]: _gone, ...rest } = all
+      return next ? { ...rest, [index]: next } : rest
+    })
+
   const send = (e: React.FormEvent) => {
     e.preventDefault()
     const text = message.trim()
-    if (!text || busy) return
+    if ((!text && !noted.length) || busy) return
     setMessage('')
-    say(text)
+    say(withNotes(text))
   }
 
   return (
@@ -123,7 +144,12 @@ export function ConversationScreen() {
       <ol ref={list} className="mt-12 space-y-6" data-testid="conversation">
         {conversation.items.map((it, i) => (
           <li key={i} className="rise scroll-mt-20">
-            <ItemView item={it} index={i} steer={i === openAt ? { busy: !!busy, run } : undefined} />
+            <ItemView
+              item={it}
+              index={i}
+              steer={i === openAt ? { busy: !!busy, run } : undefined}
+              note={!ended && it.kind === 'contribution' && !it.streaming ? { value: notes[i], onChange: setNote(i) } : undefined}
+            />
           </li>
         ))}
       </ol>
@@ -163,7 +189,7 @@ export function ConversationScreen() {
             onChange={onTalk}
             items={conversation.items}
             streaming={!!busy}
-            onSay={(text) => say(text, { voice: true })}
+            onSay={(text) => say(withNotes(text), { voice: true })}
             onQuiet={() => setQuiet(true)}
           >
             <ListenToggle chip on={listen} onChange={onListen} />
@@ -180,7 +206,9 @@ export function ConversationScreen() {
               </svg>
             </button>
           ) : (
-          <form onSubmit={send} className="mt-6">
+          <>
+          <NotesTray count={noted.length} onClear={() => setNotes({})} />
+          <form onSubmit={send} className={noted.length ? 'mt-2' : 'mt-6'}>
             <label htmlFor="reply" className="sr-only">
               Your turn
             </label>
@@ -197,7 +225,7 @@ export function ConversationScreen() {
               <button
                 type="submit"
                 aria-label="Say it"
-                disabled={!message.trim() || busy}
+                disabled={(!message.trim() && !noted.length) || busy}
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-marble-100 text-ink-950 disabled:bg-ink-800 disabled:text-marble-400"
               >
                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
@@ -206,6 +234,7 @@ export function ConversationScreen() {
               </button>
             </div>
           </form>
+          </>
           )}
 
           <div role="group" aria-label="Steer the group" className="mt-2">
@@ -301,7 +330,9 @@ function LetExplore({ advisers, disabled, onRun }: { advisers: string[]; disable
 
 type Steer = { busy: boolean; run: (c: Control) => void }
 
-function ItemView({ item, index, steer }: { item: Item; index: number; steer?: Steer }) {
+type NoteSlot = { value?: Pick<Note, 'stance' | 'text'>; onChange: (next: Pick<Note, 'stance' | 'text'> | null) => void }
+
+function ItemView({ item, index, steer, note }: { item: Item; index: number; steer?: Steer; note?: NoteSlot }) {
   switch (item.kind) {
     case 'facilitator':
       return (
@@ -321,6 +352,7 @@ function ItemView({ item, index, steer }: { item: Item; index: number; steer?: S
               )}
             </p>
             <p className="t-body mt-1">{item.text}</p>
+            {note && <MarginNote name={personaName(item.speaker)} note={note.value} onChange={note.onChange} />}
           </div>
         </div>
       )
@@ -334,7 +366,7 @@ function ItemView({ item, index, steer }: { item: Item; index: number; steer?: S
       return (
         <div data-testid="user">
           <p className="t-title text-marble-300">You</p>
-          <p className="t-body mt-1 text-marble-100">{item.text}</p>
+          <p className="t-body mt-1 whitespace-pre-line text-marble-100">{item.text}</p>
         </div>
       )
     case 'proposal':
