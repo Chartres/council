@@ -50,10 +50,32 @@ test('Business roster → intake → three turns with controls → capture → c
   await page.screenshot({ path: 'e2e/shots/v4-conversation.png' })
   expect(await noOverflow(page)).toBeLessThanOrEqual(1)
 
+  // Margin notes (Eyal, 29 Oct): as she reads she agrees with one adviser and pushes back on
+  // the other; the notes wait above the reply box and go with her next message.
+  const first = page.getByTestId('contribution').nth(0)
+  const second = page.getByTestId('contribution').nth(1)
+  const firstName = (await first.locator('.t-title').textContent())!
+  const secondName = (await second.locator('.t-title').textContent())!
+  await first.getByRole('button', { name: 'Agree' }).click()
+  await second.getByRole('button', { name: 'Push back' }).click()
+  await page.getByLabel(`Why you push back on ${secondName}`).fill('demand is not the question yet')
+  await expect(page.getByTestId('notes-tray')).toHaveText(/Your 2 notes go with your next message/)
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await first.scrollIntoViewIfNeeded()
+  await settle(page)
+  await page.screenshot({ path: 'e2e/shots/v4-margin-marks.png' })
+  await page.getByTestId('notes-tray').scrollIntoViewIfNeeded()
+  await settle(page)
+  await page.screenshot({ path: 'e2e/shots/v4-margin-notes.png' })
+  expect(await noOverflow(page)).toBeLessThanOrEqual(1)
+
   // Turn 2: she answers in her own words; three speakers this time.
   await page.getByLabel('Your turn').fill('The constraint is engineering time, not demand.')
   await page.getByRole('button', { name: 'Say it' }).click()
   await expect(page.getByTestId('user')).toContainText('The constraint is engineering time')
+  await expect(page.getByTestId('user')).toContainText(`To ${firstName} (`)
+  await expect(page.getByTestId('user')).toContainText('Push back — demand is not the question yet')
+  await expect(page.getByTestId('notes-tray')).toHaveCount(0)
   await expect(page.getByTestId('floor')).toHaveCount(2, { timeout: 20_000 })
   await expect(page.getByTestId('contribution')).toHaveCount(5)
   await expect(page.getByText('confidence 70').first()).toBeVisible()

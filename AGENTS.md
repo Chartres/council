@@ -138,7 +138,8 @@ Vendored client: `src/platform/flywheel-client.ts`, wrapped by `src/analytics.ts
 cookieless, fire-and-forget. Only shared-taxonomy names reach the events table (its insert
 policy drops anything else); `src/analytics.contract.test.ts` fails CI otherwise. Steps:
 `page_view`, `key_action` with `action` = convened / replied / talk_on / blocked (with the
-gateway's reason) / captured / committed (`keyAction()` in `src/analytics.ts`),
+gateway's reason) / captured / committed / noted (margin notes sent, with `count` and `push`)
+(`keyAction()` in `src/analytics.ts`),
 `signup_started` (email submitted), `signup_completed` (first real sign-in per user per
 browser), and `conversion` when a proposal is accepted into the journal (v3: a completed verdict) — the aha moment, and `activation_event` in the portfolio record.
 `src/platform/flywheel-events.json` is the vendored copy of flywheel's `data/signals/allowlist.json`;
