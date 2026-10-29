@@ -37,6 +37,10 @@ Stub controls: `POST /__reset` clears the one anonymous allowance and the `ROTAT
 admin-only free/premium switch — see below). `GET /v1/admin/usage` returns running cost/session
 totals.
 
+v4.4 (stub): `/start` with `resume {started?, items[{who,text}]}` opens "We are picking up
+your discussion from …"; a bad shape → 400 `{error:"bad_resume"}`; `GET /__resume` returns the
+last one received.
+
 v4 routes (stub, canned): `POST /v1/council/start` streams a facilitator opener ("Last
 time…" when `memory` has entries/commitments, an intake recap when `intake.goal` is set,
 else a welcome), two contributions and a `floor` question; `/turn` and `/control` stream
@@ -97,7 +101,12 @@ Primary journeys (v4, `/`): roster (Business/Classics) → pick ≤4 → Begin �
 (paste/drop/ask your AI/talk it through, review the seven fields; stable fields prefilled) → conversation (speaker
 cards, floor question, reply box, control chips) → proposal → Accept → journal → commitment
 with a due date and an opt-in email reminder → Journal tab (outcomes, export). Returning: the
-"Last time" card on `/` and a "Last time…" opener. Reminder emails link to
+"Last time" card on `/` and a "Last time…" opener. Past discussions: the Discussions sheet
+(header, left) lists every discussion newest first (signed in: `council_sessions`; anonymous:
+`council:discussions` in this browser, the newest 20) and the quick verdicts; one opens
+read-only, and "Continue this discussion" starts a gateway session seeded with its record
+(`resume` on `/v1/council/start`) while the app keeps writing to the same discussion.
+Margin notes: Agree / Push back / Note under any contribution, sent with her next message. Reminder emails link to
 `/c/:commitmentId?outcome=done|later|drop`.
 v3 journeys (`/quick`): password → home → type (or dictate) an idea → convene → turns stream in →
 verdict card → reply box; today's question → convene → share the split; My ideas → reopen a

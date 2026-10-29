@@ -19,6 +19,9 @@
 //   header x-council-tier      echoed back as the session event's tier/model (admin only)
 //
 // v4 (flywheel/docs/expansion/council-v4.md "Flow"):
+//   POST /v1/council/start     resume {started?, items[{who,text}]} (v4.4) → opener "We are
+//                              picking up your discussion from …"; bad shape → 400
+//                              {error:"bad_resume"}; GET /__resume → the last one received.
 //   POST /v1/council/start     facilitator opener ("Last time…" when body.memory has
 //                              anything, else an intake recap), 2 contributions, floor
 //   POST /v1/council/turn      2–3 contributions + floor; the 3rd turn/control of a
@@ -55,6 +58,8 @@ const PORT = Number(process.env.PORT ?? 8787)
 const TURN_DELAY_MS = Number(process.env.STUB_TURN_DELAY_MS ?? 60)
 const DELTA_MS = Number(process.env.STUB_DELTA_MS ?? 30)
 const PASSWORD = process.env.STUB_PASSWORD || null
+/** The last `resume` /start received (GET /__resume), for the continue-a-discussion journey. */
+let lastResume = null
 const TIER = process.env.STUB_TIER ?? 'free'
 const MONTH_CAP_CENTS = Number(process.env.STUB_MONTH_CAP_CENTS ?? 3000)
 const MODEL_BY_TIER = { free: 'claude-haiku-5', premium: 'claude-sonnet-5-5' }
@@ -173,6 +178,11 @@ async function streamV4(res, sessionId, events, tier) {
 
 function opener(body) {
   const names = { business: 'Drucker, Jobs, Grove and Socrates', classics: 'the classics' }
+  // v4.4: a continued discussion opens on where it stopped (the gateway's own wording).
+  if (body.resume) {
+    const last = [...body.resume.items].reverse().find((i) => i.who === 'floor')
+    return `We are picking up your discussion from ${body.resume.started ?? 'earlier'}.` + (last ? ` We stopped at: ${last.text}` : '')
+  }
   const memory = body.memory
   if (memory && (memory.entries?.length || memory.commitments?.length)) {
     const c = memory.commitments?.[0]
@@ -345,6 +355,7 @@ createServer(async (req, res) => {
     rotateConsumed = false
     ttsMode = 'off'
     ttsSeen = []
+    lastResume = null
     feedbackCount = 0
     v4.clear()
     captured.entries = []
@@ -359,6 +370,10 @@ createServer(async (req, res) => {
       by_model: {},
     }
     return res.writeHead(200, { 'content-type': 'application/json' }).end('{"ok":true}')
+  }
+
+  if (req.url === '/__resume') {
+    return res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(lastResume))
   }
 
   if (req.url === '/__tts') {
@@ -470,6 +485,14 @@ createServer(async (req, res) => {
     // Mirrors the gateway: an intake with a key outside INTAKE_KEYS (+ materials, v4.3) is a client bug → 400.
     if (body.intake && Object.keys(body.intake).some((k) => !INTAKE_KEYS.includes(k) && k !== 'materials')) return fail(res, 400, 'bad_intake')
     if (String(body.intake?.materials ?? '').length > 8000) return fail(res, 400, 'bad_intake')
+    if (body.resume !== undefined) {
+      const items = body.resume?.items
+      if (!Array.isArray(items) || !items.length || items.length > 80 || items.some((i) => !i.who || !i.text)) {
+        res.writeHead(400, { 'content-type': 'application/json' })
+        return res.end(JSON.stringify({ error: 'bad_resume' }))
+      }
+      lastResume = body.resume
+    }
     const id = `stub-${Date.now()}`
     const session = { id, advisers: body.advisers.slice(0, 4), turns: 0 }
     v4.set(id, session)
