@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { composeMessage, MAX_NOTE, quoteOf, type Note } from './notes'
+import { composedLength, composeMessage, MAX_MESSAGE, MAX_NOTE, quoteOf, type Note } from './notes'
 
 const name = (id: string) => ({ drucker: 'Drucker', jobs: 'Jobs' })[id] ?? id
 
@@ -38,5 +38,11 @@ describe('composeMessage: margin notes go with her next message (Eyal, 29 Oct)',
     expect(composeMessage([{ ...notes[1]!, text: '' }], '', name)).toBe('To Jobs ("Make it something they can hold…"): Push back.')
     const long = composeMessage([{ ...notes[2]!, text: 'x'.repeat(MAX_NOTE + 50) }], '', name)
     expect(long.length).toBeLessThan(MAX_NOTE + 60)
+  })
+
+  it('never goes past the gateway limit for one message; the screen sees the uncut length', () => {
+    const many: Note[] = Array.from({ length: 8 }, (_, i) => ({ speaker: 'jobs', quote: `point ${i}`, stance: 'push', text: 'y'.repeat(MAX_NOTE) }))
+    expect(composedLength(many, 'and so', name)).toBeGreaterThan(MAX_MESSAGE)
+    expect(composeMessage(many, 'and so', name).length).toBe(MAX_MESSAGE)
   })
 })

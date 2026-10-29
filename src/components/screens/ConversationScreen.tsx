@@ -8,7 +8,7 @@ import { MicButton } from '@/components/MicButton'
 import { Talk, TALK_STORAGE } from '@/components/Talk'
 import { Monogram } from '@/components/Monogram'
 import { MarginNote, NotesTray } from '@/components/MarginNote'
-import { composeMessage, quoteOf, type Note } from '@/domain/notes'
+import { composedLength, composeMessage, MAX_MESSAGE, quoteOf, type Note } from '@/domain/notes'
 import { CouncilMap } from '@/components/CouncilMap'
 import { SignInPanel } from '@/components/SignInPanel'
 import { Quaestio } from '@/components/Quaestio'
@@ -104,6 +104,8 @@ export function ConversationScreen() {
     const it = conversation.items[Number(i)]
     return it?.kind === 'contribution' ? [{ ...n, speaker: it.speaker, quote: quoteOf(it.text) }] : []
   })
+  const length = composedLength(noted, message, personaName)
+  const tooLong = length > MAX_MESSAGE
   /** Her words with her notes in front; the notes are spent. */
   const withNotes = (text: string) => {
     if (!noted.length) return text
@@ -120,7 +122,7 @@ export function ConversationScreen() {
   const send = (e: React.FormEvent) => {
     e.preventDefault()
     const text = message.trim()
-    if ((!text && !noted.length) || busy) return
+    if ((!text && !noted.length) || busy || tooLong) return
     setMessage('')
     say(withNotes(text))
   }
@@ -148,7 +150,7 @@ export function ConversationScreen() {
               item={it}
               index={i}
               steer={i === openAt ? { busy: !!busy, run } : undefined}
-              note={!ended && it.kind === 'contribution' && !it.streaming ? { value: notes[i], onChange: setNote(i) } : undefined}
+              note={!ended && it.kind === 'contribution' && !it.streaming && it.text.trim() ? { value: notes[i], onChange: setNote(i) } : undefined}
             />
           </li>
         ))}
@@ -207,7 +209,7 @@ export function ConversationScreen() {
             </button>
           ) : (
           <>
-          <NotesTray count={noted.length} onClear={() => setNotes({})} />
+          <NotesTray count={noted.length} length={length} onClear={() => setNotes({})} />
           <form onSubmit={send} className={noted.length ? 'mt-2' : 'mt-6'}>
             <label htmlFor="reply" className="sr-only">
               Your turn
@@ -225,7 +227,7 @@ export function ConversationScreen() {
               <button
                 type="submit"
                 aria-label="Say it"
-                disabled={(!message.trim() && !noted.length) || busy}
+                disabled={(!message.trim() && !noted.length) || busy || tooLong}
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-marble-100 text-ink-950 disabled:bg-ink-800 disabled:text-marble-400"
               >
                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
