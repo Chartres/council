@@ -30,6 +30,10 @@
 //                              tiny WAV per line (a speaker needs a live v4 session_id, else
 //                              401 sign_in, as on the gateway), "fail" answers 502.
 //                              GET /__tts → every request seen {text, speaker, session_id}
+//   POST /v1/stt               raw audio (content-type audio/*) → {text}. The e2e fakes
+//                              record text as the "audio", so the stub reads the bytes back
+//                              as the transcript; bytes containing QUOTA → 429 {reason:"stt"},
+//                              a non-audio content-type → 415.
 //   POST /v1/council/control   pause | back_to:<id> | let:<a>,<b> | disagree | concrete |
 //                              test | wrap_up — same stream shape, counts as a turn
 //   POST /v1/council/capture   → { entry }  (canned, or the proposal named by proposal_id)
@@ -404,6 +408,18 @@ createServer(async (req, res) => {
     const out = Object.keys(intake).length ? intake : SAMPLE_INTAKE
     res.writeHead(200, { 'content-type': 'application/json' })
     return res.end(JSON.stringify({ intake: out, unknown: INTAKE_KEYS.filter((k) => !out[k]) }))
+  }
+
+  if (req.url === '/v1/stt' && req.method === 'POST') {
+    if (!(req.headers['content-type'] ?? '').startsWith('audio/')) {
+      res.writeHead(415, { 'content-type': 'application/json' })
+      return res.end(JSON.stringify({ error: 'bad_audio' }))
+    }
+    const heard = (await readRaw(req)).trim()
+    await sleep(TURN_DELAY_MS)
+    if (heard.includes('QUOTA')) return fail(res, 429, 'stt')
+    res.writeHead(200, { 'content-type': 'application/json' })
+    return res.end(JSON.stringify({ text: heard }))
   }
 
   const body = await readBody(req)

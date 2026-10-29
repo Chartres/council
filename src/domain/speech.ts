@@ -43,17 +43,11 @@ export function transcriptOf(event: SpeechResultEvent): string {
 }
 
 /**
- * A distinct but still human voice per persona, derived from the id so the same
- * thinker always sounds the same across sessions and devices.
+ * One natural voice setting for every speaker: no pitch or speed shifts. On a phone's own
+ * engine the shifted voices sounded robotic (Eyal, 29 Oct); the name read before each
+ * contribution already says who is speaking, and the gateway gives each adviser a calm voice.
  */
-export function personaVoice(id: string): { pitch: number; rate: number } {
-  let hash = 0
-  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0
-  return {
-    pitch: Number((0.8 + (hash % 9) / 20).toFixed(2)), // 0.80 … 1.20
-    rate: Number((0.9 + ((hash >>> 4) % 5) / 25).toFixed(2)), // 0.90 … 1.06
-  }
-}
+export const VOICE = { pitch: 1, rate: 1 } as const
 
 // Best first. Edge's "Natural" and Chrome's "Google" voices are server-rendered and sound
 // human; Apple's premium voices next; the first English voice of any kind is the floor.

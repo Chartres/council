@@ -24,9 +24,9 @@ test('she talks with the group hands-free and cuts in', async ({ page }) => {
   await page.getByRole('button', { name: 'Bring it to the group' }).click()
   await expect(page.getByTestId('floor')).toHaveCount(1, { timeout: 20_000 })
 
-  // Listen is on by default, a chip beside Talk; Talk is off until she taps it.
+  // Listen and Talk are both off until she taps one; Listen is a chip beside Talk.
   const talk = page.getByTestId('talk')
-  await expect(page.getByTestId('listen')).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByTestId('listen')).toHaveAttribute('aria-pressed', 'false')
   await expect(talk).toHaveAttribute('aria-pressed', 'false')
   await talk.click()
   await expect(talk).toHaveAttribute('aria-pressed', 'true')
