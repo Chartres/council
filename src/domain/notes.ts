@@ -13,8 +13,10 @@ export type Note = {
   text: string
 }
 
-/** A note's own words, at most (the gateway takes 2,000 characters per message). */
+/** A note's own words, at most. */
 export const MAX_NOTE = 300
+/** The gateway's limit for one message (MAX_MESSAGE in v4-routes.ts): notes and her words together. */
+export const MAX_MESSAGE = 2000
 const QUOTE_WORDS = 8
 
 export function quoteOf(text: string): string {
@@ -30,10 +32,19 @@ const line = (n: Note, name: string) => {
   return `${head}${text || 'Note.'}`
 }
 
-/** Her notes, one line each, then a blank line and her own words. */
+/** Her notes, one line each, then a blank line and her own words. Never longer than the
+ *  gateway takes: the screen stops her first (tooLong); a voice turn is cut at the limit. */
 export function composeMessage(notes: Note[], message: string, name: (id: string) => string): string {
   const words = message.trim()
-  if (!notes.length) return words
+  if (!notes.length) return words.slice(0, MAX_MESSAGE)
   const lines = notes.map((n) => line(n, name(n.speaker)))
-  return words ? [...lines, '', words].join('\n') : lines.join('\n')
+  return (words ? [...lines, '', words].join('\n') : lines.join('\n')).slice(0, MAX_MESSAGE)
+}
+
+/** How long the message would be, uncut — over MAX_MESSAGE the Say it button waits. */
+export function composedLength(notes: Note[], message: string, name: (id: string) => string): number {
+  const words = message.trim()
+  if (!notes.length) return words.length
+  const lines = notes.map((n) => line(n, name(n.speaker)))
+  return (words ? [...lines, '', words] : lines).join('\n').length
 }

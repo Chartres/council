@@ -18,7 +18,7 @@ describe('MarginNote', () => {
     expect(onChange).toHaveBeenLastCalledWith({ stance: 'push', text: 'price is the product' })
     rerender(<MarginNote name="Jobs" note={{ stance: 'agree', text: '' }} onChange={onChange} />)
     expect(screen.queryByRole('textbox')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Remove your note on Jobs' }))
     expect(onChange).toHaveBeenLastCalledWith(null)
   })
 })
@@ -32,5 +32,10 @@ describe('NotesTray', () => {
     expect(screen.getByText('Your 2 notes go with your next message.')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
     expect(onClear).toHaveBeenCalled()
+  })
+
+  it('says when the notes and her reply are too long for one message', () => {
+    render(<NotesTray count={7} length={2400} onClear={() => {}} />)
+    expect(screen.getByRole('alert').textContent).toMatch(/Too long for one message \(2400 of 2000/)
   })
 })

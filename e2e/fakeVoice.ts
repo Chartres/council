@@ -39,3 +39,45 @@ export const FAKE_VOICE = `
     },
   })
 `
+
+// An iPhone for voice in: no recogniser, a recorder that "records" whatever is in
+// window.__say (the stub gateway reads it back as the transcript), and a loudness meter the
+// test drives: window.__speak(ms) makes the room loud for that long, then quiet again.
+export const FAKE_EARS = `
+  for (const name of ['SpeechRecognition', 'webkitSpeechRecognition']) {
+    Object.defineProperty(window, name, { value: undefined, configurable: true })
+  }
+  window.__say = ''
+  window.__clips = 0
+  window.__loudUntil = 0
+  window.__speak = (text, ms = 800) => { window.__say = text; window.__loudUntil = Date.now() + ms }
+  const stream = { getTracks: () => [{ stop() {} }] }
+  Object.defineProperty(navigator, 'mediaDevices', { value: { getUserMedia: async () => stream }, configurable: true })
+  class FakeRecorder {
+    static isTypeSupported(t) { return t === 'audio/mp4' }
+    constructor() { this.state = 'inactive'; this.mimeType = 'audio/mp4' }
+    start() { this.state = 'recording'; window.__clips++ }
+    stop() {
+      this.state = 'inactive'
+      this.ondataavailable?.({ data: new Blob([window.__say], { type: 'audio/mp4' }) })
+      setTimeout(() => this.onstop?.(), 0)
+    }
+  }
+  Object.defineProperty(window, 'MediaRecorder', { value: FakeRecorder, configurable: true })
+  class FakeAudioContext {
+    constructor() { this.state = 'running' }
+    resume() { return Promise.resolve() }
+    close() { return Promise.resolve() }
+    createMediaStreamSource() { return { connect() {}, disconnect() {} } }
+    createAnalyser() {
+      return {
+        fftSize: 1024,
+        getByteTimeDomainData(buf) {
+          const loud = Date.now() < window.__loudUntil
+          for (let i = 0; i < buf.length; i++) buf[i] = loud ? (i % 2 ? 200 : 56) : 128
+        },
+      }
+    }
+  }
+  Object.defineProperty(window, 'AudioContext', { value: FakeAudioContext, configurable: true })
+`

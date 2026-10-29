@@ -2,8 +2,8 @@ import { useEffect, useReducer, useRef, useState } from 'react'
 import { GATEWAY_URL, useCouncil } from '@/app/CouncilContext'
 import { useMastermind } from '@/app/MastermindContext'
 import { useAuth } from '@/auth/AuthContext'
-import { cancel, FACILITATOR_VOICE, speak } from '@/components/Listen'
-import { MicButton } from '@/components/MicButton'
+import { cancel, speak } from '@/components/Listen'
+import { micAvailable, MicButton } from '@/components/MicButton'
 import { PrivacyLink } from '@/components/screens/PrivacyScreen'
 import {
   AI_PROMPT,
@@ -17,7 +17,8 @@ import {
 } from '@/domain/intakeImport'
 import { VOICE_IDLE, currentField, voiceReducer } from '@/domain/intakeVoice'
 import { INTAKE_QUESTIONS, MAX_MATERIALS, intakePayload, stableIntake, type Intake } from '@/domain/mastermind'
-import { recognitionCtor, synthesisAvailable } from '@/domain/speech'
+import { synthesisAvailable, VOICE } from '@/domain/speech'
+import { unlockAudioInput } from '@/domain/stt'
 
 const TRUST_KEY = 'council:trust-seen'
 
@@ -172,7 +173,7 @@ export function IntakeScreen() {
   // to listening; without recognition the field gets focus so typing takes over.
   useEffect(() => {
     if (voice.phase !== 'ask' || !field) return
-    if (!recognitionCtor()) document.getElementById(`f-${field}`)?.focus()
+    if (!micAvailable()) document.getElementById(`f-${field}`)?.focus()
     if (!synthesisAvailable()) {
       dispatch({ type: 'asked' })
       return
@@ -183,7 +184,7 @@ export function IntakeScreen() {
       done = true
       dispatch({ type: 'asked' })
     }
-    speak(ask(field), FACILITATOR_VOICE, finish)
+    speak(ask(field), VOICE, finish)
     // ponytail: some engines never fire onend; a length-based timer is the backstop.
     const t = setTimeout(finish, 1200 + ask(field).length * 60)
     return () => {
@@ -193,6 +194,7 @@ export function IntakeScreen() {
   }, [voice.phase, voice.at, field])
 
   const startVoice = () => {
+    unlockAudioInput() // the mics that mount after this tap may need to hear (iOS)
     setOpen(true)
     dispatch({ type: 'start', empty: INTAKE_QUESTIONS.map((q) => q.id).filter((id) => !answers[id]?.trim()) })
   }
