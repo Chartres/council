@@ -23,7 +23,7 @@ type Proposal = Extract<Item, { kind: 'proposal' }>
 
 export function ConversationScreen() {
   const { go } = useCouncil()
-  const { conversation, say, control, journal } = useMastermind()
+  const { conversation, say, control, journal, continueDiscussion } = useMastermind()
   const { token } = useAuth()
   const [message, setMessage] = useState('')
   const [more, setMore] = useState(false)
@@ -38,13 +38,15 @@ export function ConversationScreen() {
   const turnStart = useRef(0)
   const items = conversation?.items
   const streaming = conversation?.streaming
+  // Continued: what came before is the earlier sessions' record — shown, never read aloud again.
+  const earlier = conversation?.earlier ?? 0
 
   // Spoken: the speaker's name, then the contribution (Eyal's voice rule). `current`: the first
   // turn after her last message — the turn on screen.
   const { turns, current } = useMemo(() => {
     const turns: Turn[] = []
     let current = 0
-    for (const it of items ?? []) {
+    for (const it of (items ?? []).slice(earlier)) {
       if (it.kind === 'user') current = turns.length
       else if (it.kind === 'contribution' && !it.streaming)
         turns.push({ persona: it.speaker, text: `${personaName(it.speaker)}. ${it.text}` })
@@ -52,7 +54,7 @@ export function ConversationScreen() {
       else if (it.kind === 'floor') turns.push({ persona: 'facilitator', text: it.question })
     }
     return { turns, current }
-  }, [items])
+  }, [items, earlier])
   // Talk switched off mid-answer: read-aloud skips that answer and starts after the stream.
   const [quiet, setQuiet] = useState(false)
   useEffect(() => {
@@ -91,13 +93,16 @@ export function ConversationScreen() {
   }, [items?.length])
 
   if (!conversation) return null
-  const { failure, ended, advisers, sessionId, roster } = conversation
+  const { failure, ended, advisers, sessionId, roster, past = false } = conversation
   const spoken = [...new Set(conversation.items.flatMap((it) => (it.kind === 'contribution' ? [it.speaker] : [])))]
   const busy = streaming || !sessionId
   const run = (c: Control) => control(c)
   const decided = journal.entries.filter((e) => e.status !== 'proposal').length
   // While a proposal is open, Wrap up and Capture are its buttons; while one awaits a date, the reply steps aside.
-  const openAt = conversation.items.reduce((at, it, i) => (it.kind === 'proposal' && it.state === 'open' ? i : at), -1)
+  const openAt = conversation.items.reduce(
+    (at, it, i) => (!past && i >= earlier && it.kind === 'proposal' && it.state === 'open' ? i : at),
+    -1,
+  )
   const committing = !replyOpen && conversation.items.some((it) => it.kind === 'proposal' && it.state === 'accepted')
 
   const noted = Object.entries(notes).flatMap(([i, n]) => {
@@ -142,16 +147,25 @@ export function ConversationScreen() {
       </section>
 
       <ol ref={list} className="mt-12 space-y-6" data-testid="conversation">
-        {conversation.items.map((it, i) => (
-          <li key={i} className="rise scroll-mt-20">
-            <ItemView
-              item={it}
-              index={i}
-              steer={i === openAt ? { busy: !!busy, run } : undefined}
-              note={!ended && it.kind === 'contribution' && !it.streaming ? { value: notes[i], onChange: setNote(i) } : undefined}
-            />
-          </li>
-        ))}
+        {conversation.items.map((it, i) => {
+          const before = past || i < earlier
+          return (
+            <li key={i} className={`scroll-mt-20 ${before ? '' : 'rise'}`}>
+              {i === earlier && earlier > 0 && (
+                <p className="rubric mb-6 border-t border-ink-800 pt-6" data-testid="continued">
+                  Continued
+                </p>
+              )}
+              <ItemView
+                item={it}
+                index={i}
+                inert={before}
+                steer={!before && i === openAt ? { busy: !!busy, run } : undefined}
+                note={!before && !ended && it.kind === 'contribution' && !it.streaming ? { value: notes[i], onChange: setNote(i) } : undefined}
+              />
+            </li>
+          )
+        })}
       </ol>
 
       {streaming && !talk && (
@@ -171,7 +185,16 @@ export function ConversationScreen() {
         </p>
       )}
 
-      {ended ? (
+      {past ? (
+        <div className="mt-10" data-testid="past">
+          <button type="button" onClick={continueDiscussion} className="slab">
+            Continue this discussion
+          </button>
+          <p className="mt-2 text-[15px] leading-[23px] text-marble-400">
+            {advisers.map(personaName).join(', ')} pick it up where it stopped.
+          </p>
+        </div>
+      ) : ended ? (
         <>
           <div className="mt-6 flex">
             <ListenToggle chip on={listen} onChange={onListen} />
@@ -332,7 +355,20 @@ type Steer = { busy: boolean; run: (c: Control) => void }
 
 type NoteSlot = { value?: Pick<Note, 'stance' | 'text'>; onChange: (next: Pick<Note, 'stance' | 'text'> | null) => void }
 
-function ItemView({ item, index, steer, note }: { item: Item; index: number; steer?: Steer; note?: NoteSlot }) {
+function ItemView({
+  item,
+  index,
+  steer,
+  note,
+  inert = false,
+}: {
+  item: Item
+  index: number
+  steer?: Steer
+  note?: NoteSlot
+  /** The record of an earlier session: shown, nothing to act on. */
+  inert?: boolean
+}) {
   switch (item.kind) {
     case 'facilitator':
       return (
@@ -370,7 +406,7 @@ function ItemView({ item, index, steer, note }: { item: Item; index: number; ste
         </div>
       )
     case 'proposal':
-      return <ProposalCard item={item} index={index} steer={steer} />
+      return <ProposalCard item={item} index={index} steer={steer} inert={inert} />
   }
 }
 
@@ -390,7 +426,9 @@ const inAWeek = () => new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10
 const bare =
   'block w-full resize-none bg-transparent [field-sizing:content] focus-visible:shadow-[inset_0_-2px_0_var(--color-candle-400)]'
 
-function ProposalCard({ item, index, steer }: { item: Proposal; index: number; steer?: Steer }) {
+function ProposalCard({ item: raw, index, steer, inert }: { item: Proposal; index: number; steer?: Steer; inert: boolean }) {
+  // An earlier session's open proposal was left open; it can no longer be accepted there.
+  const item = inert && raw.state === 'open' ? { ...raw, state: 'declined' as const } : raw
   const { accept, decline, commitTo, journal, conversation } = useMastermind()
   const { user } = useAuth()
   const [decision, setDecision] = useState(item.entry.decision)

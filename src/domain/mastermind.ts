@@ -1,6 +1,6 @@
 // Council v4 — the facilitated, remembered, accountable flow
 // (flywheel/docs/expansion/council-v4.md "Flow (gateway contract)"):
-//   POST /v1/council/start   { roster, advisers[], intake?, memory? }  → SSE
+//   POST /v1/council/start   { roster, advisers[], intake?, memory?, resume? }  → SSE
 //   POST /v1/council/turn    { session_id, message, voice? }           → SSE (+ speaker, delta when voice)
 //   POST /v1/council/control { session_id, command }                   → SSE
 //   POST /v1/council/capture { session_id, proposal_id? | text? }      → { entry }
@@ -351,7 +351,14 @@ const s = (path: string, body: unknown, opts: StreamOptions) =>
   stream(path, body, opts) as unknown as AsyncGenerator<MastermindEvent>
 
 export const startCouncil = (
-  body: { roster: RosterId; advisers: string[]; intake?: Intake; memory?: Memory },
+  body: {
+    roster: RosterId
+    advisers: string[]
+    intake?: Intake
+    memory?: Memory
+    /** Continue an earlier discussion: its record, who said what (gateway v4.4). */
+    resume?: { started?: string; items: { who: string; text: string }[] }
+  },
   opts: StreamOptions,
 ) => s('/v1/council/start', body, opts)
 

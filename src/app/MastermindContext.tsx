@@ -45,6 +45,14 @@ import {
   type Memory,
   type Outcome,
 } from '@/domain/mastermind'
+import {
+  loadLocalDiscussions,
+  loadRemoteDiscussions,
+  resumeItems,
+  saveLocalDiscussion,
+  upsertDiscussion,
+  type SavedDiscussion,
+} from '@/domain/discussions'
 import { useCouncil } from './CouncilContext'
 
 export type { Item }
@@ -60,6 +68,12 @@ export interface Conversation {
   failure: FailureReason | null
   ended: boolean
   tier: Tier | null
+  /** When the discussion began (kept when it is continued). */
+  startedAt: string
+  /** A past discussion opened from the list: read-only until she continues it. */
+  past?: boolean
+  /** Continued: the items before this index are the earlier sessions' record. */
+  earlier?: number
 }
 
 interface Value {
@@ -84,6 +98,12 @@ interface Value {
   exportText: () => string
   /** A reminder deep link arrived while signed out: show the sign-in panel. */
   linkNeedsSignIn: boolean
+  /** Every discussion, newest first (signed in: her account; anonymous: this browser). */
+  discussions: SavedDiscussion[]
+  /** Open one to read; the live one opens as it is. */
+  openDiscussion: (id: string) => void
+  /** Pick the opened past discussion up again with the same advisers. */
+  continueDiscussion: () => void
 }
 
 const Ctx = createContext<Value | null>(null)
@@ -122,6 +142,7 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
   const [lastIntake, setLastIntake] = useState<Intake | null>(initial.lastIntake)
   const [conversation, setConversation] = useState<Conversation | null>(null)
   const [linkNeedsSignIn, setLinkNeedsSignIn] = useState(false)
+  const [discussions, setDiscussions] = useState<SavedDiscussion[]>(() => (user ? [] : loadLocalDiscussions()))
   const convo = useRef<Conversation | null>(null)
   const sb = user && supabase ? supabase : null
 
@@ -141,6 +162,13 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user) saveLocalJournal({ ...journal, lastIntake })
   }, [user, journal, lastIntake])
+
+  // The list follows who she is: her account's discussions, or this browser's.
+  useEffect(() => {
+    if (loading) return
+    if (!sb || !user) return setDiscussions(loadLocalDiscussions())
+    void loadRemoteDiscussions(sb, user.id).then(setDiscussions, logError)
+  }, [loading, sb, user])
 
   // Signed in: the last entries, open commitments and last intake come from Supabase.
   useEffect(() => {
@@ -164,7 +192,20 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
 
   const persistSession = useCallback(async () => {
     const c = convo.current
-    if (!sb || !user || !c) return
+    if (!c || c.past) return
+    const saved: SavedDiscussion = {
+      id: c.localId,
+      roster: c.roster,
+      advisers: c.advisers,
+      intake: c.intake,
+      items: c.items,
+      created_at: c.startedAt,
+      ended: c.ended,
+    }
+    // Anonymous: this browser keeps it; signed in: the session row below is the record.
+    if (user) setDiscussions((list) => upsertDiscussion(list, saved))
+    else setDiscussions(saveLocalDiscussion(saved))
+    if (!sb || !user) return
     await saveRemoteSession(sb, user.id, {
       id: c.localId,
       roster: c.roster,
@@ -178,9 +219,13 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
   const consume = useCallback(
     async (events: AsyncGenerator<MastermindEvent>) => {
       update({ streaming: true, failure: null })
+      // She may open another discussion mid-answer: this stream then writes nowhere.
+      const mine = convo.current?.localId
+      const gone = () => convo.current?.localId !== mine
       const push = (item: Item) => update((c) => ({ items: [...c.items, item] }))
       try {
         for await (const ev of events) {
+          if (gone()) return
           switch (ev.type) {
             case 'session':
               update((c) => ({ sessionId: ev.session_id, tier: ev.tier ?? c.tier }))
@@ -201,10 +246,11 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
               update((c) => ({ items: itemsReducer(c.items, ev) }))
           }
         }
+        if (gone()) return
         update((c) => ({ streaming: false, items: settleItems(c.items) }))
         void persistSession()
       } catch (e) {
-        fail(e)
+        if (!gone()) fail(e)
       }
     },
     [update, fail, persistSession],
@@ -224,6 +270,7 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
         failure: null,
         ended: false,
         tier: null,
+        startedAt: today(),
       }
       setConversation(convo.current)
       if (intake) setLastIntake(intake)
@@ -414,6 +461,52 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
     void resume().catch(logError)
   }, [loading, user, sb, journal, lastIntake, begin])
 
+  const openDiscussion = useCallback(
+    (id: string) => {
+      if (convo.current?.localId !== id) {
+        const d = discussions.find((x) => x.id === id)
+        if (!d) return
+        convo.current = {
+          localId: d.id,
+          sessionId: null,
+          roster: d.roster,
+          advisers: d.advisers,
+          intake: d.intake,
+          items: settleItems(d.items),
+          streaming: false,
+          failure: null,
+          ended: d.ended,
+          tier: null,
+          startedAt: d.created_at,
+          past: true,
+        }
+        setConversation(convo.current)
+      }
+      go('conversation')
+    },
+    [discussions, go],
+  )
+
+  // Continue: a new gateway session seeded with this discussion's record; the app goes on
+  // writing to the same discussion, so the list keeps one entry and the journal its id.
+  const continueDiscussion = useCallback(() => {
+    const c = convo.current
+    if (!c?.past) return
+    update({ past: false, earlier: c.items.length, sessionId: null, ended: false, failure: null, streaming: true })
+    keyAction('convened', { personas: c.advisers.length, roster: c.roster, v: 4, resumed: true })
+    void consume(
+      startCouncil(
+        {
+          roster: c.roster,
+          advisers: c.advisers,
+          ...(c.intake ? { intake: c.intake } : {}),
+          resume: { started: c.startedAt.slice(0, 10), items: resumeItems(c.items) },
+        },
+        opts(),
+      ),
+    )
+  }, [update, consume, opts])
+
   const setRoster = useCallback((r: RosterId) => {
     setRosterState(r)
     setAdvisers(defaultAdvisers(r))
@@ -442,6 +535,9 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
         setRemind,
         exportText,
         linkNeedsSignIn,
+        discussions,
+        openDiscussion,
+        continueDiscussion,
       }}
     >
       {children}

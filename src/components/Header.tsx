@@ -1,8 +1,10 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useCouncil } from '@/app/CouncilContext'
 import { useAuth } from '@/auth/AuthContext'
 import { supabase } from '@/auth/supabase'
 import { AccountPanel } from './AccountPanel'
+import { DiscussionsDrawer } from './DiscussionsDrawer'
 import { FeedbackSheet } from './Feedback'
 import { SignInPanel } from './SignInPanel'
 
@@ -11,6 +13,7 @@ export function Header() {
   const { configured, user, signOut } = useAuth()
   const { gate } = useCouncil()
   const [open, setOpen] = useState<'account' | 'feedback' | null>(null)
+  const [drawer, setDrawer] = useState(false)
   const toggle = (panel: 'account' | 'feedback') => setOpen((o) => (o === panel ? null : panel))
 
   return (
@@ -19,9 +22,25 @@ export function Header() {
       style={{ paddingTop: 'max(0px, env(safe-area-inset-top))' }}
     >
       <div className="mx-auto flex max-w-xl items-center justify-between gap-2 px-4 py-2">
-        <span className="font-display text-lg font-medium text-marble-100">
-          Mastermind <span className="font-normal text-marble-400">Council</span>
-        </span>
+        <div className="flex items-center">
+          {gate === 'ready' && (
+            <button
+              type="button"
+              onClick={() => setDrawer(true)}
+              aria-expanded={drawer}
+              aria-label="Discussions"
+              data-testid="open-discussions"
+              className="-ml-3 flex h-11 w-11 items-center justify-center text-marble-300 hover:text-marble-50"
+            >
+              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                <path d="M4 7h16M4 12h16M4 17h10" strokeLinecap="round" />
+              </svg>
+            </button>
+          )}
+          <span className="font-display text-lg font-medium text-marble-100">
+            Mastermind <span className="font-normal text-marble-400">Council</span>
+          </span>
+        </div>
         <div className="flex items-center gap-1">
           {gate === 'ready' && (
             <button
@@ -73,6 +92,8 @@ export function Header() {
           )}
         </div>
       )}
+      {/* Outside the header: its backdrop blur would make it the box a fixed sheet sits in. */}
+      {drawer && createPortal(<DiscussionsDrawer onClose={() => setDrawer(false)} />, document.body)}
     </header>
   )
 }
