@@ -142,8 +142,9 @@ test('talk it through: the facilitator asks each empty field aloud and the answe
 })
 
 test('talk it through without voice support focuses each empty field in turn', async ({ page }) => {
+  // No recogniser and no recorder for the gateway either: typing takes over.
   await page.addInitScript(`
-    for (const name of ['SpeechRecognition', 'webkitSpeechRecognition', 'speechSynthesis']) {
+    for (const name of ['SpeechRecognition', 'webkitSpeechRecognition', 'speechSynthesis', 'MediaRecorder']) {
       Object.defineProperty(window, name, { value: undefined, configurable: true })
     }
   `)

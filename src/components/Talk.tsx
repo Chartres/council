@@ -1,14 +1,20 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { cancel, FACILITATOR_VOICE, speak } from '@/components/Listen'
+import { cancel, speak } from '@/components/Listen'
 import { personaName } from '@/content/personas'
 import { unlock } from '@/domain/tts'
 import type { Item } from '@/domain/mastermind'
 import { sentenceChunker } from '@/domain/sentences'
-import { personaVoice, recognitionCtor, type Recognition } from '@/domain/speech'
+import { recognitionCtor, VOICE, type Recognition } from '@/domain/speech'
+import { record, serverEars, SttError, transcribe, unlockAudioInput, type Recording } from '@/domain/stt'
+import { keyAction } from '@/analytics'
+import { micProblem } from '@/components/MicButton'
 
 // Talk mode (council-v4.3.md "Talk mode"): a hands-free room. The mic stays open; a pause
 // sends what was heard as a voice turn; the adviser's answer is spoken sentence by sentence
 // as it streams; two words over the audio stop it and start the next message.
+// On an iPhone (and wherever the browser has no recogniser) the gateway's ears take turns
+// instead: the mic records while the room is quiet and is closed while an adviser speaks,
+// so the phone plays through its speaker; "Cut in" stops the adviser and opens the mic.
 
 export const TALK_STORAGE = 'council:talk'
 /** The pause that ends a spoken message here; the intake's dictation keeps 2,500 ms. */
@@ -84,6 +90,11 @@ export function Talk({
   children?: ReactNode
 }) {
   const Ctor = recognitionCtor()
+  const [ears] = useState<'browser' | 'server' | null>(() => (serverEars(!!Ctor) ? 'server' : Ctor ? 'browser' : null))
+  const clip = useRef<Recording | null>(null)
+  const opening = useRef(false) // a clip is starting or being transcribed: one at a time
+  const [writing, setWriting] = useState(false) // a clip is being transcribed (status line)
+  const [problem, setProblem] = useState<string | null>(null)
   // Remembered as on is not enough: the mic and the speaker wait for a tap on this page.
   const [armed, setArmed] = useState(false)
   const active = on && armed
@@ -114,9 +125,12 @@ export function Talk({
     const done = () => {
       line.ended = Date.now()
       queued.current = Math.max(0, queued.current - 1)
-      if (!queued.current) setTalker(null)
+      if (queued.current) return
+      setTalker(null)
+      // The room went quiet: her turn. (The browser recogniser never closed.)
+      if (ears === 'server' && !live.current.streaming) listen()
     }
-    speak(text, speaker === 'facilitator' ? FACILITATOR_VOICE : personaVoice(speaker), done, speaker)
+    speak(text, VOICE, done, speaker)
   }
 
   const hush = () => {
@@ -136,7 +150,73 @@ export function Talk({
     live.current.onSay(text)
   }
 
+  /** One turn of hers through the gateway: record until a pause, transcribe, send. */
+  const listenClip = async () => {
+    const { active, streaming } = live.current
+    if (clip.current || opening.current || !active || streaming || queued.current) return
+    opening.current = true
+    let r: Recording
+    try {
+      r = await record({
+        silenceMs: TALK_SILENCE_MS,
+        maxMs: 60_000,
+        // Nothing said for a while: drop the clip and keep listening with a fresh one.
+        idleMs: 30_000,
+        onSilence: () => void heardClip(r),
+        onIdle: () => {
+          if (clip.current !== r) return
+          clip.current = null
+          r.cancel()
+          void listenClip()
+        },
+      })
+    } catch (e) {
+      opening.current = false
+      return stopFor(e instanceof SttError ? e.reason : 'unavailable')
+    }
+    opening.current = false
+    if (!live.current.active) return r.cancel()
+    clip.current = r
+  }
+
+  const heardClip = async (r: Recording) => {
+    if (clip.current !== r) return
+    clip.current = null
+    opening.current = true
+    setWriting(true)
+    const { clip: audio } = await r.stop()
+    let text = ''
+    try {
+      text = audio.size ? await transcribe(audio) : ''
+    } catch (e) {
+      opening.current = false
+      setWriting(false)
+      return stopFor(e instanceof SttError ? e.reason : 'unavailable')
+    }
+    opening.current = false
+    setWriting(false)
+    if (text) send(text)
+    // Nothing intelligible: listen again.
+    else if (live.current.active) void listenClip()
+  }
+
+  /** A failure the room cannot talk past: say it, log it, switch Talk off. */
+  const stopFor = (reason: string) => {
+    keyAction('mic_failed', { engine: 'server', reason, talk: true })
+    setProblem(micProblem(reason))
+    live.current.onChange(false)
+  }
+
+  /** Server ears, while an adviser speaks: stop the room and open the mic now. */
+  const cutIn = () => {
+    unlockAudioInput()
+    muted.current = true
+    hush()
+    void listenClip()
+  }
+
   const listen = () => {
+    if (ears === 'server') return void listenClip()
     if (!Ctor || rec.current) return
     const r = new Ctor()
     r.continuous = true
@@ -195,6 +275,8 @@ export function Talk({
     const r = rec.current
     rec.current = null
     r?.abort()
+    clip.current?.cancel()
+    clip.current = null
   }
 
   // On: listen (already started inside the tap). Off: mic and audio stop, the turn is let go.
@@ -210,7 +292,12 @@ export function Talk({
 
   // Words that finished while the group was answering go as soon as it is done.
   useEffect(() => {
-    if (streaming || !held.current) return
+    if (streaming) return
+    if (!held.current) {
+      // Server ears: an answer that left nothing to speak hands the turn straight back.
+      if (ears === 'server' && active && !queued.current) void listenClip()
+      return
+    }
     const text = held.current
     held.current = ''
     if (active) send(text)
@@ -245,7 +332,9 @@ export function Talk({
 
   const tap = () => {
     if (active) return onChange(false)
+    setProblem(null)
     unlock() // inside the tap: the shared player may speak from now on (iOS)
+    if (ears === 'server') unlockAudioInput() // and the mic's loudness watch may hear
     setArmed(true)
     if (!on) onChange(true)
     listen()
@@ -257,12 +346,14 @@ export function Talk({
       ? `${personaName(talker)} is talking…`
       : streaming
         ? 'Thinking…'
-        : 'Listening…'
+        : writing
+          ? 'Writing it down…'
+          : 'Listening…'
 
   return (
     <div className="mt-6">
       <div className="flex items-center gap-2">
-        {Ctor && (
+        {ears && (
           <button
             type="button"
             onClick={tap}
@@ -279,9 +370,21 @@ export function Talk({
         )}
         {children}
       </div>
-      {Ctor && on && (
-        <p role="status" data-testid="talk-status" className="mt-2 text-[15px] leading-[23px] text-marble-300">
-          {status}
+      {ears && on && (
+        <div className="mt-2 flex min-h-11 items-center gap-3">
+          <p role="status" data-testid="talk-status" className="text-[15px] leading-[23px] text-marble-300">
+            {status}
+          </p>
+          {ears === 'server' && active && talker && (
+            <button type="button" onClick={cutIn} className="chip" data-testid="cut-in">
+              Cut in
+            </button>
+          )}
+        </div>
+      )}
+      {problem && (
+        <p role="alert" data-testid="talk-problem" className="t-body mt-2 border-l-2 border-clay-500 pl-4">
+          {problem}
         </p>
       )}
     </div>

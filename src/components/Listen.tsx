@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Turn, Verdict } from '@/domain/council'
-import { personaVoice, pickVoice, primeVoices, synthesisAvailable } from '@/domain/speech'
+import { pickVoice, primeVoices, synthesisAvailable, VOICE } from '@/domain/speech'
 import * as tts from '@/domain/tts'
 
 export const LISTEN_STORAGE = 'council:listen'
@@ -30,17 +30,15 @@ export function usePref(key: string, fallback: boolean): [boolean, (on: boolean)
   ]
 }
 
-/** Read-aloud: on unless she turned it off on this device. */
-export const useListen = () => usePref(LISTEN_STORAGE, true)
+/** Read-aloud: off until she turns it on on this device (Eyal, 29 Oct: "with the option to use it"). */
+export const useListen = () => usePref(LISTEN_STORAGE, false)
 
 export function cancel() {
   tts.cancel()
   if (synthesisAvailable()) window.speechSynthesis.cancel()
 }
 
-export const FACILITATOR_VOICE = { pitch: 1, rate: 0.95 }
-
-/** Voice out: the gateway's MeloTTS first (src/domain/tts.ts), the browser engine where
+/** Voice out: the gateway's voices first (src/domain/tts.ts), the browser engine where
  *  the gateway cannot speak. */
 export const speak = tts.speak
 tts.setFallback(speakInBrowser)
@@ -62,8 +60,9 @@ export function speakInBrowser(text: string, voice: { pitch: number; rate: numbe
 }
 
 /**
- * Reads the debate aloud as it arrives — one voice per persona, the verdict last
- * (the tts queue plays in order, so queueing in order is enough).
+ * Reads the debate aloud as it arrives, the verdict last (the tts queue plays in order, so
+ * queueing in order is enough). Each line names its speaker, so inside a v4 session the
+ * gateway reads it in that adviser's calm voice; elsewhere it uses its one default voice.
  * Switching on reads from `from` (the turn on screen; default the last one), then what follows.
  */
 export function useNarration(turns: Turn[], verdict: Verdict | null, on: boolean, from = turns.length - 1) {
@@ -84,12 +83,12 @@ export function useNarration(turns: Turn[], verdict: Verdict | null, on: boolean
       saidVerdict.current = false
     }
     for (let i = spoken.current; i < turns.length; i++) {
-      speak(turns[i].text, personaVoice(turns[i].persona))
+      speak(turns[i].text, VOICE, undefined, turns[i].persona)
     }
     spoken.current = turns.length
     if (verdict && !saidVerdict.current) {
       saidVerdict.current = true
-      speak(`The verdict. ${verdict.summary} Next action. ${verdict.next_action}`, FACILITATOR_VOICE)
+      speak(`The verdict. ${verdict.summary} Next action. ${verdict.next_action}`, VOICE, undefined, 'facilitator')
     }
   }, [on, turns, verdict])
 

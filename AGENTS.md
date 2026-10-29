@@ -49,6 +49,9 @@ shapes are documented at the top of `src/domain/mastermind.ts` — the gateway c
 same list. Playwright runs with the password on and seeds `council:key` through `storageState`, so
 every journey goes through the real header path; `e2e/gate.spec.ts` clears it to meet the door.
 
+`POST /v1/stt` (stub) reads the raw body back as the transcript (the e2e fake recorder
+"records" text); `QUOTA` in it → 429 `{reason:"stt"}`, a non-audio content-type → 415.
+
 `POST /__tts {mode:"on"|"fail"|"off"}` makes the stub serve `/v1/tts` (a tiny WAV; a `speaker`
 needs a live v4 session, as on the gateway) or fail it; off by default, so the other journeys
 use the browser-voice fallback. `GET /__tts` lists what was asked (`e2e/talk-voice.spec.ts`).
@@ -98,8 +101,12 @@ with a due date and an opt-in email reminder → Journal tab (outcomes, export).
 `/c/:commitmentId?outcome=done|later|drop`.
 v3 journeys (`/quick`): password → home → type (or dictate) an idea → convene → turns stream in →
 verdict card → reply box; today's question → convene → share the split; My ideas → reopen a
-past council. Voice is browser-only (Web Speech API in, `speechSynthesis` out): no server,
-no cost, and both controls are absent where the API is missing.
+past council. Voice in: the browser's recogniser where it works; on iPhone/iPad, where it
+has none, or after it failed once, the mic records (MediaRecorder) and the gateway transcribes
+(`POST /v1/stt`, Whisper on Workers AI; `src/domain/stt.ts`). A mic failure is said in words
+and logged as `key_action` `mic_failed`. Voice out: the gateway's calm voices inside a v4
+session, the browser engine as fallback, natural pitch and speed; read-aloud (Listen) is off
+until she turns it on. Each control is absent only where neither path exists.
 Phone first: check at 390 px. The fold gate (`e2e/fold.spec.ts`) asserts the idea field sits in
 the top 120 px, no x-overflow at 320/375/430, and 44 px nav targets.
 

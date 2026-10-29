@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { DEFAULT_PERSONA_IDS, PERSONAS } from '@/content/personas'
 import {
-  personaVoice,
+  VOICE,
   pickVoice,
   recognitionCtor,
   synthesisAvailable,
@@ -50,24 +49,9 @@ describe('transcriptOf', () => {
   })
 })
 
-describe('personaVoice', () => {
-  it('is deterministic per persona id', () => {
-    expect(personaVoice('seneca')).toEqual(personaVoice('seneca'))
-  })
-
-  it('stays inside a human range', () => {
-    for (const p of PERSONAS) {
-      const { pitch, rate } = personaVoice(p.id)
-      expect(pitch).toBeGreaterThanOrEqual(0.8)
-      expect(pitch).toBeLessThanOrEqual(1.2)
-      expect(rate).toBeGreaterThanOrEqual(0.9)
-      expect(rate).toBeLessThanOrEqual(1.1)
-    }
-  })
-
-  it('gives the default three audibly different settings', () => {
-    const settings = DEFAULT_PERSONA_IDS.map((id) => JSON.stringify(personaVoice(id)))
-    expect(new Set(settings).size).toBe(DEFAULT_PERSONA_IDS.length)
+describe('VOICE', () => {
+  it('speaks every line at natural pitch and speed', () => {
+    expect(VOICE).toEqual({ pitch: 1, rate: 1 })
   })
 })
 
