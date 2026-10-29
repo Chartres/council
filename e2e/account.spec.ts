@@ -160,3 +160,20 @@ test('signed in: when the delete fails, nothing is deleted and the user stays si
   expect(s.users.map((u) => u.id).sort()).toEqual([ME.id, OTHER.id])
   expect(s.rows.council_journal.filter((r) => r.user_id === ME.id)).toHaveLength(1)
 })
+
+test('signed in: the Discussions sheet lists her account’s discussions with their decisions, and only hers', async ({ page }) => {
+  await signIn(page, ME)
+  await page.goto(`${APP}/`)
+  await expect(page.getByRole('button', { name: 'Account' })).toBeVisible()
+  await page.getByTestId('open-discussions').click()
+  const sheet = page.getByTestId('discussions')
+  const row = sheet.getByRole('button', { name: /bakery goal/ })
+  await expect(row).toBeVisible()
+  await expect(row).toContainText('Open a second bakery shop in spring')
+  await expect(sheet).toContainText('Kept on your account.')
+  await expect(sheet.getByText('florist goal')).toHaveCount(0)
+  // Opening it shows it as it was, ready to continue.
+  await row.click()
+  await expect(page.getByTestId('past')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'bakery goal' })).toBeVisible()
+})
