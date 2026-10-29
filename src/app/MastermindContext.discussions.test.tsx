@@ -43,6 +43,7 @@ vi.mock('@/domain/mastermind', async (importOriginal) => {
 })
 
 const { MastermindProvider, useMastermind } = await import('./MastermindContext')
+const mastermind = await import('@/domain/mastermind')
 const wrapper = ({ children }: { children: ReactNode }) => <MastermindProvider>{children}</MastermindProvider>
 
 const opening = (sid: string): (() => AsyncGenerator<MastermindEvent>) =>
@@ -162,5 +163,25 @@ describe('discussions in this browser', () => {
     await act(async () => release())
     expect(result.current.conversation).toMatchObject({ localId: 'old', past: true })
     expect(JSON.stringify(result.current.conversation!.items)).not.toContain('LATE LINE')
+  })
+
+  it('a decision captured with the chip lands only in the discussion it was captured in', async () => {
+    let release: () => void = () => {}
+    vi.mocked(mastermind.capture).mockImplementationOnce(
+      () =>
+        new Promise((res) => {
+          release = () => res({ entry: { ...proposal, decision: 'CAPTURED IN A' } } as never)
+        }),
+    )
+    scripts = [opening('sA'), opening('sB')]
+    const { result } = renderHook(() => useMastermind(), { wrapper })
+    act(() => result.current.begin({ goal: 'A' }))
+    await waitFor(() => expect(result.current.conversation?.streaming).toBe(false))
+    act(() => result.current.control({ kind: 'capture' }))
+    act(() => result.current.begin({ goal: 'B' }))
+    await waitFor(() => expect(result.current.conversation?.sessionId).toBe('sB'))
+    await act(async () => release())
+    await waitFor(() => expect(result.current.conversation?.streaming).toBe(false))
+    expect(JSON.stringify(result.current.conversation!.items)).not.toContain('CAPTURED IN A')
   })
 })

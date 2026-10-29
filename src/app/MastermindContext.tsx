@@ -317,9 +317,11 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
       if (route.route === 'export') return
       if (route.route === 'capture') {
         update({ streaming: true, failure: null })
+        const gen = generation.current
         void capture({ session_id: id }, opts())
           .then(({ entry }) => {
             keyAction('captured', { v: 4 })
+            if (generation.current !== gen) return // she left this discussion meanwhile
             update((cv) => ({
               streaming: false,
               items: [
@@ -333,7 +335,7 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
               ],
             }))
           })
-          .catch(fail)
+          .catch((e) => generation.current === gen && fail(e))
         return
       }
       if (c.kind === 'wrap_up') update({ ended: true })
@@ -357,7 +359,6 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
       if (!c?.sessionId || item?.kind !== 'proposal') return
       const gen = generation.current
       const save = (fields: Omit<JournalEntry, 'status' | 'created_at'>) => {
-        if (generation.current !== gen) return // she left this discussion while it was captured
         // The journal row id is ours (uuid); the gateway's id only names the proposal.
         const entry: JournalEntry = {
           ...fields,
@@ -367,9 +368,15 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
           status: 'accepted',
           created_at: today(),
         }
+        // The decision is hers whatever screen she is on now: journal and conversion always.
         dispatch({ type: 'accept', entry })
-        setItem(index, { entry, state: 'accepted' })
         conversion({ v: 4, roster: c.roster })
+        if (generation.current !== gen) {
+          // She left while it was captured: that discussion's row already exists; only its card stays as it was.
+          if (sb && user) void saveRemoteEntry(sb, user.id, entry).catch(logError)
+          return
+        }
+        setItem(index, { entry, state: 'accepted' })
         // The discussion's record first (and, signed in, the session row the journal row references).
         void persistSession()
           .then(() => (sb && user ? saveRemoteEntry(sb, user.id, entry) : undefined))
