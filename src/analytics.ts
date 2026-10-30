@@ -6,8 +6,9 @@ import { createFlywheelClient, type SupabaseLike } from './platform/flywheel-cli
  * flywheel app — flywheel repo docs/ARCHITECTURE "Common Platform"). First-party,
  * cookieless, fire-and-forget; no-ops when Supabase isn't configured.
  *
- * The aha moment is a finished verdict → `conversion` (activation_event in the
- * portfolio record).
+ * The aha moment is a proposal accepted into the journal (v3: a finished verdict) →
+ * `conversion` (activation_event in the portfolio record; MastermindContext.activation.test).
+ * Automated browsers (Playwright, crawlers) send nothing: flywheel-client drops them.
  */
 const fw = createFlywheelClient({
   app: 'council',
@@ -24,7 +25,7 @@ export function track(event: string, props?: Record<string, unknown>): void {
  * convened → (conversion: a decision accepted into the journal) → captured / committed;
  * replied and talk_on measure depth; blocked is a gate the person hit (sign_in, quota, cap…).
  */
-export const KEY_ACTIONS = ['convened', 'replied', 'blocked', 'captured', 'committed', 'talk_on', 'tested', 'examined', 'daily_opened'] as const
+export const KEY_ACTIONS = ['convened', 'replied', 'blocked', 'captured', 'committed', 'talk_on', 'tested', 'examined', 'daily_opened', 'mic_failed', 'noted'] as const
 export type KeyAction = (typeof KEY_ACTIONS)[number]
 
 export function keyAction(action: KeyAction, props?: Record<string, unknown>): void {

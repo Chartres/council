@@ -37,6 +37,10 @@ Stub controls: `POST /__reset` clears the one anonymous allowance and the `ROTAT
 admin-only free/premium switch — see below). `GET /v1/admin/usage` returns running cost/session
 totals.
 
+v4.4 (stub): `/start` with `resume {started?, items[{who,text}]}` opens "We are picking up
+your discussion from …"; a bad shape → 400 `{error:"bad_resume"}`; `GET /__resume` returns the
+last one received.
+
 v4 routes (stub, canned): `POST /v1/council/start` streams a facilitator opener ("Last
 time…" when `memory` has entries/commitments, an intake recap when `intake.goal` is set,
 else a welcome), two contributions and a `floor` question; `/turn` and `/control` stream
@@ -48,6 +52,9 @@ else a welcome), two contributions and a `floor` question; `/turn` and `/control
 shapes are documented at the top of `src/domain/mastermind.ts` — the gateway codes to the
 same list. Playwright runs with the password on and seeds `council:key` through `storageState`, so
 every journey goes through the real header path; `e2e/gate.spec.ts` clears it to meet the door.
+
+`POST /v1/stt` (stub) reads the raw body back as the transcript (the e2e fake recorder
+"records" text); `QUOTA` in it → 429 `{reason:"stt"}`, a non-audio content-type → 415.
 
 `POST /__tts {mode:"on"|"fail"|"off"}` makes the stub serve `/v1/tts` (a tiny WAV; a `speaker`
 needs a live v4 session, as on the gateway) or fail it; off by default, so the other journeys
@@ -94,12 +101,21 @@ Primary journeys (v4, `/`): roster (Business/Classics) → pick ≤4 → Begin �
 (paste/drop/ask your AI/talk it through, review the seven fields; stable fields prefilled) → conversation (speaker
 cards, floor question, reply box, control chips) → proposal → Accept → journal → commitment
 with a due date and an opt-in email reminder → Journal tab (outcomes, export). Returning: the
-"Last time" card on `/` and a "Last time…" opener. Reminder emails link to
+"Last time" card on `/` and a "Last time…" opener. Past discussions: the Discussions sheet
+(header, left) lists every discussion newest first (signed in: `council_sessions`; anonymous:
+`council:discussions` in this browser, the newest 20) and the quick verdicts; one opens
+read-only, and "Continue this discussion" starts a gateway session seeded with its record
+(`resume` on `/v1/council/start`) while the app keeps writing to the same discussion.
+Margin notes: Agree / Push back / Note under any contribution, sent with her next message. Reminder emails link to
 `/c/:commitmentId?outcome=done|later|drop`.
 v3 journeys (`/quick`): password → home → type (or dictate) an idea → convene → turns stream in →
 verdict card → reply box; today's question → convene → share the split; My ideas → reopen a
-past council. Voice is browser-only (Web Speech API in, `speechSynthesis` out): no server,
-no cost, and both controls are absent where the API is missing.
+past council. Voice in: the browser's recogniser where it works; on iPhone/iPad, where it
+has none, or after it failed once, the mic records (MediaRecorder) and the gateway transcribes
+(`POST /v1/stt`, Whisper on Workers AI; `src/domain/stt.ts`). A mic failure is said in words
+and logged as `key_action` `mic_failed`. Voice out: the gateway's calm voices inside a v4
+session, the browser engine as fallback, natural pitch and speed; read-aloud (Listen) is off
+until she turns it on. Each control is absent only where neither path exists.
 Phone first: check at 390 px. The fold gate (`e2e/fold.spec.ts`) asserts the idea field sits in
 the top 120 px, no x-overflow at 320/375/430, and 44 px nav targets.
 
@@ -131,9 +147,16 @@ Vendored client: `src/platform/flywheel-client.ts`, wrapped by `src/analytics.ts
 cookieless, fire-and-forget. Only shared-taxonomy names reach the events table (its insert
 policy drops anything else); `src/analytics.contract.test.ts` fails CI otherwise. Steps:
 `page_view`, `key_action` with `action` = convened / replied / talk_on / blocked (with the
-gateway's reason) / captured / committed (`keyAction()` in `src/analytics.ts`),
+gateway's reason) / captured / committed / noted (margin notes sent, with `count` and `push`)
+(`keyAction()` in `src/analytics.ts`),
 `signup_started` (email submitted), `signup_completed` (first real sign-in per user per
 browser), and `conversion` when a proposal is accepted into the journal (v3: a completed verdict) — the aha moment, and `activation_event` in the portfolio record.
+`src/platform/flywheel-events.json` is the vendored copy of flywheel's `data/signals/allowlist.json`;
+`src/platform/flywheel-events.contract.test.ts` fails CI on any name outside it (refresh the copy,
+never add a name here first). The client drops events from automated browsers
+(`isAutomatedBrowser`: webdriver or a bot/headless UA), so Playwright and crawlers never count.
+A test that asserts an insert builds its own client with `isAutomated: () => false`
+(`src/platform/flywheel-client.test.ts`); the bundled client in a Playwright build sends nothing.
 
 ## Topic pages (`/on/`, crawlable)
 Plain HTML, no JavaScript: what the classical thinkers wrote about common decisions (time, fear,

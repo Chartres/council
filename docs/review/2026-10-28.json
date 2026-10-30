@@ -1,0 +1,287 @@
+{
+  "product": "council",
+  "date": "2026-10-28",
+  "headline": "Signals contract closed and activation verified end to end. llms.txt and the head describe v4 truthfully. #17's public pages are held as a proposal with screenshots, and SIGNATURE.md is on the new standard. Nothing was posted or submitted.",
+  "shipped": [
+    {
+      "title": "Signed-in delete-everything e2e; Talk mode speakerphone echo and iOS fallback",
+      "pr": 14,
+      "merged": "2026-10-27",
+      "live_checked": "2026-10-28: live bundle carries talk_on"
+    },
+    {
+      "title": "Funnel tracking: taxonomy names only, sign-up counted on real sign-in",
+      "pr": 15,
+      "merged": "2026-10-27",
+      "live_checked": "2026-10-28: live bundle sends key_action and signup_completed, no council_* names"
+    },
+    {
+      "title": "Signature: SIGNATURE.md, competition 2026-10, four mechanics from the classics",
+      "pr": 16,
+      "merged": "2026-10-28",
+      "live_checked": "2026-10-28: live bundle carries 'It seems not', 'In your power', examined, daily_opened"
+    },
+    {
+      "title": "Discovery hygiene: llms.txt for v4, head and JSON-LD say what is live, sitemap = live URLs (split from #17)",
+      "pr": 20,
+      "merged": "2026-10-28",
+      "live_checked": "2026-10-28: llms.txt, sitemap lastmod 2026-10-28 and the new meta description served from council.dravec.org"
+    },
+    {
+      "title": "Signals contract: vendored allow-list, automated browsers dropped, activation test, main never cancelled",
+      "pr": 21,
+      "merged": "2026-10-28",
+      "live_checked": "2026-10-28: live bundle index-MeRA1dPW.js carries the bot/headless filter and chgwirzbpspoaoposuwg.supabase.co"
+    },
+    {
+      "title": "docs: distribution drafts (nothing posted or submitted)",
+      "pr": 18,
+      "merged": "2026-10-28",
+      "live_checked": "docs only (raw.githubusercontent.com)"
+    },
+    {
+      "title": "docs: SIGNATURE.md to the flywheel standard; public-pages proposal with screenshots",
+      "pr": 22,
+      "merged": "2026-10-28",
+      "live_checked": "docs only; docs/SIGNATURE.md and screenshots on main"
+    },
+    {
+      "title": "PROPOSAL, not merged: public reading pages /on/, /advisers/, /how-it-works/",
+      "pr": 17,
+      "merged": null,
+      "live_checked": "not live by design; draft, merge-ready, awaiting Pavol"
+    }
+  ],
+  "signals_fixed": [
+    "Vendored the allow-list copy src/platform/flywheel-events.json (v2, 2026-10-27) and the kit's src/platform/flywheel-events.contract.test.ts. The older src/analytics.contract.test.ts stays (taxonomy + KEY_ACTIONS).",
+    "The vendored flywheel-client now has isAutomatedBrowser: events from webdriver and bot/headless user agents are dropped, with unit tests.",
+    "Bundle guard: not applicable in CI. Cloudflare Pages builds and deploys main, so CI has no dist that ships; ci.yml says so and the daily live probe covers it. Live bundle index-DbvLFrol.js carries chgwirzbpspoaoposuwg.supabase.co (checked 2026-10-28).",
+    "Concurrency: one group per ref (ci-${{ github.ref }}); cancel-in-progress is now false on main (it was true everywhere).",
+    "Activation: src/app/MastermindContext.activation.test.tsx asserts that accepting a proposal calls conversion({v:4, roster}) exactly once and not before. Mutation-checked: removing the call fails the test.",
+    "Live insert policy 'log known events' (anon, authenticated) accepts conversion. An anon insert of a council conversion row passed RLS inside a rolled-back transaction, so no row was written.",
+    "no_activation explained: 6 page_view rows in 14 days and no other events. The beta password stops visitors before a proposal. Some of those views were probably our own automated browsers, which are now dropped.",
+    "Bundle-guard regex fix (Autoškola finding: supabase-js itself carries '*.supabase.co'): not applicable to council. This repo neither vendors nor runs scripts/check-analytics.mjs, because Cloudflare Pages builds the deploy. The live checks above matched a project URL (https://chgwirzbpspoaoposuwg.supabase.co), not the bare host, so they are not affected."
+  ],
+  "signature": {
+    "mechanics": [
+      {
+        "name": "Quaestio view",
+        "from": "Aquinas, Summa Theologiae (quaestio)",
+        "status": "live, awaiting Pavol keep/change/revert",
+        "metric": "key_action tested; to instrument: objection count on conversion"
+      },
+      {
+        "name": "Tonight's examination",
+        "from": "Seneca, De Ira III.36",
+        "status": "live, awaiting Pavol keep/change/revert",
+        "metric": "key_action examined"
+      },
+      {
+        "name": "Letters, not notifications",
+        "from": "Seneca, Letters to Lucilius",
+        "status": "live (gateway), awaiting Pavol keep/change/revert",
+        "metric": "to instrument: no event on /c/:id?outcome= yet (candidate key_action outcome_link)"
+      },
+      {
+        "name": "In your power",
+        "from": "Epictetus, Enchiridion 1",
+        "status": "live, awaiting Pavol keep/change/revert",
+        "metric": "key_action committed with rewritten: true (true whenever Partly was used)"
+      },
+      {
+        "name": "Today's question",
+        "from": "Plato, Apology 38a",
+        "status": "live, awaiting Pavol keep/change/revert",
+        "metric": "key_action daily_opened"
+      },
+      {
+        "name": "The classics on… (public reading pages)",
+        "from": "Florilegium / commonplace book (loci communes; Erasmus, Adagia)",
+        "status": "proposed (#17, branch claude/evergreen-pages, merge-ready)",
+        "metric": "page_view on /on/*, then key_action convened"
+      }
+    ]
+  },
+  "aio": {
+    "notes": [
+      "llms.txt rewritten for v4. It names only live things: the facilitated session, the journal, verified quotes (removed if unverifiable), Talk mode, the MCP connector at llm.dravec.org/mcp, /privacy, /quick, and the beta password.",
+      "Meta, OG, Twitter and WebApplication JSON-LD descriptions drop the v3 'verdict' wording and the false 'no account for the first session'.",
+      "The sitemap lists exactly https://council.dravec.org/ (lastmod 2026-10-28); /quick, /privacy and /c/:id share the root canonical. An e2e test asserts the sitemap holds exactly this one URL.",
+      "IndexNow is central (flywheel daily workflow, key file from #19); no submission was made from here.",
+      "The only public content today is the password door. #17's pages would be the first crawlable reading surface; that waits on Pavol's decision.",
+      "Kit note for flywheel: BOT_UA's 'bot\\b' also matches Cubot phone user agents, and 'preview' is broad. Left verbatim because the regex is flywheel-owned."
+    ]
+  },
+  "distribution": [
+    {
+      "step": "Official MCP Registry as org.dravec/council",
+      "status": "prepared, not submitted",
+      "needs": "DNS TXT record on the dravec.org apex (v=MCPv1; k=ed25519; p=...) plus one CLI call (mcp-publisher login dns + publish). Automatable: the flywheel repo can write the TXT record; the key must stay out of any repo."
+    },
+    {
+      "step": "Official MCP Registry as io.github.<user>/council (alternative)",
+      "status": "prepared, not submitted",
+      "needs": "CLI call only (GitHub device login); no DNS"
+    },
+    {
+      "step": "PulseMCP",
+      "status": "prepared, not submitted",
+      "needs": "nothing: it picks entries up from the official registry (submissions paused)"
+    },
+    {
+      "step": "Glama",
+      "status": "prepared, not submitted",
+      "needs": "account; DNS TXT at _glama-claim.dravec.org to claim (automatable via flywheel DNS)"
+    },
+    {
+      "step": "Smithery",
+      "status": "prepared, not submitted",
+      "needs": "account (free tier); the gateway may need CIMD support"
+    },
+    {
+      "step": "mcp.so",
+      "status": "prepared, not submitted",
+      "needs": "account; free path only (do not pay the $39 fast track)"
+    },
+    {
+      "step": "awesome-remote-mcp-servers (jaw9c)",
+      "status": "prepared, not submitted",
+      "needs": "a GitHub PR from Pavol's account"
+    },
+    {
+      "step": "Claude Connectors Directory",
+      "status": "prepared, not submitted",
+      "needs": "account on a paid Claude plan, reviewer test account, tool annotations, beta open to reviewers"
+    },
+    {
+      "step": "ChatGPT apps",
+      "status": "prepared, not submitted",
+      "needs": "account, identity check, domain-verification file, reviewer login without email codes, demo video, terms page"
+    },
+    {
+      "step": "Product Hunt / AlternativeTo / toolmage",
+      "status": "prepared, not submitted",
+      "needs": "an account each; after the beta opens"
+    },
+    {
+      "step": "There's An AI For That / topai.tools / Futurepedia",
+      "status": "skip",
+      "needs": "payment (not authorised)"
+    },
+    {
+      "step": "Show HN, Reddit (r/Stoicism, r/SideProject, r/startups, r/Entrepreneur, r/ClaudeAI, r/mcp), Indie Hackers, Lobsters",
+      "status": "drafted, not posted",
+      "needs": "Pavol's own account and sign-off; most wait until the beta opens"
+    }
+  ],
+  "decisions": [
+    {
+      "question": "#17 public reading pages (/on/ topics, /advisers/, /how-it-works/)",
+      "options": [
+        "A: topic and adviser pages as built (20 pages of verified quotes)",
+        "B: one index page of questions, quotes inline, no per-topic URLs",
+        "C: neither"
+      ],
+      "default_taken": "Not merged. #17 kept merge-ready as a draft proposal. Recommendation: option A, trimmed so each topic page opens with the reader's question and the single strongest sourced line (Zbrojní: static, one claim per page, the source quoted).",
+      "why": "A new page type is a signature move (rule 7). The pages are the only crawlable surface while the beta door is up, and they rest on the florilegium tradition."
+    },
+    {
+      "question": "Quaestio view: keep, change or revert?",
+      "options": [
+        "keep",
+        "change",
+        "revert"
+      ],
+      "default_taken": "keep (live since #16)",
+      "why": "Shipped before rule 7; reversible; no data dependency."
+    },
+    {
+      "question": "Tonight's examination: keep, change or revert?",
+      "options": [
+        "keep",
+        "change",
+        "revert"
+      ],
+      "default_taken": "keep (live since #16; opens at 17:00 local)",
+      "why": "Shipped before rule 7; reversible."
+    },
+    {
+      "question": "Letters, not notifications: keep, change or revert?",
+      "options": [
+        "keep",
+        "change",
+        "revert"
+      ],
+      "default_taken": "keep (gateway)",
+      "why": "Shipped before rule 7; reversible in the gateway template."
+    },
+    {
+      "question": "In your power: keep, change or revert?",
+      "options": [
+        "keep",
+        "change",
+        "revert"
+      ],
+      "default_taken": "keep (live since #16)",
+      "why": "Shipped before rule 7; reversible."
+    },
+    {
+      "question": "Today's question on the v4 start screen: keep, change or revert?",
+      "options": [
+        "keep",
+        "change",
+        "revert"
+      ],
+      "default_taken": "keep (live since #16)",
+      "why": "Shipped before rule 7; the fold gate still holds."
+    },
+    {
+      "question": "Sitemap scope",
+      "options": [
+        "root only",
+        "root + /quick + /privacy"
+      ],
+      "default_taken": "root only",
+      "why": "The SPA routes share the root canonical; listing them sends mixed signals."
+    },
+    {
+      "question": "Analytics bundle guard in CI",
+      "options": [
+        "add to CI build",
+        "rely on the daily live probe"
+      ],
+      "default_taken": "rely on the daily live probe (ci.yml notes why)",
+      "why": "Cloudflare Pages builds the deploy; CI's dist never ships."
+    },
+    {
+      "question": "Distribution drafts that mention /on/ and '365 verified lines'",
+      "options": [
+        "keep with a dependency note",
+        "cut now"
+      ],
+      "default_taken": "keep, with a note at the top of each file that they depend on the #17 decision",
+      "why": "The drafts stay usable whichever option Pavol picks; nothing is posted until he signs off."
+    }
+  ],
+  "next": [
+    "Pavol: pick option A, B or C for #17 and keep/change/revert for the five live moves (docs/SIGNATURE.md decision log).",
+    "If option A: trim each topic page to one question and one line up top, re-merge main (keep the branch's llms.txt /on/ lines), extend the sitemap, merge, read back /on/time/ live.",
+    "Pavol: a DNS TXT record on the dravec.org apex unlocks the MCP Registry publish (one CLI call); flywheel can write the record.",
+    "Opening the beta, or printing an invite link, is what lets activation (conversion) be measured at all.",
+    "Tracking (no review needed): send an event on /c/:id?outcome= reminder links and an objection count on conversion, so the Letters and Quaestio metrics can be read."
+  ],
+  "screenshots": [
+    "docs/review/2026-10-28/opt1-on-index-390.png",
+    "docs/review/2026-10-28/opt1-on-index-1280.png",
+    "docs/review/2026-10-28/opt1-on-time-390.png",
+    "docs/review/2026-10-28/opt1-on-time-1280.png",
+    "docs/review/2026-10-28/opt1-advisers-seneca-390.png",
+    "docs/review/2026-10-28/opt1-advisers-seneca-1280.png",
+    "docs/review/2026-10-28/opt1-how-it-works-390.png",
+    "docs/review/2026-10-28/opt1-how-it-works-1280.png",
+    "docs/review/2026-10-28/opt2-questions-mock-390.png",
+    "docs/review/2026-10-28/opt2-questions-mock-1280.png",
+    "docs/review/2026-10-28/opt3-live-root-390.png",
+    "docs/review/2026-10-28/opt3-live-root-1280.png"
+  ]
+}

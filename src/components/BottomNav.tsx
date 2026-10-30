@@ -1,7 +1,7 @@
 import { useCouncil, type View } from '@/app/CouncilContext'
 
 // Tabs = journeys (mobile-ux): sit with the group (v4), its journal, and v3's quick
-// verdict with its history.
+// verdict. Past discussions and quick verdicts are in the Discussions sheet (header).
 const TABS: { view: View; label: string; icon: React.ReactNode }[] = [
   {
     view: 'start',
@@ -24,11 +24,6 @@ const TABS: { view: View; label: string; icon: React.ReactNode }[] = [
     view: 'home',
     label: 'Quick verdict',
     icon: <path d="M12 3v3M5 9h14M7 9l-3 7a4 4 0 0 0 6 0zM17 9l-3 7a4 4 0 0 0 6 0zM12 6v15M8 21h8" strokeLinejoin="round" />,
-  },
-  {
-    view: 'ideas',
-    label: 'My ideas',
-    icon: <path d="M5 4h11l3 3v13H5zM9 9h6M9 13h6M9 17h4" strokeLinejoin="round" />,
   },
 ]
 

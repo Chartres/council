@@ -41,9 +41,35 @@ const FAKE_SPEECH = `
 `
 
 const NO_SPEECH = `
-  for (const name of ['SpeechRecognition', 'webkitSpeechRecognition', 'speechSynthesis']) {
+  for (const name of ['SpeechRecognition', 'webkitSpeechRecognition', 'speechSynthesis', 'MediaRecorder']) {
     Object.defineProperty(window, name, { value: undefined, configurable: true })
   }
+`
+
+// An iPhone-like browser for voice in: no recogniser worth using, but a mic that records.
+// The fake recorder "records" the text in window.__say, which the stub gateway reads back
+// as the transcript; there is no real stream, so a second tap ends the clip.
+const RECORDER_ONLY = `
+  for (const name of ['SpeechRecognition', 'webkitSpeechRecognition']) {
+    Object.defineProperty(window, name, { value: undefined, configurable: true })
+  }
+  window.__say = 'the constraint is engineering time'
+  const stream = { getTracks: () => [{ stop() {} }] }
+  Object.defineProperty(navigator, 'mediaDevices', {
+    value: { getUserMedia: async () => stream },
+    configurable: true,
+  })
+  class FakeRecorder {
+    static isTypeSupported(t) { return t === 'audio/mp4' }
+    constructor() { this.state = 'inactive'; this.mimeType = 'audio/mp4' }
+    start() { this.state = 'recording' }
+    stop() {
+      this.state = 'inactive'
+      this.ondataavailable?.({ data: new Blob([window.__say], { type: 'audio/mp4' }) })
+      setTimeout(() => this.onstop?.(), 0)
+    }
+  }
+  Object.defineProperty(window, 'MediaRecorder', { value: FakeRecorder, configurable: true })
 `
 
 test('she dictates her idea and listens to the debate', async ({ page }) => {
@@ -63,9 +89,11 @@ test('she dictates her idea and listens to the debate', async ({ page }) => {
   await page.screenshot({ path: 'e2e/shots/voice-dictation.png' })
 
   await page.getByRole('button', { name: 'Convene the council' }).click()
-  // Listen is on by default (v4.3): nothing to find before the room speaks.
+  // Listen is off until she asks for it (Eyal, 29 Oct); one tap and the room reads aloud.
   const listen = page.getByTestId('listen')
   await expect(listen).toBeVisible()
+  await expect(listen).toHaveAttribute('aria-pressed', 'false')
+  await listen.click()
   await expect(listen).toHaveAttribute('aria-pressed', 'true')
 
   await expect(page.getByTestId('verdict')).toBeVisible({ timeout: 20_000 })
@@ -97,4 +125,26 @@ test('no mic and no Listen toggle where the API is missing', async ({ page }) =>
   await expect(page.getByTestId('verdict')).toBeVisible({ timeout: 20_000 })
   await expect(page.getByTestId('listen')).toHaveCount(0)
   await expect(page.getByTestId('mic')).toHaveCount(0)
+})
+
+test('without a working recogniser the mic records, and the gateway writes it down', async ({ page }) => {
+  await page.addInitScript(RECORDER_ONLY)
+  await page.goto('/quick')
+  const field = page.getByLabel('What are you working on?')
+  await field.fill('Pilot the premium tier.')
+
+  const mic = page.getByTestId('mic')
+  await mic.click()
+  await expect(mic).toHaveAttribute('aria-pressed', 'true')
+  await mic.click()
+  // The words arrive after what she typed, once the clip is transcribed.
+  await expect(field).toHaveValue('Pilot the premium tier. the constraint is engineering time')
+  await expect(mic).toHaveAttribute('aria-pressed', 'false')
+
+  // A refusal from the gateway is said in words, not swallowed.
+  await page.evaluate(() => ((window as unknown as { __say: string }).__say = 'QUOTA'))
+  await mic.click()
+  await mic.click()
+  await expect(page.getByTestId('mic-problem')).toContainText('today’s limit')
+  await page.screenshot({ path: 'e2e/shots/voice-mic-problem.png' })
 })

@@ -24,6 +24,12 @@ test('sitemap.xml lists the canonical root', async ({ request }) => {
   const xml = await res.text()
   expect(xml).toContain(`<loc>${HOST}/</loc>`)
   expect(xml).toContain('<lastmod>')
+  // Exactly the pages with their own canonical: the root and the 20 reading pages. /quick,
+  // /privacy and /c/:id are SPA routes whose canonical is /.
+  const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1])
+  expect(locs[0]).toBe(`${HOST}/`)
+  expect(locs).toHaveLength(21)
+  expect(locs.filter((l) => /\/(quick|privacy|c\/)/.test(l))).toEqual([])
 })
 
 test('llms.txt is plain text in llmstxt.org shape', async ({ request }) => {
@@ -34,6 +40,10 @@ test('llms.txt is plain text in llmstxt.org shape', async ({ request }) => {
   expect(body.startsWith('# ')).toBe(true)
   expect(body).toContain('> ')
   expect(body).toContain(`${HOST}/`)
+  // Names only what is live: the reading pages, no v3-era "no account" promise.
+  expect(body).toContain(`${HOST}/on/`)
+  expect(body).toContain(`${HOST}/advisers/`)
+  expect(body).not.toMatch(/no account needed/i)
 })
 
 test('topic pages are plain HTML a crawler can read without JavaScript, and are in the sitemap', async ({ request }) => {

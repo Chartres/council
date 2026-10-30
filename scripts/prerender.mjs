@@ -152,7 +152,7 @@ export function indexPage(quotes) {
 ${rows.map(([t, n]) => `<li><a href="/on/${t}/">${esc(t[0].toUpperCase() + t.slice(1))}</a> <span class="small">· ${n} quotes</span></li>`).join('\n')}
 </ul>
 <h2>How the quotes are checked</h2>
-<p class="small">Each thinker has a bank of lines taken from one public-domain translation: Gummere's Seneca, George Long's Marcus Aurelius, Jowett's Plato, Legge's Analects, Müller's Dhammapada with Bhikkhu Sujato's suttas, Anne E. George's Montessori, and Franklin's own Autobiography and Way to Wealth. A script downloaded each edition and checked that every line is a contiguous match in the named letter, book, chapter or verse. In the app, a quotation an adviser makes is checked against the source passages before it is shown; one that cannot be found is removed before you see it.</p>
+<p class="small">Each thinker has a bank of lines taken from named public-domain editions: Gummere's Seneca, George Long's Marcus Aurelius, Jowett's Plato, Legge's Analects, Müller's Dhammapada with Bhikkhu Sujato's suttas, Anne E. George's Montessori, and Franklin's own Autobiography and Way to Wealth. A script downloaded each edition and checked that every line is a contiguous match in the named letter, book, chapter or verse. In the app, a quotation an adviser makes is checked against the source passages before it is shown; one that cannot be found is removed before you see it.</p>
 <p class="cta"><a href="/">Open the Council</a></p>`
   const jsonld = { '@context': 'https://schema.org', '@type': 'CollectionPage', name: title, description, url: `${HOST}/on/` }
   return { path: '/on/', html: page({ path: '/on/', title, description, body, jsonld }) }
@@ -199,7 +199,7 @@ export function advisersIndex(quotes) {
   const description = 'Seneca, Marcus Aurelius, Socrates, Confucius, Benjamin Franklin, the Buddha and Maria Montessori: AI advisers written from public-domain translations, quoting only checked lines.'
   const body = `<nav><a href="/">Mastermind Council</a></nav>
 <h1>The advisers and the texts they are held to</h1>
-<p class="lede">Each Classics adviser is an AI simulation written from one public-domain translation, and quotes only lines found in it.</p>
+<p class="lede">Each Classics adviser is an AI simulation written from named public-domain editions, and quotes only lines found in them.</p>
 <ul class="topics">
 ${Object.entries(PERSONAS)
   .map(([id, p]) => `<li><a href="/advisers/${id}/">${esc(p.name)}</a> <span class="small">· ${esc(p.brings)} · ${quotes.filter((q) => q.persona === id).length} verified lines</span></li>`)
@@ -261,7 +261,7 @@ export function build(quotes, lastmod) {
   return out
 }
 
-export const LASTMOD = '2026-10-27'
+export const LASTMOD = '2026-10-30'
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const quotes = JSON.parse(readFileSync('src/content/verified-quotes.json', 'utf8'))

@@ -1,13 +1,15 @@
 # Flywheel Standard — canonical CI gate (Flywheel Standard §2), stamped from
 # flywheel/docs/standards/ci.template.yml. Blocks only on truth: typecheck, test, build, e2e.
-# Deploy is NOT here: Cloudflare Pages' Git integration deploys main (hub `connect-pages`).
+# Deploy is NOT here: Cloudflare Pages' Git integration builds and deploys main (hub
+# `connect-pages`), so the analytics bundle guard (flywheel scripts/check-analytics.mjs) has no
+# dist of ours to check; flywheel's daily live probe reads the deployed bundle instead.
 name: CI
 on:
   push:
   pull_request:
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   gate:

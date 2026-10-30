@@ -45,6 +45,14 @@ import {
   type Memory,
   type Outcome,
 } from '@/domain/mastermind'
+import {
+  loadLocalDiscussions,
+  loadRemoteDiscussions,
+  resumeItems,
+  saveLocalDiscussion,
+  upsertDiscussion,
+  type SavedDiscussion,
+} from '@/domain/discussions'
 import { useCouncil } from './CouncilContext'
 
 export type { Item }
@@ -60,6 +68,12 @@ export interface Conversation {
   failure: FailureReason | null
   ended: boolean
   tier: Tier | null
+  /** When the discussion began (kept when it is continued). */
+  startedAt: string
+  /** A past discussion opened from the list: read-only until she continues it. */
+  past?: boolean
+  /** Continued: the items before this index are the earlier sessions' record. */
+  earlier?: number
 }
 
 interface Value {
@@ -84,6 +98,12 @@ interface Value {
   exportText: () => string
   /** A reminder deep link arrived while signed out: show the sign-in panel. */
   linkNeedsSignIn: boolean
+  /** Every discussion, newest first (signed in: her account; anonymous: this browser). */
+  discussions: SavedDiscussion[]
+  /** Open one to read; the live one opens as it is. */
+  openDiscussion: (id: string) => void
+  /** Pick the opened past discussion up again with the same advisers. */
+  continueDiscussion: () => void
 }
 
 const Ctx = createContext<Value | null>(null)
@@ -122,7 +142,14 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
   const [lastIntake, setLastIntake] = useState<Intake | null>(initial.lastIntake)
   const [conversation, setConversation] = useState<Conversation | null>(null)
   const [linkNeedsSignIn, setLinkNeedsSignIn] = useState(false)
+  const [discussions, setDiscussions] = useState<SavedDiscussion[]>(() => (user ? [] : loadLocalDiscussions()))
   const convo = useRef<Conversation | null>(null)
+  const generation = useRef(0)
+  /** The open discussion is about to change hands: whatever is still streaming is let go. */
+  const nextGeneration = () => {
+    generation.current += 1
+    return generation.current
+  }
   const sb = user && supabase ? supabase : null
 
   const opts = useCallback(
@@ -141,6 +168,18 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user) saveLocalJournal({ ...journal, lastIntake })
   }, [user, journal, lastIntake])
+
+  // The list follows who she is: her account's discussions, or this browser's.
+  const userId = user?.id ?? null
+  useEffect(() => {
+    if (loading) return
+    if (!sb || !userId) return setDiscussions(loadLocalDiscussions())
+    let current = true
+    void loadRemoteDiscussions(sb, userId).then((list) => current && setDiscussions(list), logError)
+    return () => {
+      current = false
+    }
+  }, [loading, sb, userId])
 
   // Signed in: the last entries, open commitments and last intake come from Supabase.
   useEffect(() => {
@@ -164,7 +203,20 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
 
   const persistSession = useCallback(async () => {
     const c = convo.current
-    if (!sb || !user || !c) return
+    if (!c || c.past) return
+    const saved: SavedDiscussion = {
+      id: c.localId,
+      roster: c.roster,
+      advisers: c.advisers,
+      intake: c.intake,
+      items: c.items,
+      created_at: c.startedAt,
+      ended: c.ended,
+    }
+    // Anonymous: this browser keeps it; signed in: the session row below is the record.
+    if (user) setDiscussions((list) => upsertDiscussion(list, saved))
+    else setDiscussions(saveLocalDiscussion(saved))
+    if (!sb || !user) return
     await saveRemoteSession(sb, user.id, {
       id: c.localId,
       roster: c.roster,
@@ -178,9 +230,14 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
   const consume = useCallback(
     async (events: AsyncGenerator<MastermindEvent>) => {
       update({ streaming: true, failure: null })
+      // Opening another discussion, beginning one or continuing one moves the generation on:
+      // a stream from before then writes nowhere (even into the same discussion reopened).
+      const mine = generation.current
+      const gone = () => generation.current !== mine
       const push = (item: Item) => update((c) => ({ items: [...c.items, item] }))
       try {
         for await (const ev of events) {
+          if (gone()) return
           switch (ev.type) {
             case 'session':
               update((c) => ({ sessionId: ev.session_id, tier: ev.tier ?? c.tier }))
@@ -201,10 +258,11 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
               update((c) => ({ items: itemsReducer(c.items, ev) }))
           }
         }
+        if (gone()) return
         update((c) => ({ streaming: false, items: settleItems(c.items) }))
         void persistSession()
       } catch (e) {
-        fail(e)
+        if (!gone()) fail(e)
       }
     },
     [update, fail, persistSession],
@@ -213,6 +271,7 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
   const begin = useCallback(
     (intake?: Intake, memoryOverride?: Memory | null) => {
       const memory = memoryOverride === undefined ? assembleMemory(journal) : memoryOverride
+      nextGeneration()
       convo.current = {
         localId: crypto.randomUUID(),
         sessionId: null,
@@ -224,6 +283,7 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
         failure: null,
         ended: false,
         tier: null,
+        startedAt: today(),
       }
       setConversation(convo.current)
       if (intake) setLastIntake(intake)
@@ -257,9 +317,11 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
       if (route.route === 'export') return
       if (route.route === 'capture') {
         update({ streaming: true, failure: null })
+        const gen = generation.current
         void capture({ session_id: id }, opts())
           .then(({ entry }) => {
             keyAction('captured', { v: 4 })
+            if (generation.current !== gen) return // she left this discussion meanwhile
             update((cv) => ({
               streaming: false,
               items: [
@@ -273,7 +335,7 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
               ],
             }))
           })
-          .catch(fail)
+          .catch((e) => generation.current === gen && fail(e))
         return
       }
       if (c.kind === 'wrap_up') update({ ended: true })
@@ -295,6 +357,7 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
       const c = convo.current
       const item = c?.items[index]
       if (!c?.sessionId || item?.kind !== 'proposal') return
+      const gen = generation.current
       const save = (fields: Omit<JournalEntry, 'status' | 'created_at'>) => {
         // The journal row id is ours (uuid); the gateway's id only names the proposal.
         const entry: JournalEntry = {
@@ -305,16 +368,24 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
           status: 'accepted',
           created_at: today(),
         }
+        // The decision is hers whatever screen she is on now: journal and conversion always.
         dispatch({ type: 'accept', entry })
-        setItem(index, { entry, state: 'accepted' })
         conversion({ v: 4, roster: c.roster })
-        // Session row first: the journal row references it.
-        if (sb && user) void persistSession().then(() => saveRemoteEntry(sb, user.id, entry)).catch(logError)
+        if (generation.current !== gen) {
+          // She left while it was captured: that discussion's row already exists; only its card stays as it was.
+          if (sb && user) void saveRemoteEntry(sb, user.id, entry).catch(logError)
+          return
+        }
+        setItem(index, { entry, state: 'accepted' })
+        // The discussion's record first (and, signed in, the session row the journal row references).
+        void persistSession()
+          .then(() => (sb && user ? saveRemoteEntry(sb, user.id, entry) : undefined))
+          .catch(logError)
       }
       if (item.captured) return save(item.entry)
       void capture({ session_id: c.sessionId, proposal_id: item.entry.id }, opts())
         .then(({ entry }) => save(normalizeEntry({ ...item.entry, ...entry, map: entry.map ?? item.entry.map })))
-        .catch(fail)
+        .catch((e) => generation.current === gen && fail(e))
     },
     [setItem, sb, user, persistSession, opts, fail],
   )
@@ -334,6 +405,7 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
         id: crypto.randomUUID(),
         what: what?.trim() || item.entry.next_action,
       }
+      const gen = generation.current
       void commit(body, opts())
         .then(({ commitment }) => {
           const saved = {
@@ -346,13 +418,15 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
             outcome: null,
           }
           dispatch({ type: 'commit', commitment: saved })
-          setItem(index, { state: 'committed' })
           keyAction('committed', { v: 4, remind, rewritten: Boolean(what?.trim()) })
           if (sb && user) void saveRemoteCommitment(sb, user.id, saved).catch(logError)
+          if (generation.current !== gen) return // she left this discussion meanwhile
+          setItem(index, { state: 'committed' })
+          void persistSession()
         })
-        .catch(fail)
+        .catch((e) => generation.current === gen && fail(e))
     },
-    [opts, setItem, sb, user, fail],
+    [opts, setItem, sb, user, fail, persistSession],
   )
 
   const recordOutcome = useCallback(
@@ -414,6 +488,61 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
     void resume().catch(logError)
   }, [loading, user, sb, journal, lastIntake, begin])
 
+  const openDiscussion = useCallback(
+    (id: string) => {
+      if (convo.current?.localId !== id) {
+        const d = discussions.find((x) => x.id === id)
+        if (!d) return
+        nextGeneration()
+        convo.current = {
+          localId: d.id,
+          sessionId: null,
+          roster: d.roster,
+          advisers: d.advisers,
+          intake: d.intake,
+          items: settleItems(d.items),
+          streaming: false,
+          failure: null,
+          ended: d.ended,
+          tier: null,
+          startedAt: d.created_at,
+          past: true,
+        }
+        setConversation(convo.current)
+      }
+      go('conversation')
+    },
+    [discussions, go],
+  )
+
+  // Continue: a new gateway session seeded with this discussion's record; the app goes on
+  // writing to the same discussion, so the list keeps one entry and the journal its id.
+  const continueDiscussion = useCallback(() => {
+    const c = convo.current
+    if (!c?.past) return
+    const gen = nextGeneration()
+    const earlier = c.items.length
+    update({ past: false, earlier, sessionId: null, ended: false, failure: null, streaming: true })
+    keyAction('convened', { personas: c.advisers.length, roster: c.roster, v: 4, resumed: true })
+    void consume(
+      startCouncil(
+        {
+          roster: c.roster,
+          advisers: c.advisers,
+          ...(c.intake ? { intake: c.intake } : {}),
+          resume: { started: c.startedAt.slice(0, 10), items: resumeItems(c.items) },
+        },
+        opts(),
+      ),
+    ).then(() => {
+      // Refused before a session began (sign in, quota, cap): back to the record, the
+      // reason on screen, and Continue there to try again.
+      const now = convo.current
+      if (generation.current !== gen || !now || now.sessionId) return
+      update({ past: true, earlier: undefined, items: now.items.slice(0, earlier), streaming: false })
+    })
+  }, [update, consume, opts])
+
   const setRoster = useCallback((r: RosterId) => {
     setRosterState(r)
     setAdvisers(defaultAdvisers(r))
@@ -442,6 +571,9 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
         setRemind,
         exportText,
         linkNeedsSignIn,
+        discussions,
+        openDiscussion,
+        continueDiscussion,
       }}
     >
       {children}

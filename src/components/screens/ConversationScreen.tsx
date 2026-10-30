@@ -7,6 +7,8 @@ import { ListenToggle, useListen, useNarration, usePref } from '@/components/Lis
 import { MicButton } from '@/components/MicButton'
 import { Talk, TALK_STORAGE } from '@/components/Talk'
 import { Monogram } from '@/components/Monogram'
+import { MarginNote, NotesTray } from '@/components/MarginNote'
+import { composedLength, composeMessage, MAX_MESSAGE, quoteOf, type Note } from '@/domain/notes'
 import { CouncilMap } from '@/components/CouncilMap'
 import { SignInPanel } from '@/components/SignInPanel'
 import { Quaestio } from '@/components/Quaestio'
@@ -19,13 +21,21 @@ import type { Control } from '@/domain/mastermind'
 
 type Proposal = Extract<Item, { kind: 'proposal' }>
 
+/** One screen per discussion: notes, a draft and the read-aloud place never carry across. */
 export function ConversationScreen() {
+  const { conversation } = useMastermind()
+  return <ConversationView key={conversation?.localId ?? 'none'} />
+}
+
+function ConversationView() {
   const { go } = useCouncil()
-  const { conversation, say, control, journal } = useMastermind()
+  const { conversation, say, control, journal, continueDiscussion } = useMastermind()
   const { token } = useAuth()
   const [message, setMessage] = useState('')
   const [more, setMore] = useState(false)
   const [replyOpen, setReplyOpen] = useState(false)
+  // Margin notes, by the contribution's index; they go with her next message (Eyal, 29 Oct).
+  const [notes, setNotes] = useState<Record<number, Pick<Note, 'stance' | 'text'>>>({})
   const [listen, setListen] = useListen()
   const [talk, setTalk] = usePref(TALK_STORAGE, false)
   // Where read-aloud starts when it comes on: the turn on screen; after Talk, nothing already heard.
@@ -34,13 +44,15 @@ export function ConversationScreen() {
   const turnStart = useRef(0)
   const items = conversation?.items
   const streaming = conversation?.streaming
+  // Continued: what came before is the earlier sessions' record — shown, never read aloud again.
+  const earlier = conversation?.earlier ?? 0
 
   // Spoken: the speaker's name, then the contribution (Eyal's voice rule). `current`: the first
   // turn after her last message — the turn on screen.
   const { turns, current } = useMemo(() => {
     const turns: Turn[] = []
     let current = 0
-    for (const it of items ?? []) {
+    for (const it of (items ?? []).slice(earlier)) {
       if (it.kind === 'user') current = turns.length
       else if (it.kind === 'contribution' && !it.streaming)
         turns.push({ persona: it.speaker, text: `${personaName(it.speaker)}. ${it.text}` })
@@ -48,7 +60,7 @@ export function ConversationScreen() {
       else if (it.kind === 'floor') turns.push({ persona: 'facilitator', text: it.question })
     }
     return { turns, current }
-  }, [items])
+  }, [items, earlier])
   // Talk switched off mid-answer: read-aloud skips that answer and starts after the stream.
   const [quiet, setQuiet] = useState(false)
   useEffect(() => {
@@ -57,7 +69,8 @@ export function ConversationScreen() {
     setQuiet(false)
   }, [streaming, quiet])
   // Talk speaks for itself; read-aloud waits while it is on (it is gone once the session ended).
-  useNarration(turns, null, listen && !quiet && !(talk && !conversation?.ended), readFrom.current ?? current)
+  // A past discussion is read on screen, never aloud: nothing there turns it on or off.
+  useNarration(turns, null, listen && !conversation?.past && !quiet && !(talk && !conversation?.ended), readFrom.current ?? current)
   const onListen = (on: boolean) => {
     readFrom.current = null
     setListen(on)
@@ -87,21 +100,44 @@ export function ConversationScreen() {
   }, [items?.length])
 
   if (!conversation) return null
-  const { failure, ended, advisers, sessionId, roster } = conversation
+  const { failure, ended, advisers, sessionId, roster, past = false } = conversation
   const spoken = [...new Set(conversation.items.flatMap((it) => (it.kind === 'contribution' ? [it.speaker] : [])))]
   const busy = streaming || !sessionId
   const run = (c: Control) => control(c)
   const decided = journal.entries.filter((e) => e.status !== 'proposal').length
   // While a proposal is open, Wrap up and Capture are its buttons; while one awaits a date, the reply steps aside.
-  const openAt = conversation.items.reduce((at, it, i) => (it.kind === 'proposal' && it.state === 'open' ? i : at), -1)
-  const committing = !replyOpen && conversation.items.some((it) => it.kind === 'proposal' && it.state === 'accepted')
+  const openAt = conversation.items.reduce(
+    (at, it, i) => (!past && i >= earlier && it.kind === 'proposal' && it.state === 'open' ? i : at),
+    -1,
+  )
+  const committing =
+    !replyOpen && !past && conversation.items.some((it, i) => i >= earlier && it.kind === 'proposal' && it.state === 'accepted')
+
+  const noted = Object.entries(notes).flatMap(([i, n]) => {
+    const it = conversation.items[Number(i)]
+    return it?.kind === 'contribution' ? [{ ...n, speaker: it.speaker, quote: quoteOf(it.text) }] : []
+  })
+  const length = composedLength(noted, message, personaName)
+  const tooLong = length > MAX_MESSAGE
+  /** Her words with her notes in front; the notes are spent. */
+  const withNotes = (text: string) => {
+    if (!noted.length) return text
+    keyAction('noted', { count: noted.length, push: noted.filter((n) => n.stance === 'push').length })
+    setNotes({})
+    return composeMessage(noted, text, personaName)
+  }
+  const setNote = (index: number) => (next: Pick<Note, 'stance' | 'text'> | null) =>
+    setNotes((all) => {
+      const { [index]: _gone, ...rest } = all
+      return next ? { ...rest, [index]: next } : rest
+    })
 
   const send = (e: React.FormEvent) => {
     e.preventDefault()
     const text = message.trim()
-    if (!text || busy) return
+    if ((!text && !noted.length) || busy || tooLong) return
     setMessage('')
-    say(text)
+    say(withNotes(text))
   }
 
   return (
@@ -121,11 +157,25 @@ export function ConversationScreen() {
       </section>
 
       <ol ref={list} className="mt-12 space-y-6" data-testid="conversation">
-        {conversation.items.map((it, i) => (
-          <li key={i} className="rise scroll-mt-20">
-            <ItemView item={it} index={i} steer={i === openAt ? { busy: !!busy, run } : undefined} />
-          </li>
-        ))}
+        {conversation.items.map((it, i) => {
+          const before = past || i < earlier
+          return (
+            <li key={i} className={`scroll-mt-20 ${before ? '' : 'rise'}`}>
+              {i === earlier && earlier > 0 && (
+                <p className="rubric mb-6 border-t border-ink-800 pt-6" data-testid="continued">
+                  Continued
+                </p>
+              )}
+              <ItemView
+                item={it}
+                index={i}
+                inert={before}
+                steer={!before && i === openAt ? { busy: !!busy, run } : undefined}
+                note={!before && !ended && it.kind === 'contribution' && !it.streaming && it.text.trim() ? { value: notes[i], onChange: setNote(i) } : undefined}
+              />
+            </li>
+          )
+        })}
       </ol>
 
       {streaming && !talk && (
@@ -145,7 +195,16 @@ export function ConversationScreen() {
         </p>
       )}
 
-      {ended ? (
+      {past ? (
+        <div className="mt-10" data-testid="past">
+          <button type="button" onClick={continueDiscussion} className="slab">
+            Continue this discussion
+          </button>
+          <p className="mt-2 text-[15px] leading-[23px] text-marble-400">
+            {advisers.map(personaName).join(', ')} pick it up where it stopped.
+          </p>
+        </div>
+      ) : ended ? (
         <>
           <div className="mt-6 flex">
             <ListenToggle chip on={listen} onChange={onListen} />
@@ -163,7 +222,7 @@ export function ConversationScreen() {
             onChange={onTalk}
             items={conversation.items}
             streaming={!!busy}
-            onSay={(text) => say(text, { voice: true })}
+            onSay={(text) => say(withNotes(text), { voice: true })}
             onQuiet={() => setQuiet(true)}
           >
             <ListenToggle chip on={listen} onChange={onListen} />
@@ -180,7 +239,9 @@ export function ConversationScreen() {
               </svg>
             </button>
           ) : (
-          <form onSubmit={send} className="mt-6">
+          <>
+          <NotesTray count={noted.length} length={length} onClear={() => setNotes({})} />
+          <form onSubmit={send} className={noted.length ? 'mt-2' : 'mt-6'}>
             <label htmlFor="reply" className="sr-only">
               Your turn
             </label>
@@ -197,7 +258,7 @@ export function ConversationScreen() {
               <button
                 type="submit"
                 aria-label="Say it"
-                disabled={!message.trim() || busy}
+                disabled={(!message.trim() && !noted.length) || busy || tooLong}
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-marble-100 text-ink-950 disabled:bg-ink-800 disabled:text-marble-400"
               >
                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
@@ -206,6 +267,7 @@ export function ConversationScreen() {
               </button>
             </div>
           </form>
+          </>
           )}
 
           <div role="group" aria-label="Steer the group" className="mt-2">
@@ -301,7 +363,22 @@ function LetExplore({ advisers, disabled, onRun }: { advisers: string[]; disable
 
 type Steer = { busy: boolean; run: (c: Control) => void }
 
-function ItemView({ item, index, steer }: { item: Item; index: number; steer?: Steer }) {
+type NoteSlot = { value?: Pick<Note, 'stance' | 'text'>; onChange: (next: Pick<Note, 'stance' | 'text'> | null) => void }
+
+function ItemView({
+  item,
+  index,
+  steer,
+  note,
+  inert = false,
+}: {
+  item: Item
+  index: number
+  steer?: Steer
+  note?: NoteSlot
+  /** The record of an earlier session: shown, nothing to act on. */
+  inert?: boolean
+}) {
   switch (item.kind) {
     case 'facilitator':
       return (
@@ -321,6 +398,7 @@ function ItemView({ item, index, steer }: { item: Item; index: number; steer?: S
               )}
             </p>
             <p className="t-body mt-1">{item.text}</p>
+            {note && <MarginNote name={personaName(item.speaker)} note={note.value} onChange={note.onChange} />}
           </div>
         </div>
       )
@@ -334,11 +412,11 @@ function ItemView({ item, index, steer }: { item: Item; index: number; steer?: S
       return (
         <div data-testid="user">
           <p className="t-title text-marble-300">You</p>
-          <p className="t-body mt-1 text-marble-100">{item.text}</p>
+          <p className="t-body mt-1 whitespace-pre-line text-marble-100">{item.text}</p>
         </div>
       )
     case 'proposal':
-      return <ProposalCard item={item} index={index} steer={steer} />
+      return <ProposalCard item={item} index={index} steer={steer} inert={inert} />
   }
 }
 
@@ -358,7 +436,10 @@ const inAWeek = () => new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10
 const bare =
   'block w-full resize-none bg-transparent [field-sizing:content] focus-visible:shadow-[inset_0_-2px_0_var(--color-candle-400)]'
 
-function ProposalCard({ item, index, steer }: { item: Proposal; index: number; steer?: Steer }) {
+function ProposalCard({ item: raw, index, steer, inert }: { item: Proposal; index: number; steer?: Steer; inert: boolean }) {
+  // An earlier session's proposal is a record: one left open can no longer be accepted there,
+  // and one accepted without a date can no longer be committed (that session is gone).
+  const item = !inert ? raw : raw.state === 'open' ? { ...raw, state: 'declined' as const } : raw.state === 'accepted' ? { ...raw, state: 'committed' as const } : raw
   const { accept, decline, commitTo, journal, conversation } = useMastermind()
   const { user } = useAuth()
   const [decision, setDecision] = useState(item.entry.decision)
