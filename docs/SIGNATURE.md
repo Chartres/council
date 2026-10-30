@@ -27,12 +27,12 @@ a journal you own, a reminder that arrives on the day.
 ## Signature moves
 | Move | What the user sees | From | Metric (event in kpi_event_map) | Status |
 |---|---|---|---|---|
-| Quaestio view | Proposal card as *Question · It seems not, because… · On the contrary · I answer · What must hold* (the journal entry omits *On the contrary*); with no objection, "No one argued against this yet", and **Test it** on a live proposal. | Aquinas | `key_action` `tested`. To instrument: objection count on `conversion` (it carries only `{v, roster}` today) | live (#16, 2026-10-28), awaiting Pavol: keep / change / revert |
-| Tonight's examination | On the Journal after 17:00, when something is due: Seneca's three questions, Done / Not yet / Drop per commitment. | Seneca, *De Ira* III.36 | `key_action` `examined` | live (#16, 2026-10-28), awaiting Pavol |
+| Quaestio view | Proposal card as *Question · It seems not, because… · On the contrary · I answer · What must hold* (the journal entry omits *On the contrary*); with no objection, "No one argued against this yet", and **Test it** on a live proposal. | Aquinas | `key_action` `tested`. To instrument: objection count on `conversion` (it carries only `{v, roster}` today) | approved 2026-10-30 (keep as is); live (#16) |
+| Tonight's examination | On the Journal from the evening hour she sets (default 17:30, on the Journal), when something is due: Seneca's three questions, Done / Not yet / Drop per commitment. | Seneca, *De Ira* III.36 | `key_action` `examined` | approved 2026-10-30 (keep as is; hour user-set, default 17:30); live (#16, #26) |
 | Letters, not notifications | The reminder email as a short letter with one verified line from Seneca's Letters and the three outcome links. | Seneca, *Letters* | To instrument: no event fires on `/c/:id?outcome=` yet (candidate: `key_action` `outcome_link`) | live (gateway, flywheel), awaiting Pavol |
 | In your power | "In your power?" with Epictetus' line under the next action; "Partly" opens it for the user to keep only their part. | Epictetus, *Enchiridion* 1 | `key_action` `committed` with `rewritten: true` (true whenever Partly was used, edited or not) | live (#16, 2026-10-28), awaiting Pavol |
-| Today's question | The day's shared question at the top of the start screen; one tap opens it as a council. | Plato, *Apology* | `key_action` `daily_opened` | live (#16, 2026-10-28), awaiting Pavol |
-| The classics on… (public reading pages) | Crawlable pages of verified lines grouped by the question a reader brings. | Florilegium / commonplace book | `page_view` on the pages, then `key_action` `convened` from them | proposed (#17, branch `claude/evergreen-pages`) |
+| Today's question | The day's shared question at the top of the start screen; one tap opens it as a council. A "Why?" button opens one line: Plato's *Apology* 38a, "the unexamined life is not worth living" (Jowett). | Plato, *Apology* | `key_action` `daily_opened` | approved 2026-10-30 (with the Plato note); live (#16, #26) |
+| The classics on… (public reading pages) | Crawlable pages of verified lines grouped by the question a reader brings: `/on/` + ten topics, `/advisers/` + seven advisers, `/how-it-works/`. | Florilegium / commonplace book | `page_view` on the pages, then `key_action` `convened` from them | approved 2026-10-30 (option 1, as built); live (#17) |
 
 Status: proposed → approved (dated) → live → or changed / reverted.
 
@@ -45,7 +45,7 @@ Status: proposed → approved (dated) → live → or changed / reverted.
 
 What Zbrojní's 837 question pages taught: static HTML, one claim per page, the source quoted on the page. Search and answer engines cite a page that answers one question with its source, not a page that lists many.
 
-**Recommendation: Option A, trimmed to that lesson before it ships** — each topic page opens with the question a reader brings ("What if I keep putting it off?") and the single strongest verified line with its source, then the rest; adviser pages and `/how-it-works/` ship with them. It rests on the florilegium: the commonplace book arranged lines under the question, always with the author and place. Default taken this round: nothing merged; #17 stays merge-ready on its branch.
+**Decided 2026-10-30: option 1 (A), as built** — see the decision log. The earlier recommendation was **Option A, trimmed to that lesson before it ships** — each topic page opens with the question a reader brings ("What if I keep putting it off?") and the single strongest verified line with its source, then the rest; adviser pages and `/how-it-works/` ship with them. It rests on the florilegium: the commonplace book arranged lines under the question, always with the author and place. Merged 2026-10-30 as #17.
 
 ## Visual signature
 The Renaissance printed book: EB Garamond (a revival of Claude Garamond's 16th-century types); rubrics — section words in clay-red small capitals, the colour used for nothing else; the source under a quote as a reference line, as in the Loeb and the printed *Summa*. Marble-on-ink palette, four-step type scale, 44 px targets and the fold and contrast gates are unchanged (`flywheel/docs/standards/taste.md`, `mobile-ux.md`).
@@ -59,3 +59,14 @@ Constitution articles that bind it: II, VI, VIII.
 | 2026-10-27 | Stoics and philosophers vs. trend gurus | Stoics and philosophers | The founding quote above. |
 | 2026-10-28 | Five live moves: keep / change / revert each | pending | Built before the review-first rule for signature moves (charter, 2026-10-28); default taken: keep, pending review. |
 | 2026-10-28 | Public pages: A as built, B one questions page, C neither | pending | Default taken: not merged; recommendation A, trimmed to one claim up top. |
+| 2026-10-30 | Quaestio view: keep / change / revert | keep | "keep as it is". |
+| 2026-10-30 | Tonight's examination: keep / change / revert | keep | "keep as it is". |
+| 2026-10-30 | Evening examination hour: fixed 17:00 / user-set | user-set | "User-set", "Default 17:30". Built: a time field on the Journal, kept on the device (`council:evening`); anyone who never set it gets 17:30. |
+| 2026-10-30 | Today's question on the start screen: keep / change / revert | keep, with a note | "I like it, give it a little on-hover or onclick explanation that this comes from Plato." Built: "Why?" opens one line citing *Apology* 38a in Jowett's translation, on tap, hover or keyboard focus. |
+| 2026-10-30 | Public pages: 1 topic and adviser pages (20) / 2 one questions page / 3 neither | 1 | "Topic and adviser pages: /on/<topic>/ and /advisers/<name>/, 20 pages of verified quotes". As built, not trimmed; `/how-it-works/` was one of the 20 and ships with them. |
+| 2026-10-30 | Directory and registry submissions | prepare entries; Pavol submits or confirms the policy | "Prepare entries, Pavol submits or confirms the policy". Entries and the policy proposal: `docs/distribution/directory-entries.md`. Nothing submitted. |
+| 2026-10-30 | Anonymous allowance | unchanged: 5 starts per /24 per day | "Revisit once we start hitting limits too much". |
+| 2026-10-30 | Free-tier share of the monthly budget | unchanged: 1,500 of 3,000 cents | Already set; recorded only. |
+| 2026-10-30 | Letters, not notifications; In your power? | still open | He asked "What is this?". The explanations are on the decision page. Unchanged. |
+| 2026-10-30 | Legacy password MCP path | still open | "Dont undrstand". Unchanged. |
+| 2026-10-30 | Reusing a move approved for one product in another | allowed | "Dont just blindly copy the pattern though." |

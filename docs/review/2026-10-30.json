@@ -1,0 +1,217 @@
+{
+  "product": "council",
+  "date": "2026-10-30",
+  "headline": "Pavol's picks from 30 Oct are built. The reading pages are live: 20 pages, all in the sitemap. The evening examination hour is now user-set, with a default of 17:30. Today's question has a 'Why?' note citing Plato's Apology 38a. Directory entries and a submission policy are prepared, and nothing was submitted.",
+  "shipped": [
+    {
+      "title": "Public reading pages: /on/ + 10 topics, /advisers/ + 7 advisers, /how-it-works/ (option 1, as built). Merged with main; review fixes: per-line translator, citations name the work once, disclosure and Montessori line on every page",
+      "pr": 17,
+      "merged": "2026-10-30",
+      "live_checked": "2026-10-30, 390 px: /on/time/ and /advisers/seneca/ serve static HTML (200 text/html, no app script) with the disclosure line and no x-overflow; sitemap.xml lists 21 URLs (root + 20), lastmod 2026-10-30; llms.txt names /on/ and /advisers/. No IndexNow submission made (the daily flywheel job picks them up)."
+    },
+    {
+      "title": "Evening examination hour user-set (default 17:30, on the Journal); today's question 'Why?' note from Plato's Apology 38a (Jowett)",
+      "pr": 26,
+      "merged": "2026-10-30",
+      "live_checked": "2026-10-30: live bundle index-VIKWoarS.js carries the Plato line (\"the unexamined life\"), council:evening and the 17:30 default. The live start screen and Journal sit behind the beta password, which this session does not hold, so the 390 px screenshots are from the e2e build (e2e/evening.spec.ts, e2e/today-root.spec.ts) against the stub gateway."
+    },
+    {
+      "title": "docs: decision log 2026-10-30, directory entries + policy proposal, this hand-back",
+      "pr": 27,
+      "merged": "2026-10-30",
+      "live_checked": "docs only (raw.githubusercontent.com)"
+    }
+  ],
+  "distribution": {
+    "files": [
+      "docs/distribution/directory-entries.md",
+      "docs/distribution/mcp-directories.md",
+      "docs/distribution/server.json"
+    ],
+    "targets": [
+      {
+        "name": "Official MCP Registry",
+        "url": "https://github.com/modelcontextprotocol/registry/blob/main/docs/modelcontextprotocol-io/quickstart.mdx",
+        "route": "mcp-publisher login dns --domain dravec.org (apex TXT key), then mcp-publisher publish docs/distribution/server.json (validates against the 2025-12-11 schema)",
+        "auto_ok": true
+      },
+      {
+        "name": "PulseMCP",
+        "url": "https://www.pulsemcp.com/submit",
+        "route": "Submissions paused; picks up entries from the Official MCP Registry when it reopens",
+        "auto_ok": true
+      },
+      {
+        "name": "Glama (Connectors)",
+        "url": "https://glama.ai/mcp/connectors",
+        "route": "Sign in, Add Server > Connector; or ingest from the registry and claim via TXT at _glama-claim.dravec.org",
+        "auto_ok": false
+      },
+      {
+        "name": "Smithery",
+        "url": "https://smithery.ai/new",
+        "route": "Sign in, enter the URL or smithery mcp publish; test the connect flow first: the gateway reports no CIMD support, so it may need CIMD (gateway patch) or a server card",
+        "auto_ok": false
+      },
+      {
+        "name": "mcp.so",
+        "url": "https://mcp.so/submit",
+        "route": "Web form, Remote Server; only if a free path shows (the $39 option is not authorised)",
+        "auto_ok": false
+      },
+      {
+        "name": "mcpservers.org",
+        "url": "https://mcpservers.org/submit",
+        "route": "Web form, Free plan, remote server, contact council@dravec.org; auto_ok becomes true only if the form needs no account or terms accepted in Pavol's name (unverified)",
+        "auto_ok": false
+      },
+      {
+        "name": "awesome-remote-mcp-servers (jaw9c)",
+        "url": "https://github.com/jaw9c/awesome-remote-mcp-servers",
+        "route": "A PR adding a Productivity row, from Pavol's account",
+        "auto_ok": false
+      },
+      {
+        "name": "Claude Connectors Directory",
+        "url": "https://claude.ai/directory/manage",
+        "route": "Submit new > MCP connector from a paid claude.ai account; test account, tool annotations, 7 acknowledgements",
+        "auto_ok": false
+      },
+      {
+        "name": "ChatGPT apps",
+        "url": "https://platform.openai.com/plugins",
+        "route": "Upload, identity verification, review (needs a terms page, a reviewer login without email codes, test cases, a demo video)",
+        "auto_ok": false
+      },
+      {
+        "name": "Product Hunt",
+        "url": "https://www.producthunt.com/launch",
+        "route": "Personal account > Submit > New Product, after the beta opens",
+        "auto_ok": false
+      },
+      {
+        "name": "AlternativeTo",
+        "url": "https://alternativeto.net/faq/",
+        "route": "Account > Suggest new application, after the beta opens (unreleased products are not accepted)",
+        "auto_ok": false
+      },
+      {
+        "name": "toolmage.com",
+        "url": "https://www.toolmage.com/en/submit-you-ai/",
+        "route": "Skip: now a $69 fee for either method",
+        "auto_ok": false
+      },
+      {
+        "name": "mcpmarket.com",
+        "url": "https://mcpmarket.com/submit",
+        "route": "Skip for now: the form wants the MCP server's public GitHub repo",
+        "auto_ok": false
+      }
+    ],
+    "policy_proposal": "An agent may submit on its own only where the submission is metadata about the product, made with a key or address the product already owns (the dravec.org DNS key, council@dravec.org), with no account, payment, identity check or terms accepted in your name, and where the text says nothing beyond what is live and already in this file: today that means publishing and updating server.json in the Official MCP Registry, and the free mcpservers.org form if it needs no account, and even those wait until a stranger can sign in to the MCP server without the beta password. Everything else you submit yourself: anything that needs your personal account (Glama, Smithery, mcp.so, AlternativeTo, Product Hunt), anything public under your name (GitHub PRs, launch posts), anything that needs a paid plan, identity verification, reviewer credentials or a legal acknowledgement (Claude directory, ChatGPT), and anything with a fee, which we skip. The agent prepares those entries and tells you when the blocker for each one is gone."
+  },
+  "decisions": [
+    {
+      "question": "#17 carries /how-it-works/ besides topic and adviser pages: split it out?",
+      "options": [
+        "ship with option 1",
+        "split into a separate draft PR"
+      ],
+      "default_taken": "ship with option 1",
+      "why": "Option A in docs/review/2026-10-28.json and SIGNATURE.md counted 20 URLs including /how-it-works/ (10+1 topics, 7+1 advisers, 1), and opt1-how-it-works-*.png was one of option 1's screenshots. Reversible: one line in build() and one sitemap entry."
+    },
+    {
+      "question": "Option 1 as built, or the 'trimmed' variant recommended on 28 Oct (question + strongest line on top)?",
+      "options": [
+        "as built",
+        "trimmed"
+      ],
+      "default_taken": "as built",
+      "why": "His pick names the as-built option; the trim was our recommendation, not his choice. Listed as a proposal below."
+    },
+    {
+      "question": "Where does the evening-hour setting live?",
+      "options": [
+        "on the Journal, next to the reminders and Export",
+        "in the Account panel",
+        "a new settings screen"
+      ],
+      "default_taken": "on the Journal, shown once there is a commitment",
+      "why": "The app has no settings screen; its settings sit beside what they control (Remind me by email, Listen). The Account panel is signed-in only, and anonymous users keep a journal too."
+    },
+    {
+      "question": "Keep the hour per device or sync it to the account?",
+      "options": [
+        "per device (localStorage council:evening)",
+        "sync via a new council_* column"
+      ],
+      "default_taken": "per device",
+      "why": "Syncing needs a schema change applied by the integrator; per-device is reversible and needs none. Existing users have no key, so they get 17:30."
+    },
+    {
+      "question": "Plato note: label and placement",
+      "options": [
+        "'Why?' beside the label, note below the card",
+        "note above the question"
+      ],
+      "default_taken": "'Why?' beside 'Today's question'; the line opens under 'Take it to the council'",
+      "why": "Nothing above the question moves when it opens on hover, and the question card stays the first control for the fold gate. One line from Jowett's Apology 38a, checked against Gutenberg #1656."
+    },
+    {
+      "question": "Review findings on #17 not fixed",
+      "options": [
+        "fix now",
+        "leave and note"
+      ],
+      "default_taken": "leave and note",
+      "why": "The Franklin source link (Gutenberg 20203) was flagged, but that edition prints The Way to Wealth after the Autobiography and the lines match it, so it is correct. The duplicated PERSONAS table and the single LASTMOD are maintenance cleanups, not bugs (see proposals)."
+    }
+  ],
+  "proposals": [
+    {
+      "name": "Topic pages trimmed to one claim up top",
+      "options": [
+        "keep as built",
+        "open each topic page with the reader's question and the single strongest sourced line, then the rest"
+      ],
+      "recommendation": "Measure first: watch page_view on /on/* for a month, then decide. Pavol picked as built."
+    },
+    {
+      "name": "Sync the evening hour across devices for signed-in users",
+      "options": [
+        "per device only",
+        "add evening_hour to the user's row (schema change, integrator applies SQL)"
+      ],
+      "recommendation": "Per device until someone asks; it costs a migration."
+    },
+    {
+      "name": "One source for the persona roster used by the app and the reading pages",
+      "options": [
+        "keep the copy in scripts/quotes.mjs",
+        "a shared JSON both import"
+      ],
+      "recommendation": "Shared JSON, next time a persona changes."
+    },
+    {
+      "name": "Gateway: CIMD support (unblocks Smithery) — flywheel/gateway, not built here",
+      "options": [
+        "leave",
+        "advertise client_id_metadata_document_supported: true and accept a client_id that is an HTTPS URL to a metadata document, alongside DCR"
+      ],
+      "recommendation": "Only if Pavol wants the Smithery listing."
+    }
+  ],
+  "next": [
+    "Pavol: confirm or edit the policy paragraph in docs/distribution/directory-entries.md.",
+    "Pavol: the DNS TXT record on the dravec.org apex unlocks the Official MCP Registry publish (an auto_ok target once the policy is confirmed).",
+    "Find out whether MCP OAuth sign-in asks for the beta password; every MCP listing depends on it.",
+    "A terms page (/terms is the app shell today) is needed before the ChatGPT submission.",
+    "Still open with Pavol: Letters, not notifications and In your power? ('What is this?'), and the legacy password MCP path ('Dont undrstand')."
+  ],
+  "screenshots": [
+    "docs/review/2026-10-30/start-plato-note-390.png",
+    "docs/review/2026-10-30/journal-evening-hour-390.png",
+    "docs/review/2026-10-30/live-on-time-390.png",
+    "docs/review/2026-10-30/live-advisers-seneca-390.png"
+  ]
+}
