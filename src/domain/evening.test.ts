@@ -25,3 +25,14 @@ describe('evening hour', () => {
     expect(isEvening(at(6, 0), '05:45')).toBe(true)
   })
 })
+
+describe('evening hour storage', () => {
+  it('does not store a half-typed value, and survives storage that throws', () => {
+    localStorage.clear()
+    expect(writeEvening('1')).toBe(false)
+    expect(localStorage.getItem(EVENING_STORAGE)).toBeNull()
+    const broken = { getItem: () => { throw new Error('blocked') }, setItem: () => { throw new Error('blocked') } } as unknown as Storage
+    expect(readEvening(broken)).toBe('17:30')
+    expect(writeEvening('19:00', broken)).toBe(true)
+  })
+})

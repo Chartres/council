@@ -27,6 +27,7 @@ describe("StartScreen today's question", () => {
 
 describe("StartScreen today's question: where it comes from", () => {
   it('a tap opens one line naming Plato’s Apology 38a in Jowett’s words, and closes it again', async () => {
+    begin.mockClear()
     render(<StartScreen />)
     const why = screen.getByRole('button', { name: 'Why?' })
     expect(why).toHaveAttribute('aria-expanded', 'false')
@@ -39,7 +40,7 @@ describe("StartScreen today's question: where it comes from", () => {
     expect(TODAY_ROOT).toContain('Jowett')
     await userEvent.click(why)
     expect(why).toHaveAttribute('aria-expanded', 'false')
-    expect(begin).not.toHaveBeenCalledWith(expect.objectContaining({ goal: TODAY_ROOT }))
+    expect(begin).not.toHaveBeenCalled()
   })
 
   it('opens while a mouse hovers and when the keyboard reaches it; Escape closes', async () => {
@@ -49,6 +50,7 @@ describe("StartScreen today's question: where it comes from", () => {
     expect(why).toHaveAttribute('aria-expanded', 'true')
     await userEvent.unhover(why)
     expect(why).toHaveAttribute('aria-expanded', 'false')
+    await userEvent.tab() // the question card first
     await userEvent.tab()
     expect(why).toHaveFocus()
     expect(why).toHaveAttribute('aria-expanded', 'true')

@@ -17,18 +17,22 @@ export function isEvening(now: Date, hhmm: string): boolean {
   return now.getHours() * 60 + now.getMinutes() >= h * 60 + m
 }
 
-export function readEvening(storage: Storage = localStorage): string {
+// Storage is reached inside the try: with site data blocked, touching localStorage itself throws.
+export function readEvening(storage?: Storage): string {
   try {
-    return eveningOf(storage.getItem(EVENING_STORAGE))
+    return eveningOf((storage ?? localStorage).getItem(EVENING_STORAGE))
   } catch {
     return DEFAULT_EVENING
   }
 }
 
-export function writeEvening(hhmm: string, storage: Storage = localStorage) {
+/** Keeps a whole "HH:MM" and says so; anything else is not stored. */
+export function writeEvening(hhmm: string, storage?: Storage): boolean {
+  if (eveningOf(hhmm) !== hhmm) return false
   try {
-    storage.setItem(EVENING_STORAGE, eveningOf(hhmm))
+    (storage ?? localStorage).setItem(EVENING_STORAGE, hhmm)
   } catch {
     // Private mode: the hour holds for this visit only.
   }
+  return true
 }

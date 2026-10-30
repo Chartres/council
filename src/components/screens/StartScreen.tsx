@@ -59,39 +59,16 @@ function Today({ onOpen }: { onOpen: (question: string) => void }) {
   const [pinned, setPinned] = useState(false)
   const [peek, setPeek] = useState(false)
   const open = pinned || peek
+  const focusVisible = (el: Element) => {
+    try {
+      return el.matches(':focus-visible')
+    } catch {
+      return false // an engine without :focus-visible: tap or click still opens it
+    }
+  }
   return (
-    <section aria-label="Today's question" data-testid="today" className="mt-2">
-      <div className="flex items-center justify-between">
-        <span className="t-label">Today’s question</span>
-        <button
-          type="button"
-          aria-expanded={open}
-          aria-controls="today-root"
-          data-testid="today-why"
-          onClick={() => {
-            // A click pins it open (even while hovered) or, when pinned, closes it.
-            setPinned(!pinned)
-            if (pinned) setPeek(false)
-          }}
-          onPointerEnter={(e) => e.pointerType === 'mouse' && setPeek(true)}
-          onPointerLeave={(e) => e.pointerType === 'mouse' && setPeek(false)}
-          onFocus={(e) => e.currentTarget.matches(':focus-visible') && setPeek(true)}
-          onBlur={() => setPeek(false)}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              setPinned(false)
-              setPeek(false)
-            }
-          }}
-          className="-mr-3 min-h-11 min-w-11 px-3 text-[13px] text-marble-400 hover:text-marble-100"
-        >
-          Why?
-        </button>
-      </div>
-      <p id="today-root" hidden={!open} className="text-[13px] leading-snug text-marble-400">
-        {TODAY_ROOT}
-      </p>
-      {/* The question is what she taps (and the fold's first full-width control). */}
+    <section aria-label="Today's question" data-testid="today" className="relative mt-2">
+      {/* The whole card is the control: the question is what she taps (and the fold's first control). */}
       <button
         type="button"
         onClick={() => {
@@ -100,9 +77,39 @@ function Today({ onOpen }: { onOpen: (question: string) => void }) {
         }}
         className="block w-full rounded-card py-2 text-left"
       >
-        <span className="t-title block">{question}</span>
+        <span className="t-label block pr-14">Today’s question</span>
+        <span className="t-title mt-2 block">{question}</span>
         <span className="t-body mt-1 block font-semibold text-candle-300">Take it to the council ›</span>
       </button>
+      {/* After the card in the DOM, beside its label on screen; the note opens below the card, so
+          nothing above the question moves. */}
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls="today-root"
+        data-testid="today-why"
+        onClick={() => {
+          // A click pins it open (even while hovered) or, when pinned, closes it.
+          setPinned(!pinned)
+          if (pinned) setPeek(false)
+        }}
+        onPointerEnter={(e) => e.pointerType === 'mouse' && setPeek(true)}
+        onPointerLeave={(e) => e.pointerType === 'mouse' && setPeek(false)}
+        onFocus={(e) => focusVisible(e.currentTarget) && setPeek(true)}
+        onBlur={() => setPeek(false)}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            setPinned(false)
+            setPeek(false)
+          }
+        }}
+        className="absolute -right-3 -top-1.5 min-h-11 min-w-11 px-3 text-[13px] text-marble-400 hover:text-marble-100"
+      >
+        Why?
+      </button>
+      <p id="today-root" hidden={!open} className="text-[13px] leading-snug text-marble-400">
+        {TODAY_ROOT}
+      </p>
     </section>
   )
 }

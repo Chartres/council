@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 
 // Fold discipline (Flywheel Standard, mobile-ux.md): no chrome row spent on a single
 // control. The landing screen's first primary control must sit in the top 120 css px
-// on a phone. On `/` (v4) that is the roster switch; on `/quick` (v3) the idea field.
+// on a phone. On `/` (v4) that is today's question card; on `/quick` (v3) the idea field.
 test('phone fold: the first control starts near the top', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   for (const path of ['/quick', '/']) {

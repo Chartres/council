@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useCouncil } from '@/app/CouncilContext'
 import { useMastermind } from '@/app/MastermindContext'
 import { useAuth } from '@/auth/AuthContext'
@@ -8,7 +8,7 @@ import { quaestio } from '@/domain/quaestio'
 import { OutcomeButtons } from '@/components/OutcomeButtons'
 import { Examination } from '@/components/Examination'
 import { humanDate } from '@/domain/dates'
-import { eveningOf, readEvening, writeEvening } from '@/domain/evening'
+import { readEvening, writeEvening } from '@/domain/evening'
 import { isOpen } from '@/domain/mastermind'
 
 const sentence = (t: string) => t.charAt(0).toUpperCase() + t.slice(1)
@@ -18,7 +18,15 @@ export function JournalScreen() {
   const { journal, exportText, setRemind } = useMastermind()
   const { user } = useAuth()
   const [copied, setCopied] = useState<'idle' | 'copied' | 'failed'>('idle')
-  const [evening, setEvening] = useState(readEvening)
+  const [evening, setEvening] = useState(() => readEvening())
+  // What the field shows while she types; the hour only moves when the value is whole.
+  const [draft, setDraft] = useState(evening)
+  // The examination opens on the minute she set, also while the Journal stays open.
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 30_000)
+    return () => clearInterval(t)
+  }, [])
   const entries = journal.entries.filter((e) => e.status !== 'proposal')
 
   const copy = async () => {
@@ -36,7 +44,7 @@ export function JournalScreen() {
       <p className="t-body mt-2 text-marble-400">
         {user ? 'Kept on your account.' : 'Kept in this browser only. Sign in to keep it across devices.'}
       </p>
-      <Examination commitments={journal.commitments} from={evening} />
+      <Examination commitments={journal.commitments} from={evening} now={now} />
 
       {entries.length === 0 ? (
         <div className="mt-12">
@@ -106,12 +114,10 @@ export function JournalScreen() {
               <span className="t-label">Evening examination from</span>
               <input
                 type="time"
-                value={evening}
+                value={draft}
                 onChange={(ev) => {
-                  // A half-typed or cleared field keeps the last hour that was whole.
-                  if (eveningOf(ev.target.value) !== ev.target.value) return
-                  setEvening(ev.target.value)
-                  writeEvening(ev.target.value)
+                  setDraft(ev.target.value)
+                  if (writeEvening(ev.target.value)) setEvening(ev.target.value)
                 }}
                 className="min-h-11 min-w-0 bg-transparent text-[17px] text-marble-100 focus-visible:shadow-none"
               />
