@@ -9,6 +9,7 @@
 
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 export const PERSONAS = {
   seneca: { name: 'Seneca', work: 'Letters to Lucilius', translator: 'Richard M. Gummere', edition: 'Epistulae Morales ad Lucilium, trans. Richard M. Gummere, Loeb Classical Library (1917–1925), via Wikisource', brings: 'Counts the cost in time and money before anyone counts the upside.' },
@@ -16,8 +17,14 @@ export const PERSONAS = {
   socrates: { name: 'Socrates', work: 'Plato’s dialogues', translator: 'Benjamin Jowett', edition: 'Plato, Apology, Crito, Meno, Theaetetus and Republic, trans. Benjamin Jowett, via Project Gutenberg', brings: 'Asks the question you are avoiding, then asks it again.' },
   confucius: { name: 'Confucius', work: 'Analects', translator: 'James Legge', edition: 'Analects (Lun Yu), trans. James Legge, via Project Gutenberg', brings: 'Weighs duty, relationships and who carries the work.' },
   franklin: { name: 'Benjamin Franklin', work: 'Autobiography and The Way to Wealth', translator: null, edition: 'Autobiography and The Way to Wealth (1758), via Project Gutenberg', brings: 'Turns the idea into a cheap experiment you can run this week.' },
-  buddha: { name: 'The Buddha', work: 'Dhammapada and the suttas', translator: 'F. Max Müller; Bhikkhu Sujato', edition: 'Dhammapada, trans. F. Max Müller (1881), via Project Gutenberg, and suttas in Bhikkhu Sujato’s CC0 translation, via SuttaCentral', brings: 'Names the attachment driving the plan.' },
+  buddha: { name: 'The Buddha', work: 'Dhammapada and the suttas', translator: 'F. Max Müller', edition: 'Dhammapada, trans. F. Max Müller (1881), via Project Gutenberg, and suttas in Bhikkhu Sujato’s CC0 translation, via SuttaCentral', brings: 'Names the attachment driving the plan.' },
   montessori: { name: 'Maria Montessori', work: 'The Montessori Method', translator: 'Anne E. George', edition: 'The Montessori Method, trans. Anne E. George (1912), via Project Gutenberg', brings: 'Asks what you learn by doing, not by being told.' },
+}
+
+/** The translator of this line: the Buddha's suttas are Sujato's, the Dhammapada Müller's. */
+export function translatorOf(persona, locator) {
+  if (persona === 'buddha' && !locator.startsWith('Dhammapada')) return 'Bhikkhu Sujato'
+  return PERSONAS[persona]?.translator ?? null
 }
 
 const PLATO = { Apology: 1656, Crito: 1657, Meno: 1643, Republic: 1497, Theaetetus: 1726 }
@@ -43,6 +50,7 @@ export function sourceUrl(persona, locator) {
     case 'confucius':
       return gutenberg(3330)
     case 'franklin':
+      // This edition prints The Way to Wealth after the Autobiography; both are checked against it.
       return gutenberg(20203)
     case 'buddha': {
       const sutta = loc.match(/^(DN|MN|SN|AN|SNP|Snp)\s*([\d.]+)/i)
@@ -59,7 +67,7 @@ const LINE = /^- \[([^\]]+)\] "(.*)" — (.+)$/
 
 /** One bank file → its quotes. Lines that do not match the bank format are skipped, not guessed. */
 export function parseBank(persona, md) {
-  return md.split('\n').flatMap((line) => {
+  return md.split(/\r?\n/).flatMap((line) => {
     const m = line.match(LINE)
     if (!m) return []
     const locator = m[3].trim().replace(/\*/g, '')
@@ -67,7 +75,7 @@ export function parseBank(persona, md) {
   })
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const dir = process.argv[2]
   if (!dir) throw new Error('usage: node scripts/quotes.mjs <flywheel/gateway/prompts/council/classics/quotes>')
   const quotes = readdirSync(dir)

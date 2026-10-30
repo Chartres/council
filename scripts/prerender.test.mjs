@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { build, LASTMOD, TOPICS } from './prerender.mjs'
+import { DISCLOSURE as APP_DISCLOSURE, MONTESSORI_NOTE as APP_MONTESSORI_NOTE } from '../src/content/personas'
+import { build, citation, DISCLOSURE, LASTMOD, MONTESSORI_NOTE, TOPICS } from './prerender.mjs'
 import { PERSONAS } from './quotes.mjs'
 import { parseBank, sourceUrl } from './quotes.mjs'
 
@@ -24,6 +25,34 @@ describe('prerendered topic pages', () => {
       expect(ld.mainEntity.numberOfItems).toBe(lines.length)
       expect(ld.mainEntity.itemListElement.every((q) => bank.has(q.text) && q.url.startsWith('https://'))).toBe(true)
     }
+  })
+
+  it('nothing outside a quoted line is in curly quotation marks, on any page', () => {
+    for (const [file, html] of Object.entries(out).filter(([f]) => f.endsWith('.html'))) {
+      const body = html.slice(html.indexOf('<body>'))
+      const blocks = [...body.matchAll(/<blockquote>“[\s\S]*?”<cite>/g)].length
+      expect((body.match(/“/g) ?? []).length, file).toBe(blocks)
+    }
+  })
+
+  it('every page carries the app disclosure; pages naming Montessori carry the non-affiliation line', () => {
+    expect(DISCLOSURE).toBe(APP_DISCLOSURE)
+    expect(MONTESSORI_NOTE).toBe(APP_MONTESSORI_NOTE)
+    for (const [file, html] of Object.entries(out).filter(([f]) => f.endsWith('.html'))) {
+      expect(unescape(html), file).toContain(DISCLOSURE)
+      if (html.includes('Montessori')) expect(unescape(html), file).toContain(MONTESSORI_NOTE)
+    }
+  })
+
+  it('cites each line once, with the translator of that line', () => {
+    expect(citation('franklin', { locator: 'The Way to Wealth' })).toBe('The Way to Wealth')
+    expect(citation('socrates', { locator: 'Apology' })).toBe('Plato’s Apology')
+    expect(citation('seneca', { locator: 'Letter 1' })).toBe('Letters to Lucilius, Letter 1')
+    expect(citation('buddha', { locator: 'AN 8.54:5.2 (Sujato)' })).toBe('AN 8.54:5.2')
+    const all = Object.values(out).join('\n')
+    expect(all).not.toContain('Müller; Bhikkhu Sujato')
+    expect(all).toContain('AN 8.54:5.2 · trans. Bhikkhu Sujato')
+    expect(all).toContain('Dhammapada v. 1 · trans. F. Max Müller')
   })
 
   it('carries no business-roster thinker (their sources are not public domain)', () => {
@@ -60,6 +89,10 @@ describe('prerendered topic pages', () => {
 })
 
 describe('quote banks', () => {
+  it('reads a bank saved with Windows line endings', () => {
+    expect(parseBank('seneca', '- [time] "x" — Letter 1\r\n- [fear] "y" — Letter 2\r\n')).toHaveLength(2)
+  })
+
   it('parses a bank line, keeping inner quotation marks, and links the source', () => {
     const md = '# x\n- [fear, work] "never spurred by "prizes," nor by fear" — ch. I "A Critical Consideration"\n- not a quote line'
     expect(parseBank('montessori', md)).toEqual([
