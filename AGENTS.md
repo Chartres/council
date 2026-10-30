@@ -100,7 +100,7 @@ Run the dev gateway with `STUB_PASSWORD=tallow-candle npm run stub` to see the d
 Primary journeys (v4, `/`): roster (Business/Classics) → pick ≤4 → Begin → one-screen intake
 (paste/drop/ask your AI/talk it through, review the seven fields; stable fields prefilled) → conversation (speaker
 cards, floor question, reply box, control chips) → proposal → Accept → journal → commitment
-with a due date and an opt-in email reminder → Journal tab (outcomes, export). Returning: the
+with a due date and an opt-in email reminder → Journal tab (outcomes, the evening examination from the hour she sets — default 17:30, `council:evening` — export). Returning: the
 "Last time" card on `/` and a "Last time…" opener. Past discussions: the Discussions sheet
 (header, left) lists every discussion newest first (signed in: `council_sessions`; anonymous:
 `council:discussions` in this browser, the newest 20) and the quick verdicts; one opens

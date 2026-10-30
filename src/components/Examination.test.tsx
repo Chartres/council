@@ -45,6 +45,17 @@ describe('Examination', () => {
     expect(begin).not.toHaveBeenCalled()
   })
 
+  it('opens at 17:30 by default, and at whatever hour was set', () => {
+    const { container, rerender } = render(<Examination commitments={[c('a', '2026-10-27')]} now={new Date(2026, 9, 27, 17, 15)} />)
+    expect(container).toBeEmptyDOMElement()
+    rerender(<Examination commitments={[c('a', '2026-10-27')]} now={new Date(2026, 9, 27, 17, 30)} />)
+    expect(screen.getByTestId('examination')).toBeInTheDocument()
+    rerender(<Examination commitments={[c('a', '2026-10-27')]} from="21:00" now={new Date(2026, 9, 27, 20, 0)} />)
+    expect(container).toBeEmptyDOMElement()
+    rerender(<Examination commitments={[c('a', '2026-10-27')]} from="06:00" now={new Date(2026, 9, 27, 10, 0)} />)
+    expect(screen.getByTestId('examination')).toBeInTheDocument()
+  })
+
   it('not before evening, and not when nothing is due', () => {
     const { container, rerender } = render(<Examination commitments={[c('a', '2026-10-27')]} now={at(10)} />)
     expect(container).toBeEmptyDOMElement()

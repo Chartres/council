@@ -47,13 +47,51 @@ function ConnectPanel() {
 
 const ROSTER_LABEL: Record<RosterId, string> = { business: 'Business', classics: 'Classics' }
 
+/** Where the daily question comes from (docs/SIGNATURE.md lineage; Jowett's translation, public domain). */
+export const TODAY_ROOT =
+  'A practice from Plato’s Apology 38a: “the unexamined life is not worth living.” Trans. Jowett.'
+
 /** One question a day, the same for everyone (docs/SIGNATURE.md "Today's question"). */
 function Today({ onOpen }: { onOpen: (question: string) => void }) {
   const day = todayKey()
   const question = dailyQuestion(day)
+  // Open on tap (pinned) or while a mouse hovers / the keyboard focuses the button (peek).
+  const [pinned, setPinned] = useState(false)
+  const [peek, setPeek] = useState(false)
+  const open = pinned || peek
   return (
     <section aria-label="Today's question" data-testid="today" className="mt-2">
-      {/* The whole card is the control: the question is what she taps (and the fold's first control). */}
+      <div className="flex items-center justify-between">
+        <span className="t-label">Today’s question</span>
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls="today-root"
+          data-testid="today-why"
+          onClick={() => {
+            // A click pins it open (even while hovered) or, when pinned, closes it.
+            setPinned(!pinned)
+            if (pinned) setPeek(false)
+          }}
+          onPointerEnter={(e) => e.pointerType === 'mouse' && setPeek(true)}
+          onPointerLeave={(e) => e.pointerType === 'mouse' && setPeek(false)}
+          onFocus={(e) => e.currentTarget.matches(':focus-visible') && setPeek(true)}
+          onBlur={() => setPeek(false)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              setPinned(false)
+              setPeek(false)
+            }
+          }}
+          className="-mr-3 min-h-11 min-w-11 px-3 text-[13px] text-marble-400 hover:text-marble-100"
+        >
+          Why?
+        </button>
+      </div>
+      <p id="today-root" hidden={!open} className="text-[13px] leading-snug text-marble-400">
+        {TODAY_ROOT}
+      </p>
+      {/* The question is what she taps (and the fold's first full-width control). */}
       <button
         type="button"
         onClick={() => {
@@ -62,8 +100,7 @@ function Today({ onOpen }: { onOpen: (question: string) => void }) {
         }}
         className="block w-full rounded-card py-2 text-left"
       >
-        <span className="t-label block">Today’s question</span>
-        <span className="t-title mt-2 block">{question}</span>
+        <span className="t-title block">{question}</span>
         <span className="t-body mt-1 block font-semibold text-candle-300">Take it to the council ›</span>
       </button>
     </section>
