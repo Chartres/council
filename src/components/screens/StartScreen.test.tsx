@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { StartScreen } from './StartScreen'
+import { StartScreen, TODAY_ROOT } from './StartScreen'
 import { dailyQuestion, todayKey } from '@/domain/daily'
 import { keyAction } from '@/analytics'
 
@@ -22,6 +22,40 @@ describe("StartScreen today's question", () => {
     // The stable answers (who she is) carry over; this session's goal is the question.
     expect(begin).toHaveBeenCalledWith({ role: 'Baker', goal: q })
     expect(keyAction).toHaveBeenCalledWith('daily_opened', { day: todayKey() })
+  })
+})
+
+describe("StartScreen today's question: where it comes from", () => {
+  it('a tap opens one line naming Plato’s Apology 38a in Jowett’s words, and closes it again', async () => {
+    begin.mockClear()
+    render(<StartScreen />)
+    const why = screen.getByRole('button', { name: 'Why?' })
+    expect(why).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByText(TODAY_ROOT)).not.toBeVisible()
+    await userEvent.click(why)
+    expect(why).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText(TODAY_ROOT)).toBeVisible()
+    expect(TODAY_ROOT).toContain('Apology 38a')
+    expect(TODAY_ROOT).toContain('“the unexamined life is not worth living')
+    expect(TODAY_ROOT).toContain('Jowett')
+    await userEvent.click(why)
+    expect(why).toHaveAttribute('aria-expanded', 'false')
+    expect(begin).not.toHaveBeenCalled()
+  })
+
+  it('opens while a mouse hovers and when the keyboard reaches it; Escape closes', async () => {
+    render(<StartScreen />)
+    const why = screen.getByRole('button', { name: 'Why?' })
+    await userEvent.hover(why)
+    expect(why).toHaveAttribute('aria-expanded', 'true')
+    await userEvent.unhover(why)
+    expect(why).toHaveAttribute('aria-expanded', 'false')
+    await userEvent.tab() // the question card first
+    await userEvent.tab()
+    expect(why).toHaveFocus()
+    expect(why).toHaveAttribute('aria-expanded', 'true')
+    await userEvent.keyboard('{Escape}')
+    expect(why).toHaveAttribute('aria-expanded', 'false')
   })
 })
 

@@ -1,23 +1,30 @@
 import { keyAction } from '@/analytics'
 import { OutcomeButtons } from '@/components/OutcomeButtons'
 import { todayKey } from '@/domain/daily'
+import { DEFAULT_EVENING, isEvening } from '@/domain/evening'
 import type { Commitment } from '@/domain/mastermind'
 
 // The evening examination (docs/SIGNATURE.md, after Seneca, De Ira III.36: "quod hodie malum
 // tuum sanasti? cui vitio obstitisti? qua parte melior es?"). Our translation. No streak, no
 // count of nights: what is due, and one tap each.
 
-/** From this hour (local) the Journal opens with the examination. */
-export const EVENING_HOUR = 17
-
 /** Commitments due today or earlier that still have no outcome. */
 export function dueTonight(commitments: Commitment[], today: string): Commitment[] {
   return commitments.filter((c) => c.outcome === null && c.due_date <= today)
 }
 
-export function Examination({ commitments, now = new Date() }: { commitments: Commitment[]; now?: Date }) {
+/** `from`: the local "HH:MM" the user set for the evening (src/domain/evening.ts). */
+export function Examination({
+  commitments,
+  from = DEFAULT_EVENING,
+  now = new Date(),
+}: {
+  commitments: Commitment[]
+  from?: string
+  now?: Date
+}) {
   const due = dueTonight(commitments, todayKey(now))
-  if (now.getHours() < EVENING_HOUR || due.length === 0) return null
+  if (!isEvening(now, from) || due.length === 0) return null
   return (
     <section
       aria-label="Tonight's examination"

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useCouncil } from '@/app/CouncilContext'
 import { useMastermind } from '@/app/MastermindContext'
 import { useAuth } from '@/auth/AuthContext'
@@ -8,6 +8,7 @@ import { quaestio } from '@/domain/quaestio'
 import { OutcomeButtons } from '@/components/OutcomeButtons'
 import { Examination } from '@/components/Examination'
 import { humanDate } from '@/domain/dates'
+import { readEvening, writeEvening } from '@/domain/evening'
 import { isOpen } from '@/domain/mastermind'
 
 const sentence = (t: string) => t.charAt(0).toUpperCase() + t.slice(1)
@@ -17,6 +18,15 @@ export function JournalScreen() {
   const { journal, exportText, setRemind } = useMastermind()
   const { user } = useAuth()
   const [copied, setCopied] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const [evening, setEvening] = useState(() => readEvening())
+  // What the field shows while she types; the hour only moves when the value is whole.
+  const [draft, setDraft] = useState(evening)
+  // The examination opens on the minute she set, also while the Journal stays open.
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 30_000)
+    return () => clearInterval(t)
+  }, [])
   const entries = journal.entries.filter((e) => e.status !== 'proposal')
 
   const copy = async () => {
@@ -34,7 +44,7 @@ export function JournalScreen() {
       <p className="t-body mt-2 text-marble-400">
         {user ? 'Kept on your account.' : 'Kept in this browser only. Sign in to keep it across devices.'}
       </p>
-      <Examination commitments={journal.commitments} />
+      <Examination commitments={journal.commitments} from={evening} now={now} />
 
       {entries.length === 0 ? (
         <div className="mt-12">
@@ -98,6 +108,20 @@ export function JournalScreen() {
             <p role="status" className="t-body mt-2 text-marble-300">
               {copied === 'copied' ? 'Copied — paste it into another session to resume.' : 'Could not copy from this browser.'}
             </p>
+          )}
+          {journal.commitments.length > 0 && (
+            <label className="field mt-8 flex items-center gap-3 py-1" data-testid="evening-hour">
+              <span className="t-label">Evening examination from</span>
+              <input
+                type="time"
+                value={draft}
+                onChange={(ev) => {
+                  setDraft(ev.target.value)
+                  if (writeEvening(ev.target.value)) setEvening(ev.target.value)
+                }}
+                className="min-h-11 min-w-0 bg-transparent text-[17px] text-marble-100 focus-visible:shadow-none"
+              />
+            </label>
           )}
         </>
       )}
