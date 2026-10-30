@@ -158,6 +158,20 @@ never add a name here first). The client drops events from automated browsers
 A test that asserts an insert builds its own client with `isAutomated: () => false`
 (`src/platform/flywheel-client.test.ts`); the bundled client in a Playwright build sends nothing.
 
+## Reading pages (`/on/`, `/advisers/`, `/how-it-works/`, crawlable)
+Plain HTML, no JavaScript: what the classical thinkers wrote about common decisions (time, fear,
+money, …), built only from the verified Classics quote banks. Never business-roster lines, never
+anything from a user's session. After the gateway's banks change:
+```bash
+node scripts/quotes.mjs ../flywheel/gateway/prompts/council/classics/quotes   # → src/content/verified-quotes.json
+node scripts/prerender.mjs                                                    # → public/{on,advisers,how-it-works}/**, public/sitemap.xml
+```
+`scripts/prerender.test.mjs` (runs in `npm test`) fails when the committed pages are stale or
+when a blockquoted line is not a bank line, when curly quotation marks appear outside a
+blockquote, or when a page lacks the disclosure (and, where Montessori appears, the
+non-affiliation line). Bump `LASTMOD` in `scripts/prerender.mjs` when the pages change; it
+stamps every sitemap URL, the root included.
+
 ## Content rules (legal record, not style)
 Every screen carries the fictional-interpretation + AI disclosure line. No portraits, ever —
 personas render as monograms (`src/components/Monogram.tsx`). The Montessori non-affiliation line

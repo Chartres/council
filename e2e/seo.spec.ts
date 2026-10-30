@@ -24,8 +24,12 @@ test('sitemap.xml lists the canonical root', async ({ request }) => {
   const xml = await res.text()
   expect(xml).toContain(`<loc>${HOST}/</loc>`)
   expect(xml).toContain('<lastmod>')
-  // Exactly the live URLs: /quick, /privacy and /c/:id are SPA routes whose canonical is /.
-  expect([...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1])).toEqual([`${HOST}/`])
+  // Exactly the pages with their own canonical: the root and the 20 reading pages. /quick,
+  // /privacy and /c/:id are SPA routes whose canonical is /.
+  const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1])
+  expect(locs[0]).toBe(`${HOST}/`)
+  expect(locs).toHaveLength(21)
+  expect(locs.filter((l) => /\/(quick|privacy|c\/)/.test(l))).toEqual([])
 })
 
 test('llms.txt is plain text in llmstxt.org shape', async ({ request }) => {
@@ -36,10 +40,28 @@ test('llms.txt is plain text in llmstxt.org shape', async ({ request }) => {
   expect(body.startsWith('# ')).toBe(true)
   expect(body).toContain('> ')
   expect(body).toContain(`${HOST}/`)
-  // Names only what is live: no unshipped page types, no v3-era "no account" promise.
-  expect(body).not.toContain('/on/')
-  expect(body).not.toContain('/advisers/')
+  // Names only what is live: the reading pages, no v3-era "no account" promise.
+  expect(body).toContain(`${HOST}/on/`)
+  expect(body).toContain(`${HOST}/advisers/`)
   expect(body).not.toMatch(/no account needed/i)
+})
+
+test('topic pages are plain HTML a crawler can read without JavaScript, and are in the sitemap', async ({ request }) => {
+  const res = await request.get('/on/time/')
+  expect(res.status()).toBe(200)
+  expect(res.headers()['content-type']).toContain('text/html')
+  const html = await res.text()
+  expect(html).toContain('<h1>What the classics wrote about time</h1>')
+  expect(html).toContain('“While we are postponing, life speeds by.”')
+  expect(html).toContain('https://en.wikisource.org/wiki/Moral_letters_to_Lucilius/Letter_1')
+  expect(html).not.toContain('<script type="module"')
+  expect(html).toContain(`<link rel="canonical" href="${HOST}/on/time/" />`)
+  const index = await (await request.get('/on/')).text()
+  expect(index).toContain('href="/on/fear/"')
+  const xml = await (await request.get('/sitemap.xml')).text()
+  expect(xml).toContain(`<loc>${HOST}/on/time/</loc>`)
+  const llms = await (await request.get('/llms.txt')).text()
+  expect(llms).toContain(`${HOST}/on/`)
 })
 
 test('security.txt is served and not expired', async ({ request }) => {

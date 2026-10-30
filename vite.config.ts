@@ -16,6 +16,6 @@ export default defineConfig({
     environmentOptions: { jsdom: { url: 'http://localhost/' } },
     setupFiles: ['./vitest.setup.ts'],
     css: true,
-    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    include: ['src/**/*.{test,spec}.{ts,tsx}', 'scripts/**/*.test.mjs'],
   },
 })
