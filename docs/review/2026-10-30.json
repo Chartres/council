@@ -50,7 +50,7 @@
       {
         "name": "Smithery",
         "url": "https://smithery.ai/new",
-        "route": "Sign in, enter the URL or smithery mcp publish; blocked until the gateway supports CIMD",
+        "route": "Sign in, enter the URL or smithery mcp publish; test the connect flow first: the gateway reports no CIMD support, so it may need CIMD (gateway patch) or a server card",
         "auto_ok": false
       },
       {
@@ -62,8 +62,8 @@
       {
         "name": "mcpservers.org",
         "url": "https://mcpservers.org/submit",
-        "route": "Web form, Free plan, remote server, contact council@dravec.org",
-        "auto_ok": true
+        "route": "Web form, Free plan, remote server, contact council@dravec.org; auto_ok becomes true only if the form needs no account or terms accepted in Pavol's name (unverified)",
+        "auto_ok": false
       },
       {
         "name": "awesome-remote-mcp-servers (jaw9c)",
@@ -108,7 +108,7 @@
         "auto_ok": false
       }
     ],
-    "policy_proposal": "An agent may submit on its own only where the submission is metadata about the product, made with a key or address the product already owns (the dravec.org DNS key, council@dravec.org), with no account, payment, identity check or terms accepted in your name, and where the text says nothing beyond what is live and already in this file: today that means publishing and updating server.json in the Official MCP Registry, and the free mcpservers.org form, and even those wait until a stranger can sign in to the MCP server without the beta password. Everything else you submit yourself: anything that needs your personal account (Glama, Smithery, mcp.so, AlternativeTo, Product Hunt), anything public under your name (GitHub PRs, launch posts), anything that needs a paid plan, identity verification, reviewer credentials or a legal acknowledgement (Claude directory, ChatGPT), and anything with a fee, which we skip. The agent prepares those entries and tells you when the blocker for each one is gone."
+    "policy_proposal": "An agent may submit on its own only where the submission is metadata about the product, made with a key or address the product already owns (the dravec.org DNS key, council@dravec.org), with no account, payment, identity check or terms accepted in your name, and where the text says nothing beyond what is live and already in this file: today that means publishing and updating server.json in the Official MCP Registry, and the free mcpservers.org form if it needs no account, and even those wait until a stranger can sign in to the MCP server without the beta password. Everything else you submit yourself: anything that needs your personal account (Glama, Smithery, mcp.so, AlternativeTo, Product Hunt), anything public under your name (GitHub PRs, launch posts), anything that needs a paid plan, identity verification, reviewer credentials or a legal acknowledgement (Claude directory, ChatGPT), and anything with a fee, which we skip. The agent prepares those entries and tells you when the blocker for each one is gone."
   },
   "decisions": [
     {

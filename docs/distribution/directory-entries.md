@@ -25,7 +25,7 @@ Prepared 2026-10-30. Nothing has been submitted, signed up for, or paid. This fi
 
 > Mastermind Council runs a short, facilitated session on a decision you are facing. A neutral facilitator brings in up to four AI advisers modelled on historical thinkers. The Classics roster is Seneca, Marcus Aurelius, Socrates, Confucius, Benjamin Franklin, the Buddha and Maria Montessori. The Business roster has simulations inspired by Peter Drucker, Steve Jobs and Andy Grove, with Socrates. The advisers are AI simulations, not the historical people, and are not endorsed by them or their estates.
 >
-> Quotes are checked. Each Classics adviser draws on named public-domain editions: Gummere's Seneca, Long's Marcus Aurelius, Jowett's Plato, Legge's Analects, Müller's Dhammapada and Sujato's suttas, Anne E. George's Montessori, and Franklin's Autobiography and Way to Wealth. A quotation is matched against the source passages before it is shown. If it cannot be found, it is removed. 365 verified lines are published by topic at https://council.dravec.org/on/ and can be read without an account.
+> Quotes are checked. Each Classics adviser draws on named public-domain or CC0 editions: Gummere's Seneca, Long's Marcus Aurelius, Jowett's Plato, Legge's Analects, Müller's Dhammapada and Sujato's suttas, Anne E. George's Montessori, and Franklin's Autobiography and Way to Wealth. A quotation is matched against the source passages before it is shown. If it cannot be found, it is removed. 365 verified lines are published by topic at https://council.dravec.org/on/ and can be read without an account.
 >
 > Each session ends in a journal entry: the decision, the reasoning, the assumptions, one next action, and optionally a dated commitment with an email reminder if you are signed in. The next session opens with what you decided last time.
 >
@@ -72,7 +72,7 @@ Prepared 2026-10-30. Nothing has been submitted, signed up for, or paid. This fi
   - Short description (no limit stated; 292 chars): `Think through a decision with AI advisers modelled on Seneca, Marcus Aurelius, Socrates and other classics. The advisers are AI simulations. Quotes are checked against public-domain translations; unverifiable ones are removed. Ends in a journal entry with one next action. Free, private beta.`
   - Server URL: `https://llm.dravec.org/mcp`
   - Test credentials: none (DCR)
-  - Auth profile: OAuth 2.0
+  - Auth profile: OAuth 2.1 (DCR, PKCE S256)
   - Category (set on Glama after claiming): Productivity
 - auto_ok: **no** (Glama account in Pavol's name; the claim emails him).
 
@@ -109,7 +109,7 @@ Prepared 2026-10-30. Nothing has been submitted, signed up for, or paid. This fi
   - Remote connection: checked
   - Contact Email: `council@dravec.org`
   - Plan: Free
-- auto_ok: **yes**, after the registry entry exists and the beta question is settled. No account, no payment, product facts only, the product's own contact address.
+- auto_ok: **yes only if the form needs no account and no terms accepted in Pavol's name** (not verified; the page does not say). Then: after the registry entry exists and the beta question is settled. No payment, product facts only, the product's own contact address.
 
 ## 7. awesome-remote-mcp-servers (jaw9c)
 
@@ -138,7 +138,7 @@ Prepared 2026-10-30. Nothing has been submitted, signed up for, or paid. This fi
   - URL slug (permanent): `mastermind-council`
   - Use cases: think through a personal or work decision; hear several viewpoints on one choice; keep a decision journal with a dated next action.
   - What users need: an email address to sign in (and, during the beta, the beta password if MCP sign-in asks for it; confirm).
-  - Reads/writes: both (reads past journal entries, writes journal entries and commitments).
+  - Reads/writes: both (reads past journal entries, writes journal entries and commitments). **Confirm against the live tool list and annotations before pasting** (not checked here; policy 2B).
   - Company: Pavol Dravecký, https://council.dravec.org, council@dravec.org
   - Authentication: Required; OAuth with dynamic client registration.
   - Data handling: own API (the founder's gateway); no personal health data; no sponsored content.
@@ -168,7 +168,7 @@ Prepared 2026-10-30. Nothing has been submitted, signed up for, or paid. This fi
 - Terms: free ("100% free to use"). Personal account only; company accounts prohibited. No upvote asking. Description ≤260. Gallery needs 2+ images (1270x760 recommended). Thumbnail square, 240x240. A Status option for products "not available yet". Tagline limit not stated on either page; 60 is the common figure (secondary).
 - Entry:
   - Name: `Mastermind Council`
-  - Tagline (≤60; 57): `Think a decision through with Seneca, Socrates and others`
+  - Tagline (≤60; 54): `Think a decision through with AI advisers after Seneca`
   - Description (≤260; 245): `AI advisers modelled on Stoics and classics talk through your decision, led by a neutral facilitator. Quotes are checked against public-domain source texts; unverifiable ones are removed. Each session ends in a journal entry and one next action.`
   - Links: `https://council.dravec.org`
   - Pricing: Free
@@ -208,7 +208,7 @@ Prepared 2026-10-30. Nothing has been submitted, signed up for, or paid. This fi
 | Glama | web, Add Server → Connector | yes | no | after registry |
 | Smithery | smithery.ai/new or CLI | yes | no | after CIMD test |
 | mcp.so | web form | unclear | no | if free path shows |
-| mcpservers.org | web form, Free plan | yes | yes | after registry |
+| mcpservers.org | web form, Free plan | yes | only if no account | after registry |
 | awesome-remote-mcp-servers | GitHub PR | yes | no | after beta has run a while |
 | Claude Connectors Directory | claude.ai/directory/manage | needs paid plan | no | after reviewer access + annotations |
 | ChatGPT apps | platform.openai.com/plugins | yes | no | last (ToS, test login, video) |
@@ -226,4 +226,4 @@ Prepared 2026-10-30. Nothing has been submitted, signed up for, or paid. This fi
 
 ## Policy proposal (for Pavol to confirm)
 
-An agent may submit on its own only where the submission is metadata about the product, made with a key or address the product already owns (the dravec.org DNS key, council@dravec.org), with no account, payment, identity check or terms accepted in your name, and where the text says nothing beyond what is live and already in this file: today that means publishing and updating `server.json` in the Official MCP Registry, and the free mcpservers.org form, and even those wait until a stranger can sign in to the MCP server without the beta password. Everything else you submit yourself: anything that needs your personal account (Glama, Smithery, mcp.so, AlternativeTo, Product Hunt), anything public under your name (GitHub PRs, launch posts), anything that needs a paid plan, identity verification, reviewer credentials or a legal acknowledgement (Claude directory, ChatGPT), and anything with a fee, which we skip. The agent prepares those entries and tells you when the blocker for each one is gone.
+An agent may submit on its own only where the submission is metadata about the product, made with a key or address the product already owns (the dravec.org DNS key, council@dravec.org), with no account, payment, identity check or terms accepted in your name, and where the text says nothing beyond what is live and already in this file: today that means publishing and updating `server.json` in the Official MCP Registry, and the free mcpservers.org form if it needs no account, and even those wait until a stranger can sign in to the MCP server without the beta password. Everything else you submit yourself: anything that needs your personal account (Glama, Smithery, mcp.so, AlternativeTo, Product Hunt), anything public under your name (GitHub PRs, launch posts), anything that needs a paid plan, identity verification, reviewer credentials or a legal acknowledgement (Claude directory, ChatGPT), and anything with a fee, which we skip. The agent prepares those entries and tells you when the blocker for each one is gone.

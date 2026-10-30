@@ -3,8 +3,6 @@
 Prepared 2026-10-27. Nothing has been submitted, published, or signed up for. Each step below is for Pavol to run.
 
 > **Update 2026-10-30:** Pavol picked option 1; the `/on/` and `/advisers/` pages are live (#17), so the sentences below that mention them stand. Ready-to-paste entries, rechecked routes and the policy proposal: `directory-entries.md`.
->
-> **Depends on #17 (2026-10-28).** Every mention of `/on/` pages and "365 verified lines" assumes the public reading pages, which wait for Pavol's pick (docs/SIGNATURE.md, Proposal: The classics on…). If he picks option 2 or 3, cut those sentences before posting.
 
 
 ## Endpoint facts checked on 2026-10-27 (read-only, no sign-in)
