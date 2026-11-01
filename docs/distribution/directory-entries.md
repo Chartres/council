@@ -234,6 +234,6 @@ An agent may submit on its own only where the submission is metadata about the p
 
 Nothing has been submitted.
 
-- **Official MCP Registry:** waits, by the policy's own terms, until a stranger can sign in to the MCP server without the beta password. It also waits for the DNS TXT record on the `dravec.org` apex. Writing that record needs Zone · DNS · Edit on the flywheel Cloudflare token, which is on Pavol's list.
-- **mcpservers.org (free form):** waits, by the policy's own terms, until a stranger can sign in to the MCP server without the beta password. It is auto-submit only if the form needs no account and no terms accepted in Pavol's name (still unverified).
+- **Official MCP Registry:** waits, by the policy's own terms, until a stranger can sign in to the MCP server without the beta password. It also waits for the DNS TXT record on the `dravec.org` apex. Writing that record needs Zone · DNS · Edit on the flywheel Cloudflare token, which is on Pavol's list; the private key also has to be stored as a secret (§1).
+- **mcpservers.org (free form):** waits, by the policy's own terms, until a stranger can sign in to the MCP server without the beta password. It also waits for the registry entry, and it is auto-submit only if the form needs no account and no terms accepted in Pavol's name (still unverified).
 - **PulseMCP:** nothing to submit; it picks up the registry entry when its submissions reopen.
