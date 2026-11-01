@@ -2,7 +2,7 @@
 
 Prepared 2026-10-27. Nothing has been submitted, published, or signed up for. Each step below is for Pavol to run.
 
-> **Update 2026-10-30:** Pavol picked option 1; the `/on/` and `/advisers/` pages are live (#17), so the sentences below that mention them stand. Ready-to-paste entries, rechecked routes and the policy proposal: `directory-entries.md`.
+> **Update 2026-10-30:** Pavol picked option 1; the `/on/` and `/advisers/` pages are live (#17), so the sentences below that mention them stand. Ready-to-paste entries, rechecked routes and the submission policy (confirmed 2026-11-01): `directory-entries.md`.
 
 
 ## Endpoint facts checked on 2026-10-27 (read-only, no sign-in)

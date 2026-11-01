@@ -130,6 +130,10 @@ the top 120 px, no x-overflow at 320/375/430, and 44 px nav targets.
 The client never holds an Anthropic key. All model work happens in the gateway Worker
 (`flywheel/gateway/`, `llm.dravec.org`).
 
+Ending the beta password: the legacy password MCP path in `flywheel/gateway` is removed in the
+same change that ends the beta password (Pavol, 2026-11-01;
+`docs/SIGNATURE.md` decision log).
+
 ## Release (the finish line — produces a storefront link)
 - **Web** → Cloudflare Pages → `https://council.dravec.org`. Deploy is the Pages Git integration
   on `main` (hub workflow *Connect Pages*, `gh workflow run connect-pages.yml -f slug=council`).

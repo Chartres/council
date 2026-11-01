@@ -1,0 +1,19 @@
+{
+  "product": "council",
+  "date": "2026-11-02",
+  "headline": "Pavol's two picks from 1 Nov are recorded. The directory submission policy is confirmed as written, and nothing was submitted. The legacy password MCP path is removed in the same change that ends the beta password; it was not removed now.",
+  "shipped": [
+    {
+      "title": "docs: submission policy confirmed (2026-11-01) with the state of each auto-submit target; legacy password MCP path goes with the beta password (SIGNATURE.md decision log, AGENTS.md)",
+      "pr": 28,
+      "merged": "2026-11-01"
+    }
+  ],
+  "next": [
+    "Pavol: add Zone · DNS · Edit to the flywheel Cloudflare token so the apex TXT record on dravec.org can be written for the Official MCP Registry. The private key also has to be stored as a secret.",
+    "Find out whether MCP OAuth sign-in asks for the beta password. Every auto-submit target waits until a stranger can sign in without it.",
+    "When the beta password ends, remove the legacy password MCP path in flywheel/gateway in the same change.",
+    "A terms page (/terms is the app shell today) is needed before the ChatGPT submission.",
+    "Still open with Pavol: Letters, not notifications and In your power? ('What is this?')."
+  ]
+}

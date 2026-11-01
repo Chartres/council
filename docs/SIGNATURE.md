@@ -70,3 +70,5 @@ Constitution articles that bind it: II, VI, VIII.
 | 2026-10-30 | Letters, not notifications; In your power? | still open | He asked "What is this?". The explanations are on the decision page. Unchanged. |
 | 2026-10-30 | Legacy password MCP path | still open | "Dont undrstand". Unchanged. |
 | 2026-10-30 | Reusing a move approved for one product in another | allowed | "Dont just blindly copy the pattern though." |
+| 2026-11-01 | Directory submission policy: confirm as written / edit | confirm as written | "Confirm it as written". Recorded in `docs/distribution/directory-entries.md`. Nothing submitted. |
+| 2026-11-01 | Legacy password MCP path: remove now / remove before the password goes / keep | remove before the password goes | The legacy path is removed in the same change that ends the beta password. Not removed now; the code is in `flywheel/gateway`. |
