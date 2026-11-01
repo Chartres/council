@@ -224,6 +224,16 @@ Prepared 2026-10-30. Nothing has been submitted, signed up for, or paid. This fi
 - Product Hunt's tagline limit (60 is secondary).
 - Whether "Chartres" is a GitHub user or organisation (the GitHub API is blocked here).
 
-## Policy proposal (for Pavol to confirm)
+## Submission policy (confirmed by Pavol, 2026-11-01)
+
+Pavol confirmed the paragraph below as written on 2026-11-01 ("Confirm it as written").
 
 An agent may submit on its own only where the submission is metadata about the product, made with a key or address the product already owns (the dravec.org DNS key, council@dravec.org), with no account, payment, identity check or terms accepted in your name, and where the text says nothing beyond what is live and already in this file: today that means publishing and updating `server.json` in the Official MCP Registry, and the free mcpservers.org form if it needs no account, and even those wait until a stranger can sign in to the MCP server without the beta password. Everything else you submit yourself: anything that needs your personal account (Glama, Smithery, mcp.so, AlternativeTo, Product Hunt), anything public under your name (GitHub PRs, launch posts), anything that needs a paid plan, identity verification, reviewer credentials or a legal acknowledgement (Claude directory, ChatGPT), and anything with a fee, which we skip. The agent prepares those entries and tells you when the blocker for each one is gone.
+
+### State of the auto-submit targets (2026-11-01)
+
+Nothing has been submitted.
+
+- **Official MCP Registry:** waits, by the policy's own terms, until a stranger can sign in to the MCP server without the beta password. It also waits for the DNS TXT record on the `dravec.org` apex. Writing that record needs Zone · DNS · Edit on the flywheel Cloudflare token, which is on Pavol's list.
+- **mcpservers.org (free form):** waits, by the policy's own terms, until a stranger can sign in to the MCP server without the beta password. It is auto-submit only if the form needs no account and no terms accepted in Pavol's name (still unverified).
+- **PulseMCP:** nothing to submit; it picks up the registry entry when its submissions reopen.
