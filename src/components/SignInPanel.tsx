@@ -70,13 +70,13 @@ export function SignInPanel({ reason, title = 'Keep this idea' }: { reason?: str
               placeholder="123456"
               className="min-h-11 min-w-0 flex-1 bg-transparent text-[17px] tracking-widest text-marble-100 placeholder:text-marble-400 focus-visible:shadow-none"
             />
-            <button type="submit" disabled={!code.trim() || checking} className="text-btn shrink-0 px-3">
+            <button type="submit" disabled={!/\d/.test(code) || checking} className="text-btn shrink-0 px-3">
               {checking ? 'Checking…' : 'Use code'}
             </button>
           </div>
           {codeError && (
             <p className="t-body mt-2 text-clay-400" role="alert">
-              That code didn’t work. Codes expire and only the newest one counts; send a new email if needed.
+              That code didn’t work. Codes expire and only the newest one counts; use a different email to send a new one.
             </p>
           )}
           <button
