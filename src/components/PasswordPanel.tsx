@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useCouncil } from '@/app/CouncilContext'
 import { FAILURE_COPY } from '@/domain/council'
+import { useAuth } from '@/auth/AuthContext'
 
 /**
  * The private-beta door. One field, no account — the gateway checks the password
@@ -9,6 +10,7 @@ import { FAILURE_COPY } from '@/domain/council'
  */
 export function PasswordPanel() {
   const { submitKey, checkingKey, keyError } = useCouncil()
+  const { user } = useAuth()
   const [value, setValue] = useState('')
   const disabled = !value.trim() || checkingKey
 
@@ -22,6 +24,13 @@ export function PasswordPanel() {
         <h1 className="t-display">Enter the council password</h1>
         <p className="t-body mt-2 text-marble-300">
           The council is in private beta. The password comes from Pavol.
+        </p>
+        {/* Eyal, 30 Oct: on a new laptop the email code signed him in and this door still asked
+            for "the password". They are two different things; say which is which. */}
+        <p className="t-body mt-2 text-marble-300" data-testid="password-vs-account">
+          {user
+            ? `You are signed in as ${user.email ?? 'your account'}. Each new device also needs the beta password once; it is not your email code.`
+            : 'This is not your account sign-in. Each new device needs it once; your email link or code (the person icon above) brings back your discussions.'}
         </p>
         <form
           onSubmit={(e) => {
