@@ -42,10 +42,20 @@ export function setFallback(f: Fallback): void {
   fallback = f
 }
 
+/** How long one line may take to arrive (headers and audio) before the browser voice speaks
+ *  it instead. A hung gateway used to hold this line and every line behind it silent. */
+export const TTS_TIMEOUT_MS = 6_000
+
 async function fetchAudio(text: string, speaker: string | undefined, signal: AbortSignal): Promise<Blob | null> {
   const base = gatewayUrl()
   if (!base) return null
   const key = loadKey()
+  // Our own controller: cancel() aborts it through `signal`, the clock aborts it on timeout.
+  // Either way this returns null; next() tells them apart by `signal.aborted`.
+  const ctl = new AbortController()
+  const stop = () => ctl.abort()
+  signal.addEventListener('abort', stop)
+  const timer = setTimeout(stop, TTS_TIMEOUT_MS)
   try {
     const res = await fetch(`${base}/v1/tts`, {
       method: 'POST',
@@ -58,12 +68,15 @@ async function fetchAudio(text: string, speaker: string | undefined, signal: Abo
       credentials: 'include',
       // Without a session the speaker cannot be honoured: plain text gets the default voice.
       body: JSON.stringify(speaker && session ? { text, speaker, session_id: session } : { text }),
-      signal,
+      signal: ctl.signal,
     })
     if (!res.ok || !res.headers.get('content-type')?.startsWith('audio/')) return null
     return await res.blob()
   } catch {
     return null
+  } finally {
+    clearTimeout(timer)
+    signal.removeEventListener('abort', stop)
   }
 }
 
