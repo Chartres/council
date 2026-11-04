@@ -13,6 +13,11 @@
 //   POST /__seed  {users:[{id,email}], rows:{table:[row…]}}
 //   GET  /__state               {users, rows, rpc_calls}
 //   POST /__fail_delete         the next council_delete_me answers 500 and deletes nothing
+//   GET  /__otp?email=          the six-digit code the last /auth/v1/otp "emailed" to that address
+//
+// Email sign-in (link or code): POST /auth/v1/otp records a code per address (a new address
+// becomes a user); POST /auth/v1/verify {email, token, type:"email"} answers a session for the
+// right code and 403 {error_code:"otp_expired"} for anything else.
 
 import { createServer } from 'node:http'
 
@@ -23,12 +28,14 @@ let users = new Map()
 let rows = Object.fromEntries(TABLES.map((t) => [t, []]))
 let rpcCalls = []
 let failDelete = false
+let codes = new Map()
 
 const reset = () => {
   users = new Map()
   rows = Object.fromEntries(TABLES.map((t) => [t, []]))
   rpcCalls = []
   failDelete = false
+  codes = new Map()
 }
 
 const cors = (req) => ({
@@ -69,6 +76,17 @@ function caller(req) {
   }
 }
 
+const b64u = (o) => Buffer.from(JSON.stringify(o)).toString('base64url')
+/** A session in the shape GoTrue answers /verify with; the token is the stub's own (unsigned). */
+const session = (u) => ({
+  access_token: `${b64u({ alg: 'HS256', typ: 'JWT' })}.${b64u({ sub: u.id, email: u.email, role: 'authenticated', aud: 'authenticated', exp: 4102444800 })}.stub`,
+  refresh_token: 'stub-refresh',
+  token_type: 'bearer',
+  expires_in: 3600 * 24 * 365,
+  expires_at: 4102444800,
+  user: { id: u.id, email: u.email, aud: 'authenticated', role: 'authenticated', app_metadata: {}, user_metadata: {}, created_at: '2026-10-01T00:00:00Z' },
+})
+
 createServer(async (req, res) => {
   if (req.method === 'OPTIONS') {
     res.writeHead(204, cors(req))
@@ -83,6 +101,10 @@ createServer(async (req, res) => {
   if (path === '/__state') {
     return send(req, res, 200, { users: [...users.values()], rows, rpc_calls: rpcCalls })
   }
+  if (path === '/__otp') {
+    const code = codes.get((url.searchParams.get('email') ?? '').toLowerCase())
+    return code ? send(req, res, 200, { code }) : send(req, res, 404, { msg: 'no code' })
+  }
   if (path === '/__seed') {
     const body = (await readBody(req)) ?? {}
     for (const u of body.users ?? []) users.set(u.id, u)
@@ -96,6 +118,26 @@ createServer(async (req, res) => {
     return sub ? send(req, res, 200, { id: sub, email: users.get(sub).email, aud: 'authenticated', role: 'authenticated' }) : send(req, res, 403, { code: 'user_not_found', msg: 'User from sub claim in JWT does not exist' })
   }
   if (path === '/auth/v1/logout') return send(req, res, 204)
+  if (path === '/auth/v1/otp' && req.method === 'POST') {
+    const email = String((await readBody(req))?.email ?? '').toLowerCase()
+    if (!email) return send(req, res, 400, { msg: 'email required' })
+    codes.set(email, String(100000 + codes.size + 23456))
+    return send(req, res, 200, {})
+  }
+  if (path === '/auth/v1/verify' && req.method === 'POST') {
+    const body = (await readBody(req)) ?? {}
+    const email = String(body.email ?? '').toLowerCase()
+    if (!codes.has(email) || codes.get(email) !== String(body.token ?? '').trim()) {
+      return send(req, res, 403, { code: 403, error_code: 'otp_expired', msg: 'Token has expired or is invalid' })
+    }
+    codes.delete(email)
+    let user = [...users.values()].find((u) => u.email.toLowerCase() === email)
+    if (!user) {
+      user = { id: crypto.randomUUID(), email }
+      users.set(user.id, user)
+    }
+    return send(req, res, 200, session(user))
+  }
   if (path.startsWith('/auth/v1/')) return send(req, res, 400, { msg: 'not stubbed' })
 
   // --- rpc ---

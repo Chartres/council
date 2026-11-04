@@ -14,6 +14,8 @@ interface AuthContextValue {
   /** Supabase access token for the gateway's `Authorization: Bearer`. */
   token: string | null
   signInWithEmail: (email: string) => Promise<{ ok: boolean; error?: string }>
+  /** The six-digit code from the same email: signs in on this device without opening the link. */
+  verifyEmailCode: (email: string, code: string) => Promise<{ ok: boolean; error?: string }>
   signOut: () => Promise<void>
 }
 
@@ -72,6 +74,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email,
         options: { emailRedirectTo: window.location.origin },
       })
+      return error ? { ok: false, error: error.message } : { ok: true }
+    },
+    async verifyEmailCode(email: string, code: string) {
+      if (!supabase) return { ok: false, error: 'Sign-in is not configured in this build.' }
+      const { error } = await supabase.auth.verifyOtp({ email, token: code, type: 'email' })
+      // Success lands through onAuthStateChange (SIGNED_IN), like the link does.
       return error ? { ok: false, error: error.message } : { ok: true }
     },
     async signOut() {
