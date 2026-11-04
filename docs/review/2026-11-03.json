@@ -1,0 +1,31 @@
+{
+  "product": "council",
+  "date": "2026-11-03",
+  "headline": "Eyal's laptop sign-in is fixed and live: after 'Send link' the app asks for the code from the email, and the beta-password door says it is not the account sign-in. His 29 Oct report (see every past discussion) was already fixed by #25. Spoken lines no longer go silent when the gateway hangs: after 6 seconds the browser voice reads them.",
+  "shipped": [
+    {
+      "title": "Sign-in: type the emailed code on any device; the beta door says it is not the account sign-in (Eyal, 30 Oct, feedback a452794d)",
+      "pr": 29,
+      "merged": "2026-11-04",
+      "live_checked": "2026-11-04, council.dravec.org at 390 px and 1280 px: a fresh browser shows the door with the new line and the email sign-in, no sideways scroll. The code field appears after an email is sent; not triggered live (it would send a real email). Covered by e2e/recovery.spec.ts at 1280 px."
+    },
+    {
+      "title": "Voice: each gateway line gets 6 s, then the browser voice speaks it; the next line waits for it to finish",
+      "pr": 30,
+      "merged": "2026-11-04",
+      "live_checked": "2026-11-04: merged after #29; CI green on its head. Not tested by ear live: the gateway voice sits behind the beta password."
+    }
+  ],
+  "feedback": [
+    "a452794d-cd80-44d6-b721-4b7d94a0f9eb (Eyal, 30 Oct, laptop sign-in): fixed in #29, live 2026-11-04.",
+    "c68a431b-e68a-4556-8c49-ae35d7c44a1e (Eyal, 29 Oct, see every past discussion): already fixed by #25 on 29 Oct (the Discussions sheet in the header: every discussion newest first, open, continue). Nothing new built.",
+    "Closing both is Pavol's step on the mini: node scripts/feedback.mjs done <id>. The script is not in this repo.",
+    "Other open feedback: not listed. Reading it needs the feedback table in Supabase, and every SQL call waits for Pavol."
+  ],
+  "voice_status": "Speech-to-text: the browser's own recogniser where it works. On iPhone/iPad, or after it fails once, the mic records and the gateway transcribes with Whisper (20 s timeout). Recording stops after 2.5 s of quiet when dictating and 1.2 s in Talk mode, gives up after 10 s of nothing heard, and the hard cap is 60 s. Silence is judged by loudness only, so a noisy room can keep it recording to the cap. Voices: the gateway gives each adviser a voice; the code comment says Aura-1, not Aura-2 (the gateway decides; not visible from this repo). Where the gateway can't speak, the browser's voice reads at natural pitch and speed (Eyal, 29 Oct). Fixed now (#30): a gateway that hung on one line used to silence that line and every line after it; now each line gets 6 s and then the browser voice reads it, and the next line waits for it to finish. Not measured: Whisper accuracy and latency, and voice latency. Those need the gateway's logs or the analytics table (SQL), which wait for Pavol.",
+  "next": [
+    "Pavol: close the two feedback items with scripts/feedback.mjs on the mini.",
+    "Pavol: if wanted, allow a read of the feedback table and the gateway's /v1/stt and /v1/tts timings, to measure voice latency and see other open feedback.",
+    "Watch whether 6 s is too short for long contributions: a line that switches to the browser voice mid-conversation would show it."
+  ]
+}
