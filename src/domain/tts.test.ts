@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cancel, setFallback, setSession, speak, unlock } from './tts'
+import { TTS_TIMEOUT_MS, cancel, setFallback, setSession, speak, unlock } from './tts'
 
 // The one shared player, driven by the test: nothing ends until the test says so.
 class FakeAudio {
@@ -110,8 +110,106 @@ describe('speak through the gateway', () => {
     const onEnd = vi.fn()
     speak('hello', { pitch: 1, rate: 1 }, onEnd)
     await flush()
-    expect(spoken).toHaveBeenCalledWith('hello', { pitch: 1, rate: 1 }, onEnd)
+    expect(spoken).toHaveBeenCalledWith('hello', { pitch: 1, rate: 1 }, expect.any(Function))
+    spoken.mock.calls[0][2]() // the browser voice ends the line: her callback runs once
+    spoken.mock.calls[0][2]()
+    expect(onEnd).toHaveBeenCalledTimes(1)
     expect(lines()).toHaveLength(0)
+  })
+
+  // A gateway that accepts the request and never answers used to leave the line, and every line
+  // queued behind it, silent until the conversation was left (voice status, 3 Nov).
+  describe('a gateway that hangs', () => {
+    const hanging = () =>
+      vi.fn(
+        (_url: string, init: RequestInit) =>
+          new Promise((_resolve, reject) => {
+            init.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
+          }),
+      )
+    beforeEach(() => vi.useFakeTimers())
+    afterEach(() => vi.useRealTimers())
+
+    it('gives each line a few seconds, then the browser voice speaks it, and the lines after it', async () => {
+      expect(TTS_TIMEOUT_MS).toBeGreaterThanOrEqual(3_000)
+      expect(TTS_TIMEOUT_MS).toBeLessThanOrEqual(10_000)
+      vi.stubGlobal('fetch', hanging())
+      // The browser voice says each line and reports its end straight away.
+      const spoken = vi.fn((_t: string, _v: unknown, onEnd?: () => void) => onEnd?.())
+      setFallback(spoken)
+      speak('first', { pitch: 1, rate: 1 })
+      speak('second', { pitch: 1, rate: 1 })
+      await vi.advanceTimersByTimeAsync(TTS_TIMEOUT_MS - 1)
+      expect(spoken).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(1)
+      expect(spoken.mock.calls.map((c) => c[0])).toEqual(['first', 'second'])
+      expect(lines()).toHaveLength(0)
+    })
+
+    it('a body that stalls after the headers falls back the same way', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((_url: string, init: RequestInit) =>
+          Promise.resolve({
+            ok: true,
+            headers: { get: () => 'audio/mpeg' },
+            blob: () =>
+              new Promise((_r, reject) =>
+                init.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError'))),
+              ),
+          }),
+        ),
+      )
+      const spoken = vi.fn()
+      setFallback(spoken)
+      speak('slow body', { pitch: 1, rate: 1 })
+      await vi.advanceTimersByTimeAsync(TTS_TIMEOUT_MS)
+      expect(spoken).toHaveBeenCalledWith('slow body', { pitch: 1, rate: 1 }, expect.any(Function))
+    })
+
+    it('the next gateway line waits for the browser voice to finish the fallen-back one', async () => {
+      let call = 0
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: string, init: RequestInit) => (++call === 1 ? hanging()(url, init) : audioResponse())),
+      )
+      let finish: (() => void) | undefined
+      setFallback((_t, _v, onEnd) => {
+        finish = onEnd
+      })
+      speak('hangs', { pitch: 1, rate: 1 })
+      speak('arrives', { pitch: 1, rate: 1 })
+      await vi.advanceTimersByTimeAsync(TTS_TIMEOUT_MS)
+      expect(finish).toBeDefined()
+      expect(lines()).toHaveLength(0) // not on top of the browser voice
+      finish!()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(lines()).toHaveLength(1)
+    })
+
+    it('a browser voice that never reports its end (iOS) does not stall the queue', async () => {
+      let call = 0
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: string, init: RequestInit) => (++call === 1 ? hanging()(url, init) : audioResponse())),
+      )
+      setFallback(() => {}) // onEnd never called
+      speak('short line', { pitch: 1, rate: 1 })
+      speak('arrives', { pitch: 1, rate: 1 })
+      await vi.advanceTimersByTimeAsync(TTS_TIMEOUT_MS + 30_000)
+      expect(lines()).toHaveLength(1)
+    })
+
+    it('a line cancelled while it hangs stays silent: no fallback after the timeout', async () => {
+      vi.stubGlobal('fetch', hanging())
+      const spoken = vi.fn()
+      setFallback(spoken)
+      speak('left behind', { pitch: 1, rate: 1 })
+      await vi.advanceTimersByTimeAsync(10)
+      cancel()
+      await vi.advanceTimersByTimeAsync(TTS_TIMEOUT_MS * 2)
+      expect(spoken).not.toHaveBeenCalled()
+    })
   })
 
   it('cancel stops the player and drops the queue', async () => {

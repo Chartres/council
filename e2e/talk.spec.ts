@@ -48,7 +48,8 @@ test('she talks with the group hands-free and cuts in', async ({ page }) => {
   await expect(page.getByTestId('floor')).toHaveCount(2, { timeout: 20_000 })
   await expect(growing).toHaveCount(0)
   const floor = await page.getByTestId('floor').last().textContent()
-  await expect.poll(async () => (await synth(page)).spoken.slice(before)).toContain(floor)
+  // The browser voice gets each line as the one before it ends (2 s each in the fake).
+  await expect.poll(async () => (await synth(page)).spoken.slice(before), { timeout: 20_000 }).toContain(floor)
   const said = (await synth(page)).spoken.slice(before)
   const answer = (await page.getByTestId('contribution').last().locator('.t-body').textContent())!
   expect(said).toEqual([...answer.match(/[^.!?]+[.!?]+/g)!.map((s) => s.trim()), floor])

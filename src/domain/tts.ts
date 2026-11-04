@@ -42,10 +42,20 @@ export function setFallback(f: Fallback): void {
   fallback = f
 }
 
+/** How long one line may take to arrive (headers and audio) before the browser voice speaks
+ *  it instead. A hung gateway used to hold this line and every line behind it silent. */
+export const TTS_TIMEOUT_MS = 6_000
+
 async function fetchAudio(text: string, speaker: string | undefined, signal: AbortSignal): Promise<Blob | null> {
   const base = gatewayUrl()
   if (!base) return null
   const key = loadKey()
+  // Our own controller: cancel() aborts it through `signal`, the clock aborts it on timeout.
+  // Either way this returns null; next() tells them apart by `signal.aborted`.
+  const ctl = new AbortController()
+  const stop = () => ctl.abort()
+  signal.addEventListener('abort', stop)
+  const timer = setTimeout(stop, TTS_TIMEOUT_MS)
   try {
     const res = await fetch(`${base}/v1/tts`, {
       method: 'POST',
@@ -58,12 +68,15 @@ async function fetchAudio(text: string, speaker: string | undefined, signal: Abo
       credentials: 'include',
       // Without a session the speaker cannot be honoured: plain text gets the default voice.
       body: JSON.stringify(speaker && session ? { text, speaker, session_id: session } : { text }),
-      signal,
+      signal: ctl.signal,
     })
     if (!res.ok || !res.headers.get('content-type')?.startsWith('audio/')) return null
     return await res.blob()
   } catch {
     return null
+  } finally {
+    clearTimeout(timer)
+    signal.removeEventListener('abort', stop)
   }
 }
 
@@ -116,10 +129,7 @@ async function next(): Promise<void> {
   const blob = await item.audio
   // Cancelled while downloading: cancel() already reset the queue; a later speak() runs its own loop.
   if (item.abort.signal.aborted) return
-  if (!blob) {
-    fallback(item.text, item.voice, item.onEnd)
-    return void next()
-  }
+  if (!blob) return viaFallback(item)
   const url = URL.createObjectURL(blob)
   const audio = element()
   audio.src = url
@@ -140,9 +150,26 @@ async function next(): Promise<void> {
     // A cancelled line stays silent; otherwise autoplay was refused: let the browser engine try.
     if (item.abort.signal.aborted) return
     audio.onended = audio.onerror = null
-    fallback(item.text, item.voice, item.onEnd)
+    viaFallback(item)
+  }
+}
+
+/** The browser engine speaks this line; the queue moves on when it says it ended, so the next
+ *  gateway line never plays over it. iOS sometimes never fires `onend`, so a cap sized to the
+ *  line (about 70 ms a character at rate 1, a normal speaking pace; at least 3 s) moves it on regardless. */
+function viaFallback(item: Item): void {
+  let finished = false
+  const finish = () => {
+    if (finished) return
+    finished = true
+    clearTimeout(guard)
+    // Cancelled while the browser spoke: cancel() reset the queue; stay quiet.
+    if (item.abort.signal.aborted) return
+    item.onEnd?.()
     void next()
   }
+  const guard = setTimeout(finish, Math.max(3_000, (item.text.length * 70) / (item.voice.rate || 1)))
+  fallback(item.text, item.voice, finish)
 }
 
 /** Stop what is playing and forget what was queued, including the line still downloading. */
