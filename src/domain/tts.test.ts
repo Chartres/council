@@ -110,7 +110,10 @@ describe('speak through the gateway', () => {
     const onEnd = vi.fn()
     speak('hello', { pitch: 1, rate: 1 }, onEnd)
     await flush()
-    expect(spoken).toHaveBeenCalledWith('hello', { pitch: 1, rate: 1 }, onEnd)
+    expect(spoken).toHaveBeenCalledWith('hello', { pitch: 1, rate: 1 }, expect.any(Function))
+    spoken.mock.calls[0][2]() // the browser voice ends the line: her callback runs once
+    spoken.mock.calls[0][2]()
+    expect(onEnd).toHaveBeenCalledTimes(1)
     expect(lines()).toHaveLength(0)
   })
 
@@ -131,7 +134,8 @@ describe('speak through the gateway', () => {
       expect(TTS_TIMEOUT_MS).toBeGreaterThanOrEqual(3_000)
       expect(TTS_TIMEOUT_MS).toBeLessThanOrEqual(10_000)
       vi.stubGlobal('fetch', hanging())
-      const spoken = vi.fn()
+      // The browser voice says each line and reports its end straight away.
+      const spoken = vi.fn((_t: string, _v: unknown, onEnd?: () => void) => onEnd?.())
       setFallback(spoken)
       speak('first', { pitch: 1, rate: 1 })
       speak('second', { pitch: 1, rate: 1 })
@@ -160,7 +164,40 @@ describe('speak through the gateway', () => {
       setFallback(spoken)
       speak('slow body', { pitch: 1, rate: 1 })
       await vi.advanceTimersByTimeAsync(TTS_TIMEOUT_MS)
-      expect(spoken).toHaveBeenCalledWith('slow body', { pitch: 1, rate: 1 }, undefined)
+      expect(spoken).toHaveBeenCalledWith('slow body', { pitch: 1, rate: 1 }, expect.any(Function))
+    })
+
+    it('the next gateway line waits for the browser voice to finish the fallen-back one', async () => {
+      let call = 0
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: string, init: RequestInit) => (++call === 1 ? hanging()(url, init) : audioResponse())),
+      )
+      let finish: (() => void) | undefined
+      setFallback((_t, _v, onEnd) => {
+        finish = onEnd
+      })
+      speak('hangs', { pitch: 1, rate: 1 })
+      speak('arrives', { pitch: 1, rate: 1 })
+      await vi.advanceTimersByTimeAsync(TTS_TIMEOUT_MS)
+      expect(finish).toBeDefined()
+      expect(lines()).toHaveLength(0) // not on top of the browser voice
+      finish!()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(lines()).toHaveLength(1)
+    })
+
+    it('a browser voice that never reports its end (iOS) does not stall the queue', async () => {
+      let call = 0
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: string, init: RequestInit) => (++call === 1 ? hanging()(url, init) : audioResponse())),
+      )
+      setFallback(() => {}) // onEnd never called
+      speak('short line', { pitch: 1, rate: 1 })
+      speak('arrives', { pitch: 1, rate: 1 })
+      await vi.advanceTimersByTimeAsync(TTS_TIMEOUT_MS + 30_000)
+      expect(lines()).toHaveLength(1)
     })
 
     it('a line cancelled while it hangs stays silent: no fallback after the timeout', async () => {

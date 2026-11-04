@@ -129,10 +129,7 @@ async function next(): Promise<void> {
   const blob = await item.audio
   // Cancelled while downloading: cancel() already reset the queue; a later speak() runs its own loop.
   if (item.abort.signal.aborted) return
-  if (!blob) {
-    fallback(item.text, item.voice, item.onEnd)
-    return void next()
-  }
+  if (!blob) return viaFallback(item)
   const url = URL.createObjectURL(blob)
   const audio = element()
   audio.src = url
@@ -153,9 +150,26 @@ async function next(): Promise<void> {
     // A cancelled line stays silent; otherwise autoplay was refused: let the browser engine try.
     if (item.abort.signal.aborted) return
     audio.onended = audio.onerror = null
-    fallback(item.text, item.voice, item.onEnd)
+    viaFallback(item)
+  }
+}
+
+/** The browser engine speaks this line; the queue moves on when it says it ended, so the next
+ *  gateway line never plays over it. iOS sometimes never fires `onend`, so a cap sized to the
+ *  line (about 70 ms a character at rate 1, a normal speaking pace; at least 3 s) moves it on regardless. */
+function viaFallback(item: Item): void {
+  let finished = false
+  const finish = () => {
+    if (finished) return
+    finished = true
+    clearTimeout(guard)
+    // Cancelled while the browser spoke: cancel() reset the queue; stay quiet.
+    if (item.abort.signal.aborted) return
+    item.onEnd?.()
     void next()
   }
+  const guard = setTimeout(finish, Math.max(3_000, (item.text.length * 70) / (item.voice.rate || 1)))
+  fallback(item.text, item.voice, finish)
 }
 
 /** Stop what is playing and forget what was queued, including the line still downloading. */

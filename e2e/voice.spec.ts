@@ -33,7 +33,8 @@ const FAKE_SPEECH = `
   Object.defineProperty(window, 'speechSynthesis', {
     value: {
       spoken: [],
-      speak(u) { this.spoken.push(u.text) },
+      // Ends each line soon after, like a real engine (the never-ends case is in tts.test.ts).
+      speak(u) { this.spoken.push(u.text); setTimeout(() => u.onend?.(), 50) },
       cancel() {},
       getVoices() { return [{ lang: 'en-GB' }] },
     },
@@ -98,9 +99,10 @@ test('she dictates her idea and listens to the debate', async ({ page }) => {
 
   await expect(page.getByTestId('verdict')).toBeVisible({ timeout: 20_000 })
   // Each turn spoken as it arrived, the verdict last.
-  const spoken: string[] = await page.evaluate(
-    () => (window.speechSynthesis as unknown as { spoken: string[] }).spoken,
-  )
+  // The browser voice gets each line as the one before it ends.
+  const read = () => page.evaluate(() => (window.speechSynthesis as unknown as { spoken: string[] }).spoken)
+  await expect.poll(async () => (await read()).at(-1) ?? '', { timeout: 20_000 }).toContain('The verdict.')
+  const spoken = await read()
   expect(spoken.length).toBeGreaterThan(1)
   expect(spoken[spoken.length - 1]).toContain('The verdict.')
   await page.getByTestId('verdict').scrollIntoViewIfNeeded()
