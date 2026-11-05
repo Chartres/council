@@ -197,7 +197,9 @@ export function mountWhatsNew({
   document.addEventListener('keydown', onKey)
   root.appendChild(backdrop)
   for (const c of madeInert) c.setAttribute('inert', '')
-  button.focus()
+  // focus the button without scrolling to it: a tall sheet opens at its title, not its end
+  button.focus({ preventScroll: true })
+  sheet.scrollTop = 0
   track('whats_new_seen', { version: release.version, items: items.length })
   return { shown: true, close: () => close('api') }
 }

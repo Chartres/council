@@ -200,6 +200,15 @@ describe('mountWhatsNew', () => {
     expect(document.querySelector('[data-id="k"] img')!.getAttribute('src')).toBe('/w/k.png')
   })
 
+  it('opens at the top: focusing the button never scrolls the first item out of view', () => {
+    const focus = vi.spyOn(HTMLElement.prototype, 'focus')
+    mountWhatsNew(opts())
+    const button = document.querySelector('[data-whats-new-close]')
+    const call = focus.mock.calls.find((_, i) => focus.mock.contexts[i] === button)
+    expect(call?.[0]).toEqual({ preventScroll: true })
+    expect((document.querySelector('[role="dialog"]') as HTMLElement).scrollTop).toBe(0)
+  })
+
   it('the video carries the muted attribute too (iOS autoplay checks it)', () => {
     mountWhatsNew(opts())
     expect(document.querySelector('video')!.hasAttribute('muted')).toBe(true)
