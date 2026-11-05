@@ -265,3 +265,28 @@ body {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* What's new sheet (src/platform/whats-new.ts, vendored): the kit reads --paper/--ink/--accent;
+   the room's tokens have other names, so set them on the sheet itself. The candle button
+   carries ink text like every .slab (white on candle would fail contrast). */
+.fw-wn {
+  --paper: var(--color-ink-900);
+  --ink: var(--color-marble-100);
+  --accent: var(--color-candle-400);
+  border-top: 1px solid var(--color-ink-800);
+}
+.fw-wn-backdrop .fw-wn h2 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  color: var(--color-marble-50);
+}
+.fw-wn-backdrop .fw-wn button {
+  color: var(--color-ink-950);
+  font-weight: 600;
+}
+.fw-wn-backdrop .fw-wn a {
+  color: var(--color-marble-200);
+}
+.fw-wn-backdrop .fw-wn iframe {
+  border-color: var(--color-ink-700);
+}

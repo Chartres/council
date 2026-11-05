@@ -17,5 +17,7 @@ export default defineConfig({
     setupFiles: ['./vitest.setup.ts'],
     css: true,
     include: ['src/**/*.{test,spec}.{ts,tsx}', 'scripts/**/*.test.mjs'],
+    // the vendored what's-new check is a node:test file (run by `node --test` in CI)
+    exclude: ['scripts/check-whats-new.test.mjs', 'node_modules/**'],
   },
 })

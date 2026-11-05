@@ -23,6 +23,9 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+      # What's new: plain words and light, self-contained HTML animations (flywheel docs/standards/whats-new.md)
+      - run: node scripts/check-whats-new.mjs whats-new.json --public public
+      - run: node --test scripts/check-whats-new.test.mjs
       - name: Build
         run: npm run build
         env:

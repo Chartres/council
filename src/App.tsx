@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { CouncilProvider, useCouncil } from '@/app/CouncilContext'
 import { MastermindProvider } from '@/app/MastermindContext'
+import { useWhatsNew } from '@/app/whatsNew'
 import { AuthProvider } from '@/auth/AuthContext'
 import { track } from '@/analytics'
 import { AdminBar } from '@/components/AdminBar'
@@ -35,6 +36,8 @@ function Shell() {
   useEffect(() => {
     track('page_view', { view })
   }, [view])
+  // What's new: once per version, on the start screen only (src/app/whatsNew.ts).
+  useWhatsNew({ view, gate })
   const Screen = SCREENS[view]
 
   return (

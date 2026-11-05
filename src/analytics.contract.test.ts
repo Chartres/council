@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { TAXONOMY } from './platform/flywheel-client'
 import { KEY_ACTIONS } from './analytics'
+import allow from './platform/flywheel-events.json'
 
 // The shared events table (flywheel-core) only accepts allow-listed names; anything else is
 // dropped silently by the insert policy, and the funnel goes blind without an error. This
@@ -22,7 +23,9 @@ describe('analytics contract', () => {
   })
 
   it('tracks only names in the shared taxonomy', () => {
-    const off = tracked.filter((t) => !(TAXONOMY as readonly string[]).includes(t.event))
+    // the vendored what's-new kit (src/platform/whats-new.ts) sends its two allow-listed names
+    const kit = (t: { file: string; event: string }) => t.file.endsWith('/platform/whats-new.ts') && allow.events.includes(t.event)
+    const off = tracked.filter((t) => !(TAXONOMY as readonly string[]).includes(t.event) && !kit(t))
     expect(off).toEqual([])
   })
 

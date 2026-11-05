@@ -1,0 +1,50 @@
+<!doctype html>
+<meta charset="utf-8">
+<!-- What's new 1.0.0, discussions (flywheel docs/standards/whats-new.md): CSS only, nothing fetched.
+     5 s loop: tap the menu, the Discussions sheet slides in, tap a past one, Continue this discussion. -->
+<style>
+  :root{--bg:#100e0b;--sheet:#171410;--line:#26211a;--row:#1e1a15;--ink:#ece7db;--hi:#f8f5ee;--dim:#968d7c;--candle:#e0b263;--dot:#efce8d}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:13px/1.3 Inter,system-ui,sans-serif;overflow:hidden}
+  .f{position:relative;height:100%}
+  .hd{display:flex;align-items:center;gap:10px;height:40px;padding:0 14px;border-bottom:1px solid var(--line)}
+  .m{display:grid;gap:3px;width:16px}.m i{display:block;height:2px;border-radius:1px;background:var(--dim)}.m i:last-child{width:10px}
+  .ti{font:500 16px Georgia,'EB Garamond',serif;color:var(--ink)}.ti span{color:var(--dim);font-weight:400}
+  .bd{padding:14px}
+  .bar{height:9px;border-radius:2px;background:var(--line);margin:0 0 9px}
+  .past{position:absolute;inset:41px 0 0;padding:14px;background:var(--bg);opacity:0;animation:past 5s infinite}
+  .past b{display:block;font:500 16px Georgia,serif;color:var(--hi);margin-bottom:4px}
+  .past small{color:var(--dim)}
+  .slab{display:flex;align-items:center;justify-content:center;height:36px;border-radius:4px;background:var(--candle);color:#100e0b;font-weight:600;margin-top:14px}
+  .dr{position:absolute;inset:0 auto 0 0;width:68%;background:var(--sheet);border-right:1px solid var(--line);padding:12px 12px 0;box-sizing:border-box;transform:translateX(-102%);animation:dr 5s infinite}
+  .shade{position:absolute;inset:0;background:rgb(16 14 11/.7);opacity:0;animation:shade 5s infinite}
+  .lb{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);font-weight:500}
+  .dr .slab{height:30px;margin:8px 0 10px}
+  .it{padding:7px 8px;border-radius:5px;margin:0 -8px 2px}
+  .it b{display:block;font:500 14px Georgia,serif;color:var(--hi)}.it small{color:var(--dim);font-size:11px}
+  .it.a{animation:pick 5s infinite}
+  .dot{position:absolute;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50%;background:var(--dot);opacity:0}
+  .d1{left:22px;top:20px;animation:t1 5s infinite}
+  .d2{left:30%;top:108px;animation:t2 5s infinite}
+  @keyframes t1{0%,8%{opacity:0;transform:scale(.5)}13%{opacity:.45;transform:scale(1)}20%,100%{opacity:0}}
+  @keyframes shade{0%,16%{opacity:0}24%,56%{opacity:1}62%,100%{opacity:0}}
+  @keyframes dr{0%,16%{transform:translateX(-102%)}24%,56%{transform:none}62%,100%{transform:translateX(-102%)}}
+  @keyframes t2{0%,38%{opacity:0;transform:scale(.5)}44%{opacity:.45;transform:scale(1)}52%,100%{opacity:0}}
+  @keyframes pick{0%,42%{background:transparent}45%,62%{background:var(--row)}}
+  @keyframes past{0%,56%{opacity:0}62%,94%{opacity:1}100%{opacity:0}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important}.past{opacity:1}}
+</style>
+<div class="f" aria-hidden="true">
+  <div class="hd"><div class="m"><i></i><i></i><i></i></div><div class="ti">Mastermind <span>Council</span></div></div>
+  <div class="bd"><div class="bar" style="width:70%"></div><div class="bar" style="width:88%"></div><div class="bar" style="width:52%"></div></div>
+  <div class="past"><b>Pilot a premium tier</b><small>Tue · Seneca, Aurelius, Franklin</small>
+    <div class="bar" style="width:84%;margin-top:12px"></div><div class="bar" style="width:62%"></div>
+    <div class="slab">Continue this discussion</div></div>
+  <div class="shade"></div>
+  <div class="dr">
+    <div class="lb">Discussions</div>
+    <div class="slab">New discussion</div>
+    <div class="it a"><b>Pilot a premium tier</b><small>Tue · Seneca, Aurelius</small></div>
+    <div class="it"><b>Hire a second engineer</b><small>Oct 28 · Franklin, Smith</small></div>
+  </div>
+  <div class="dot d1"></div><div class="dot d2"></div>
+</div>

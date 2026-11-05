@@ -162,6 +162,17 @@ never add a name here first). The client drops events from automated browsers
 A test that asserts an insert builds its own client with `isAutomated: () => false`
 (`src/platform/flywheel-client.test.ts`); the bundled client in a Playwright build sends nothing.
 
+## What's new (flywheel `docs/standards/whats-new.md`)
+`whats-new.json` holds the user-facing version and 1–3 one-sentence items; each item's animation is
+`public/whats-new/<version>/<id>.html` (CSS keyframes only, no script, nothing fetched). The session
+that ships the next user-facing change bumps `version` and rewrites the items. The sheet
+(`src/platform/whats-new.ts`, vendored) mounts from `src/app/whatsNew.ts` on the start screen only,
+past the beta door, and never once this load has left `/` (a discussion may be under way).
+`returning` = `council:key`/`journal`/`discussions`/`ideas` present at load. Check:
+`node scripts/check-whats-new.mjs whats-new.json --public public` (CI). Playwright seeds
+`fw:whats-new` with the current version so the sheet never covers other journeys;
+`e2e/whats-new.spec.ts` meets it.
+
 ## Reading pages (`/on/`, `/advisers/`, `/how-it-works/`, crawlable)
 Plain HTML, no JavaScript: what the classical thinkers wrote about common decisions (time, fear,
 money, …), built only from the verified Classics quote banks. Never business-roster lines, never
