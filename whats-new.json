@@ -1,0 +1,30 @@
+{
+  "version": "1.0.0",
+  "date": "2026-11-05",
+  "items": [
+    {
+      "id": "discussions",
+      "text": "Every past discussion is in the menu at the top left, and you can continue it.",
+      "alt": "The menu opens a list of past discussions; tapping one shows Continue this discussion",
+      "media": "/whats-new/1.0.0/discussions.html",
+      "width": 390,
+      "height": 210
+    },
+    {
+      "id": "margin-notes",
+      "text": "Under each contribution, mark Agree, Push back or Note; it goes with your next message.",
+      "alt": "A tap on Push back under an adviser's contribution adds a margin note in red",
+      "media": "/whats-new/1.0.0/margin-notes.html",
+      "width": 390,
+      "height": 190
+    },
+    {
+      "id": "sign-in-code",
+      "text": "Sign in on any device by typing the six-digit code from the email.",
+      "alt": "The code from the email is typed into the sign-in field and the account is signed in",
+      "media": "/whats-new/1.0.0/sign-in-code.html",
+      "width": 390,
+      "height": 190
+    }
+  ]
+}

@@ -1,4 +1,10 @@
+import { readFileSync } from 'node:fs'
 import { defineConfig, devices } from '@playwright/test'
+
+// Every journey starts having seen this version's What's new sheet, so it never covers the
+// screen under test; e2e/whats-new.spec.ts seeds its own storage to meet it.
+const WHATS_NEW_VERSION: string = JSON.parse(readFileSync('whats-new.json', 'utf8')).version
+export const WHATS_NEW_SEEN = { name: 'fw:whats-new', value: WHATS_NEW_VERSION }
 
 // The stub gateway runs the private-beta door in e2e too, so the header injection is
 // exercised by every journey and not only by the gate spec.
@@ -21,18 +27,18 @@ export default defineConfig({
       origins: [
         {
           origin: 'http://localhost:4173',
-          localStorage: [{ name: 'council:key', value: STUB_PASSWORD }],
+          localStorage: [{ name: 'council:key', value: STUB_PASSWORD }, WHATS_NEW_SEEN],
         },
         {
           // A second build with the admin escape hatch baked in (see e2e/admin-bar.spec.ts);
           // kept off the main build so the fold/gate/council journeys never see an admin.
           origin: 'http://localhost:4174',
-          localStorage: [{ name: 'council:key', value: STUB_PASSWORD }],
+          localStorage: [{ name: 'council:key', value: STUB_PASSWORD }, WHATS_NEW_SEEN],
         },
         {
           // The signed-in build (e2e/account.spec.ts) against the stub Supabase.
           origin: 'http://localhost:4175',
-          localStorage: [{ name: 'council:key', value: STUB_PASSWORD }],
+          localStorage: [{ name: 'council:key', value: STUB_PASSWORD }, WHATS_NEW_SEEN],
         },
       ],
     },

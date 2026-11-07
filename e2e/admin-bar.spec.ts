@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { STUB_PASSWORD } from '../playwright.config'
+import { STUB_PASSWORD, WHATS_NEW_SEEN } from '../playwright.config'
 
 // The admin bar only exists in the build at :4174, where VITE_E2E_ADMIN=1 is baked
 // in (see playwright.config.ts) — the plain build at :4173 never carries it, so
@@ -17,7 +17,7 @@ test.describe('admin build', () => {
     viewport: { width: 390, height: 844 },
     storageState: {
       cookies: [],
-      origins: [{ origin: ADMIN, localStorage: [{ name: 'council:key', value: STUB_PASSWORD }] }],
+      origins: [{ origin: ADMIN, localStorage: [{ name: 'council:key', value: STUB_PASSWORD }, WHATS_NEW_SEEN] }],
     },
   })
 

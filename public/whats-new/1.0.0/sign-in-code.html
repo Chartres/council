@@ -1,0 +1,36 @@
+<!doctype html>
+<meta charset="utf-8">
+<!-- What's new 1.0.0, sign-in code (flywheel docs/standards/whats-new.md): CSS only, nothing fetched.
+     4.5 s loop: the six digits from the email are typed, Use code, signed in. -->
+<style>
+  :root{--bg:#100e0b;--field:#171410;--line:#342d23;--ink:#ece7db;--hi:#f8f5ee;--dim:#968d7c;--laurel:#9ab896;--dot:#efce8d}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:13px/1.3 Inter,system-ui,sans-serif;overflow:hidden}
+  .f{position:relative;height:100%;padding:16px;box-sizing:border-box}
+  .mail{border:1px solid var(--line);border-radius:4px;padding:8px 10px;color:var(--dim)}
+  .mail b{color:var(--hi);letter-spacing:.2em;font-weight:600}
+  .lb{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);font-weight:500;margin:14px 0 6px}
+  .fd{display:flex;align-items:center;justify-content:space-between;height:40px;padding:0 4px 0 12px;background:var(--field);border:1px solid var(--line);border-radius:4px}
+  .code{font-size:17px;letter-spacing:.3em;color:var(--hi)}
+  .code i{font-style:normal;opacity:0}
+  .code i:nth-child(1){animation:d1 4.5s infinite}.code i:nth-child(2){animation:d2 4.5s infinite}.code i:nth-child(3){animation:d3 4.5s infinite}
+  .code i:nth-child(4){animation:d4 4.5s infinite}.code i:nth-child(5){animation:d5 4.5s infinite}.code i:nth-child(6){animation:d6 4.5s infinite}
+  .btn{font-weight:600;font-size:14px;color:var(--ink);padding:0 10px}
+  .ok{margin-top:12px;color:var(--laurel);font-size:14px;opacity:0;animation:ok 4.5s infinite}
+  .dot{position:absolute;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50%;background:var(--dot);opacity:0;right:24px;top:106px;animation:tap 4.5s infinite}
+  @keyframes d1{0%,8%{opacity:0}9%,95%{opacity:1}100%{opacity:0}}
+  @keyframes d2{0%,14%{opacity:0}15%,95%{opacity:1}100%{opacity:0}}
+  @keyframes d3{0%,20%{opacity:0}21%,95%{opacity:1}100%{opacity:0}}
+  @keyframes d4{0%,26%{opacity:0}27%,95%{opacity:1}100%{opacity:0}}
+  @keyframes d5{0%,32%{opacity:0}33%,95%{opacity:1}100%{opacity:0}}
+  @keyframes d6{0%,38%{opacity:0}39%,95%{opacity:1}100%{opacity:0}}
+  @keyframes tap{0%,46%{opacity:0;transform:scale(.5)}52%{opacity:.45;transform:scale(1)}60%,100%{opacity:0}}
+  @keyframes ok{0%,58%{opacity:0}64%,95%{opacity:1}100%{opacity:0}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important}.code i,.ok{opacity:1}}
+</style>
+<div class="f" aria-hidden="true">
+  <div class="mail">Your code: <b>482913</b></div>
+  <div class="lb">Code from the email</div>
+  <div class="fd"><span class="code"><i>4</i><i>8</i><i>2</i><i>9</i><i>1</i><i>3</i></span><span class="btn">Use code</span></div>
+  <div class="ok">Signed in on this device.</div>
+  <div class="dot"></div>
+</div>
