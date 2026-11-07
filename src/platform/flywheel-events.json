@@ -2,10 +2,8 @@
   "$comment": "Canonical event-name allow-list for the shared flywheel-core events table. The insert policy in supabase/migrations/ is generated from this list (scripts/signals.mjs policySql) and a test keeps them equal. Additive only: never remove a name an app has shipped. Apps vendor a copy as src/platform/flywheel-events.json and their CI fails on a track() name missing from it (docs/standards/signals-contract.md).",
   "version": 4,
   "updated": "2026-11-07",
-  "pending_comment": "Names in 'pending' are on this list but not yet in the live policy. Remove them from 'pending' once the migration is applied and read back. Guards report them as pending, not as failures. v2 (24 names) was applied on 2026-11-01; v3 (26 names, + whats_new_seen, whats_new_dismissed) on 2026-11-05, read back as the anon role.",
-  "pending": [
-    "exam_result_reported"
-  ],
+  "pending_comment": "Names in 'pending' are on this list but not yet in the live policy. Remove them from 'pending' once the migration is applied and read back. Guards report them as pending, not as failures. v2 (24 names) was applied on 2026-11-01; v3 (26 names, + whats_new_seen, whats_new_dismissed) on 2026-11-05, read back as the anon role. v4 (27 names, + exam_result_reported) on 2026-11-07 through db-migrate.yml run #1 (42378463115, approved by Pavol), policy read back 16:27 UTC.",
+  "pending": [],
   "added": {
     "start_topic": "2026-11-01",
     "start_weak_drill": "2026-11-01",
