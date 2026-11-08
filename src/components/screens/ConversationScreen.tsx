@@ -28,7 +28,7 @@ export function ConversationScreen() {
 }
 
 function ConversationView() {
-  const { go } = useCouncil()
+  const { go, isAdmin } = useCouncil()
   const { conversation, say, control, journal, continueDiscussion } = useMastermind()
   const { token } = useAuth()
   const [message, setMessage] = useState('')
@@ -224,6 +224,7 @@ function ConversationView() {
             streaming={!!busy}
             onSay={(text) => say(withNotes(text), { voice: true })}
             onQuiet={() => setQuiet(true)}
+            timing={isAdmin}
           >
             <ListenToggle chip on={listen} onChange={onListen} />
           </Talk>

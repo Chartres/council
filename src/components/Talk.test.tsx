@@ -4,6 +4,8 @@ import type { Item } from '@/domain/mastermind'
 import * as tts from '@/domain/tts'
 import { ECHO_GRACE_MS, isEcho, RETRY_MS, Talk, TALK_SILENCE_MS } from './Talk'
 
+const analytics = vi.hoisted(() => ({ keyAction: vi.fn() }))
+vi.mock('@/analytics', () => analytics)
 vi.mock('@/domain/tts', () => ({ speak: vi.fn(), cancel: vi.fn(), setFallback: vi.fn(), setSession: vi.fn(), unlock: vi.fn() }))
 
 // A recogniser the test drives: each `say` is a new result, `more` grows the last one (interim).
@@ -50,6 +52,49 @@ afterEach(() => {
 
 const spoken = () => vi.mocked(tts.speak).mock.calls.map(([text, , , speaker]) => [text, speaker])
 
+describe('Talk mode: the wait to the first word', () => {
+  it('times one turn from her last word to the first adviser audio, reports it once, and shows it to an admin', () => {
+    analytics.keyAction.mockClear()
+    const onSay = vi.fn()
+    let items: Item[] = [{ kind: 'floor', question: 'Where do you start?' }]
+    let streaming = false
+    const view = () => <Talk on onChange={vi.fn()} items={items} streaming={streaming} onSay={onSay} timing />
+    const { rerender } = render(view())
+    fireEvent.click(screen.getByRole('button', { name: 'Talk' }))
+    const r = Fake.all[0]!
+
+    act(() => r.say('we have no engineers'))
+    act(() => vi.advanceTimersByTime(TALK_SILENCE_MS))
+    expect(onSay).toHaveBeenCalled()
+    items = [...items, { kind: 'user', text: 'we have no engineers' }]
+    streaming = true
+    rerender(view())
+    act(() => vi.advanceTimersByTime(1500)) // the group thinks
+    items = [...items, { kind: 'contribution', speaker: 'drucker', text: 'Start with the customer. Who', streaming: true }]
+    rerender(view())
+    const started = vi.mocked(tts.speak).mock.calls[0]![4]!
+    act(() => vi.advanceTimersByTime(600)) // the voice arrives
+    act(() => started('gateway'))
+
+    const turns = analytics.keyAction.mock.calls.filter(([a]) => a === 'voice_turn')
+    expect(turns).toEqual([
+      ['voice_turn', { ears: 'browser', out: 'gateway', silence_ms: TALK_SILENCE_MS, stt_ms: 0, think_ms: 1500, voice_ms: 600, total_ms: TALK_SILENCE_MS + 2100 }],
+    ])
+    expect(screen.getByTestId('voice-timing')).toHaveTextContent('to first word')
+
+    // The next sentence of the same answer is not a new turn.
+    items = [...items.slice(0, -1), { kind: 'contribution', speaker: 'drucker', text: 'Start with the customer. Who benefits? Then', streaming: true }]
+    rerender(view())
+    act(() => vi.mocked(tts.speak).mock.calls[1]![4]!('gateway'))
+    expect(analytics.keyAction.mock.calls.filter(([a]) => a === 'voice_turn')).toHaveLength(1)
+  })
+
+  it('shows no timing line to anyone else', () => {
+    render(<Talk on onChange={vi.fn()} items={[]} streaming={false} onSay={vi.fn()} />)
+    expect(screen.queryByTestId('voice-timing')).toBeNull()
+  })
+})
+
 describe('Talk mode', () => {
   it('hears, sends a voice turn, speaks it sentence by sentence, and stops when talked over', () => {
     const onSay = vi.fn()
@@ -72,7 +117,7 @@ describe('Talk mode', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Listening…')
     expect(tts.speak).not.toHaveBeenCalled() // what was on screen before Talk is not read
 
-    // 1,200 ms of silence after the words sends them as a voice turn; the mic stays open.
+    // 900 ms of silence after the words sends them as a voice turn; the mic stays open.
     act(() => r.say('we have no engineers'))
     act(() => vi.advanceTimersByTime(TALK_SILENCE_MS - 1))
     expect(onSay).not.toHaveBeenCalled()

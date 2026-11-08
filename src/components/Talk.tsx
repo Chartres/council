@@ -7,6 +7,7 @@ import { sentenceChunker } from '@/domain/sentences'
 import { recognitionCtor, VOICE, type Recognition } from '@/domain/speech'
 import { record, serverEars, SttError, transcribe, unlockAudioInput, type Recording } from '@/domain/stt'
 import { keyAction } from '@/analytics'
+import { describeTurn, turnClock } from '@/domain/voiceTiming'
 import { micProblem } from '@/components/MicButton'
 
 // Talk mode (council-v4.3.md "Talk mode"): a hands-free room. The mic stays open; a pause
@@ -18,7 +19,7 @@ import { micProblem } from '@/components/MicButton'
 
 export const TALK_STORAGE = 'council:talk'
 /** The pause that ends a spoken message here; the intake's dictation keeps 2,500 ms. */
-export const TALK_SILENCE_MS = 1200
+export const TALK_SILENCE_MS = 900
 /** Words heard over the audio that count as cutting in, not a cough. */
 const BARGE_IN_WORDS = 2
 /** After an engine error (network, aborted, no-speech) wait this long before listening again. */
@@ -77,6 +78,7 @@ export function Talk({
   onSay,
   onQuiet,
   children,
+  timing = false,
 }: {
   on: boolean
   onChange: (on: boolean) => void
@@ -88,6 +90,8 @@ export function Talk({
   onQuiet?: () => void
   /** Sits beside the control (the Listen chip). */
   children?: ReactNode
+  /** Admins see each turn's wait to the first word under the status line. */
+  timing?: boolean
 }) {
   const Ctor = recognitionCtor()
   const [ears] = useState<'browser' | 'server' | null>(() => (serverEars(!!Ctor) ? 'server' : Ctor ? 'browser' : null))
@@ -113,6 +117,9 @@ export function Talk({
     lines.current = lines.current.filter((l) => l.ended === null || now - l.ended < ECHO_GRACE_MS)
     return isEcho(heard, lines.current.map((l) => l.text))
   }
+  // The wait from her last word to the first adviser audio, once per turn (key_action voice_turn).
+  const clock = useRef(turnClock()).current
+  const [lastTurn, setLastTurn] = useState<string | null>(null)
   const live = useRef({ active, streaming, onSay, onChange })
   live.current = { active, streaming, onSay, onChange }
 
@@ -125,6 +132,7 @@ export function Talk({
     const line = { text, ended: null as number | null }
     lines.current.push(line)
     if (speaker !== 'facilitator') setTalker(speaker)
+    clock.firstLine()
     const done = () => {
       line.ended = Date.now()
       queued.current = Math.max(0, queued.current - 1)
@@ -133,10 +141,16 @@ export function Talk({
       // The room went quiet: her turn. (The browser recogniser never closed.)
       if (ears === 'server') void listenClip()
     }
-    speak(text, VOICE, done, speaker)
+    speak(text, VOICE, done, speaker, (via) => {
+      const t = ears && clock.audioStarted(via, ears)
+      if (!t) return
+      keyAction('voice_turn', t)
+      if (mounted.current) setLastTurn(describeTurn(t))
+    })
   }
 
   const hush = () => {
+    clock.reset()
     cancel()
     queued.current = 0
     const now = Date.now()
@@ -150,6 +164,7 @@ export function Talk({
       return
     }
     muted.current = false
+    clock.sent()
     live.current.onSay(text)
   }
 
@@ -210,6 +225,9 @@ export function Talk({
     clip.current = null
     opening.current = true
     setWriting(true)
+    // The recorder calls this after TALK_SILENCE_MS of quiet: her last word was that long ago.
+    clock.lastWord(Date.now() - TALK_SILENCE_MS)
+    clock.stopped()
     const { clip: audio } = await r.stop()
     let text = ''
     try {
@@ -275,6 +293,7 @@ export function Talk({
         if (!echoOf(part)) t += ` ${part}`
       }
       heard = t.replace(/\s+/g, ' ').trim()
+      if (heard) clock.lastWord()
       if (queued.current && words(heard) >= BARGE_IN_WORDS) {
         muted.current = true
         hush()
@@ -421,6 +440,11 @@ export function Talk({
             </button>
           )}
         </div>
+      )}
+      {timing && lastTurn && (
+        <p data-testid="voice-timing" className="mt-1 text-[13px] leading-[20px] text-marble-400">
+          {lastTurn}
+        </p>
       )}
       {problem && (
         <p role="alert" data-testid="talk-problem" className="t-body mt-2 border-l-2 border-clay-500 pl-4">
