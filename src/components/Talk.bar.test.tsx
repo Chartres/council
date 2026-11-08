@@ -142,4 +142,70 @@ describe('Voice bar', () => {
     act(() => vi.advanceTimersByTime(3_100))
     expect(screen.getByRole('status')).toHaveTextContent('Thinking… 3 s')
   })
+
+  // Review fixes.
+  it('resume with lines waiting listens again on browser ears (barge-in and Done still work)', () => {
+    const { set } = setup([], { streaming: true })
+    set({ items: [{ kind: 'contribution', speaker: 'seneca', text: 'First point. Then', streaming: true }] })
+    const before = Fake.all.length
+    fireEvent.click(screen.getByRole('button', { name: 'Pause' }))
+    fireEvent.click(screen.getByTestId('voice-resume'))
+    expect(Fake.all.length).toBe(before + 1)
+    expect(Fake.all[Fake.all.length - 1]!.start).toHaveBeenCalled()
+  })
+
+  it('Talk off while paused lets the pause go: back on, it listens and old lines are not spoken', () => {
+    const onChange = vi.fn()
+    let on = true
+    let items: Item[] = []
+    const view = () => <Talk on={on} onChange={onChange} items={items} streaming={on} onSay={vi.fn()} />
+    const r = render(view())
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }))
+    items = [{ kind: 'contribution', speaker: 'seneca', text: 'First point. Then', streaming: true }]
+    r.rerender(view())
+    fireEvent.click(screen.getByRole('button', { name: 'Pause' }))
+    on = false
+    r.rerender(view())
+    on = true
+    r.rerender(view())
+    expect(screen.getByRole('status')).not.toHaveTextContent('Paused')
+    expect(screen.queryByTestId('voice-resume')).toBeNull()
+  })
+
+  it('Done between engines (the retry after an error) listens again instead of doing nothing', () => {
+    const { rec } = setup()
+    const r = rec()
+    act(() => r.onerror?.({ error: 'no-speech' }))
+    act(() => r.onend?.())
+    const before = Fake.all.length
+    fireEvent.click(screen.getByTestId('voice-done'))
+    expect(Fake.all.length).toBe(before + 1)
+  })
+
+  it('after next question, the rest of the old answer is not spoken; the new one is', () => {
+    const { onSay, set } = setup([], { streaming: true })
+    set({ items: [{ kind: 'floor', question: 'Q1?' }, { kind: 'contribution', speaker: 'seneca', text: 'First point. Then', streaming: true }] })
+    fireEvent.click(screen.getByRole('button', { name: 'Next question' }))
+    vi.mocked(tts.speak).mockClear()
+    set({
+      items: [
+        { kind: 'floor', question: 'Q1?' },
+        { kind: 'contribution', speaker: 'seneca', text: 'First point. Then the rest.' },
+        { kind: 'floor', question: 'Old question?' },
+      ],
+      streaming: false,
+    })
+    expect(onSay).toHaveBeenCalledWith("Let's move on to the next question.")
+    expect(tts.speak).not.toHaveBeenCalled()
+    set({
+      items: [
+        { kind: 'floor', question: 'Q1?' },
+        { kind: 'contribution', speaker: 'seneca', text: 'First point. Then the rest.' },
+        { kind: 'floor', question: 'Old question?' },
+        { kind: 'user', text: "Let's move on to the next question." },
+        { kind: 'floor', question: 'New question?' },
+      ],
+    })
+    expect(vi.mocked(tts.speak).mock.calls.map((c) => c[0])).toEqual(['New question?'])
+  })
 })

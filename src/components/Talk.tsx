@@ -117,7 +117,8 @@ export function Talk({
   const handled = useRef(items.length) // what was on screen before Talk is not read
   const chunk = useRef<{ index: number; text: string; next: ReturnType<typeof sentenceChunker> } | null>(null)
   const rec = useRef<Recognition | null>(null)
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined) // silence or retry
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined) // her pause before the auto-send
+  const retry = useRef<ReturnType<typeof setTimeout> | undefined>(undefined) // listening again after an engine error
   const held = useRef('') // words that finished while the group was still answering
   // The room's lines for the echo check: queued or playing (ended null), or ended moments ago.
   const lines = useRef<{ text: string; ended: number | null }[]>([])
@@ -136,6 +137,7 @@ export function Talk({
   const [paused, setPaused] = useState(false)
   const pausedRef = useRef(false)
   const pending = useRef<{ text: string; speaker: string; index: number }[]>([])
+  const skipping = useRef(false) // after previous/next: the old answer's tail is not spoken
   // Her words are in and the auto-send is counting (browser ears): when the last one came.
   const [pendingSince, setPendingSince] = useState<number | null>(null)
   const flushNow = useRef<(() => void) | null>(null)
@@ -194,10 +196,16 @@ export function Talk({
     setPaused(true)
     clearTimeout(timer.current)
     setPendingSince(null)
+    clock.reset() // a paused turn is not timed: the wait would be hers
     cancel()
     queued.current = 0
+    // The stopped lines are no longer playing: their echo window starts now (as in hush).
+    const now = Date.now()
+    for (const l of lines.current) l.ended ??= now
     setTalker(null)
     live.current.onNow?.(null)
+    // Words already being written down go through; only an open mic is shut.
+    if (ears === 'server' && writing) return
     close()
   }
   /** Carry on from the first line that had not finished; with none left, it is her turn. */
@@ -208,7 +216,8 @@ export function Talk({
     const left = pending.current
     pending.current = []
     for (const p of left) voice(p.text, p.speaker, p.index)
-    if (!left.length) listen()
+    // Browser ears listen through the room (barge-in); server ears wait for it to finish.
+    listen()
   }
 
   /** Previous / next question and the question list: her words to the facilitator, plainly. */
@@ -219,7 +228,9 @@ export function Talk({
     }
     hush()
     muted.current = true // what was still coming of this answer stays on screen, unspoken
+    skipping.current = true // and stays unspoken until her message is on screen
     send(text, true)
+    if (ears === 'browser') listen()
   }
 
   const send = (text: string, wasHeld = false) => {
@@ -385,7 +396,7 @@ export function Talk({
       if (!live.current.active) return
       // ponytail: engines end on their own (Chrome after ~8 s of quiet): listen again at once;
       // after an error (network, aborted) wait a second so a dead engine is not a tight loop.
-      if (error) timer.current = setTimeout(() => live.current.active && listen(), RETRY_MS)
+      if (error) retry.current = setTimeout(() => live.current.active && listen(), RETRY_MS)
       else listen()
     }
     rec.current = r
@@ -400,11 +411,14 @@ export function Talk({
       if (r) void heardClip(r, gen.current, true)
       return
     }
+    // Between engines (a retry after an error) there is nothing to flush: listen again now.
+    if (!rec.current) return listen()
     flushNow.current?.()
   }
 
   const close = () => {
     clearTimeout(timer.current)
+    clearTimeout(retry.current)
     const r = rec.current
     rec.current = null
     r?.abort()
@@ -415,6 +429,10 @@ export function Talk({
   useEffect(() => {
     if (active) return listen()
     clock.reset()
+    pausedRef.current = false
+    setPaused(false)
+    pending.current = []
+    skipping.current = false
     close()
     if (queued.current) hush() // only what Talk queued: Listen's narration is not ours to stop
     held.current = ''
@@ -456,6 +474,12 @@ export function Talk({
     }
     for (let i = handled.current; i < items.length; i++) {
       const it = items[i]
+      if (skipping.current) {
+        if (it.kind === 'user') skipping.current = false
+        handled.current = i + 1
+        chunk.current = null
+        continue
+      }
       if (it.kind === 'contribution') {
         if (chunk.current?.index !== i) chunk.current = { index: i, text: '', next: sentenceChunker() }
         const c = chunk.current
