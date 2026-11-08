@@ -33,7 +33,7 @@ Mastermind Council at https://council.dravec.org, in private beta behind a passw
 - Pavol closes Eyal's two feedback items with `scripts/feedback.mjs` (in flywheel).
 - Not measured yet: other open feedback, voice latency, and transcription accuracy. All need SQL or gateway logs, which wait for Pavol.
 - Voice is turn-based (record, transcribe, reply, speak), not real-time speech-to-speech. A real-time mode would be a gateway-side change (Pavol asked for its price on 8 Nov).
-- From 8 Nov each Talk turn logs its wait to the first word (`key_action` `voice_turn`), and admins see it under the Talk status. The quiet window is 0.9 s, down from 1.2 s. Read the numbers once there are real turns.
+- From 8 Nov each Talk turn logs its wait to the first word (`key_action` `voice_turn`), and admins see it under the Talk status. The quiet window stays 1.2 s: Pavol finds it already cuts him off (8 Nov), and a voice player bar is being designed. Read the numbers once there are real turns.
 - Watch whether 6 s is too short for long spoken lines.
 - Directory listings wait until a stranger can sign in to MCP without the beta password. The Official MCP Registry also waits for the dravec.org TXT record.
 - A terms page is needed before any ChatGPT listing.

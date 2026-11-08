@@ -19,7 +19,7 @@ import { micProblem } from '@/components/MicButton'
 
 export const TALK_STORAGE = 'council:talk'
 /** The pause that ends a spoken message here; the intake's dictation keeps 2,500 ms. */
-export const TALK_SILENCE_MS = 900
+export const TALK_SILENCE_MS = 1200
 /** Words heard over the audio that count as cutting in, not a cough. */
 const BARGE_IN_WORDS = 2
 /** After an engine error (network, aborted, no-speech) wait this long before listening again. */

@@ -139,7 +139,7 @@ describe('Talk mode', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Listening…')
     expect(tts.speak).not.toHaveBeenCalled() // what was on screen before Talk is not read
 
-    // 900 ms of silence after the words sends them as a voice turn; the mic stays open.
+    // 1,200 ms of silence after the words sends them as a voice turn; the mic stays open.
     act(() => r.say('we have no engineers'))
     act(() => vi.advanceTimersByTime(TALK_SILENCE_MS - 1))
     expect(onSay).not.toHaveBeenCalled()
