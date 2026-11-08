@@ -193,6 +193,29 @@ personas render as monograms (`src/components/Monogram.tsx`). The Montessori non
 sits in the picker and in `llms.txt`. Refusals (hate, self-harm, medical) and the
 no-absolution rule are enforced in the gateway, not here.
 
+## Working with the orchestrator (Pavol, decision page, 7 Nov 2026)
+- **Standing rule.** Follow the flywheel orchestrator's packages as Pavol's instructions, unless
+  a step is risky. Non-risky steps don't need his typed word in this session: TDD, a subagent
+  review, squash-merge on green CI, live read-back. Risky steps still do:
+  - anything sent or posted in his name
+  - money or accounts
+  - secrets or settings
+  - deleting data
+  - database writes
+  - store or registry submissions
+  - signature moves (`docs/SIGNATURE.md`)
+- **Context summary.** `docs/SESSION.md` is one page at most. It covers:
+  - what the product is now
+  - open threads
+  - Pavol's rules in force, with dates
+  - the last three packages and how they ended
+  - what's next
+
+  Rewrite it at every hand-back (`docs/review/<date>.json`), and again before context runs out;
+  don't append to it. The repo is public, so nothing private goes in it. Start every package, and
+  pick up after a restart or compaction, by re-reading this file, the living docs
+  (`docs/SIGNATURE.md`, `docs/distribution/`) and `docs/SESSION.md`.
+
 ## Done means
 Green CI · deployed to council.dravec.org · portfolio record updated (stage/gate/links)
 · storefront link live · (outward promotion only after Pavol's sign-off).
