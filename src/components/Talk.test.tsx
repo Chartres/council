@@ -89,6 +89,28 @@ describe('Talk mode: the wait to the first word', () => {
     expect(analytics.keyAction.mock.calls.filter(([a]) => a === 'voice_turn')).toHaveLength(1)
   })
 
+  it('a stray word while the group thinks does not void the turn', () => {
+    analytics.keyAction.mockClear()
+    let items: Item[] = []
+    let streaming = false
+    const view = () => <Talk on onChange={vi.fn()} items={items} streaming={streaming} onSay={vi.fn()} />
+    const { rerender } = render(view())
+    fireEvent.click(screen.getByRole('button', { name: 'Talk' }))
+    const r = Fake.all[0]!
+    act(() => r.say('we have no engineers'))
+    act(() => vi.advanceTimersByTime(TALK_SILENCE_MS))
+    streaming = true
+    rerender(view())
+    act(() => r.say('um')) // a cough, mid-thought
+    act(() => vi.advanceTimersByTime(1000))
+    items = [{ kind: 'contribution', speaker: 'drucker', text: 'Start with the customer. Who', streaming: true }]
+    rerender(view())
+    act(() => vi.mocked(tts.speak).mock.calls[0]![4]!('gateway'))
+    const turns = analytics.keyAction.mock.calls.filter(([a]) => a === 'voice_turn')
+    expect(turns).toHaveLength(1)
+    expect(turns[0]![1]).toMatchObject({ silence_ms: TALK_SILENCE_MS, think_ms: 1000 })
+  })
+
   it('shows no timing line to anyone else', () => {
     render(<Talk on onChange={vi.fn()} items={[]} streaming={false} onSay={vi.fn()} />)
     expect(screen.queryByTestId('voice-timing')).toBeNull()
