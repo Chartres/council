@@ -1,4 +1,4 @@
-// Voice out through the gateway: an adviser's Aura-1 voice when a speaker is named, MeloTTS otherwise,
+// Voice out through the gateway: an adviser's Aura-2 voice when a speaker is named, MeloTTS otherwise,
 // on Workers AI (free inside the daily allowance),
 // one MP3 per utterance, played in order on one shared element. Where the gateway cannot speak — no key, offline,
 // the stub in e2e — the browser's own engine takes the utterance instead, so nothing is
@@ -18,6 +18,7 @@ type Item = {
   text: string
   voice: Voice
   onEnd?: () => void
+  onStart?: (via: 'gateway' | 'browser') => void
   audio: Promise<Blob | null>
   abort: AbortController
 }
@@ -82,9 +83,17 @@ async function fetchAudio(text: string, speaker: string | undefined, signal: Abo
 
 /** `speaker` (an adviser id or `facilitator`) picks that adviser's gateway voice; without it
  *  the gateway uses its one default voice. `voice` is the browser fallback's pitch and rate. */
-export function speak(text: string, voice: Voice, onEnd?: () => void, speaker?: string): void {
+/** `onStart` fires when the line begins: in the gateway's voice once it is playing, or as it is
+ *  handed to the browser voice (Talk times the wait to the first word with it). */
+export function speak(
+  text: string,
+  voice: Voice,
+  onEnd?: () => void,
+  speaker?: string,
+  onStart?: (via: 'gateway' | 'browser') => void,
+): void {
   const abort = new AbortController()
-  queue.push({ text, voice, onEnd, abort, audio: fetchAudio(text, speaker, abort.signal) })
+  queue.push({ text, voice, onEnd, onStart, abort, audio: fetchAudio(text, speaker, abort.signal) })
   if (!busy) void next()
 }
 
@@ -145,6 +154,7 @@ async function next(): Promise<void> {
   audio.onerror = done
   try {
     await audio.play()
+    if (!item.abort.signal.aborted) item.onStart?.('gateway')
   } catch {
     URL.revokeObjectURL(url)
     // A cancelled line stays silent; otherwise autoplay was refused: let the browser engine try.
@@ -169,6 +179,7 @@ function viaFallback(item: Item): void {
     void next()
   }
   const guard = setTimeout(finish, Math.max(3_000, (item.text.length * 70) / (item.voice.rate || 1)))
+  item.onStart?.('browser')
   fallback(item.text, item.voice, finish)
 }
 

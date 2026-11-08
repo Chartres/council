@@ -7,6 +7,7 @@ import { sentenceChunker } from '@/domain/sentences'
 import { recognitionCtor, VOICE, type Recognition } from '@/domain/speech'
 import { record, serverEars, SttError, transcribe, unlockAudioInput, type Recording } from '@/domain/stt'
 import { keyAction } from '@/analytics'
+import { describeTurn, turnClock } from '@/domain/voiceTiming'
 import { micProblem } from '@/components/MicButton'
 
 // Talk mode (council-v4.3.md "Talk mode"): a hands-free room. The mic stays open; a pause
@@ -77,6 +78,7 @@ export function Talk({
   onSay,
   onQuiet,
   children,
+  timing = false,
 }: {
   on: boolean
   onChange: (on: boolean) => void
@@ -88,6 +90,8 @@ export function Talk({
   onQuiet?: () => void
   /** Sits beside the control (the Listen chip). */
   children?: ReactNode
+  /** Admins see each turn's wait to the first word under the status line. */
+  timing?: boolean
 }) {
   const Ctor = recognitionCtor()
   const [ears] = useState<'browser' | 'server' | null>(() => (serverEars(!!Ctor) ? 'server' : Ctor ? 'browser' : null))
@@ -113,6 +117,11 @@ export function Talk({
     lines.current = lines.current.filter((l) => l.ended === null || now - l.ended < ECHO_GRACE_MS)
     return isEcho(heard, lines.current.map((l) => l.text))
   }
+  // The wait from her last word to the first adviser audio, once per turn (key_action voice_turn).
+  const clock = useRef(turnClock()).current
+  const heardAt = useRef<number | null>(null) // her last word, for the turn she sends next
+  const stoppedAt = useRef<number | null>(null) // server ears: the clip went to be written down
+  const [lastTurn, setLastTurn] = useState<string | null>(null)
   const live = useRef({ active, streaming, onSay, onChange })
   live.current = { active, streaming, onSay, onChange }
 
@@ -125,6 +134,7 @@ export function Talk({
     const line = { text, ended: null as number | null }
     lines.current.push(line)
     if (speaker !== 'facilitator') setTalker(speaker)
+    clock.firstLine()
     const done = () => {
       line.ended = Date.now()
       queued.current = Math.max(0, queued.current - 1)
@@ -133,10 +143,16 @@ export function Talk({
       // The room went quiet: her turn. (The browser recogniser never closed.)
       if (ears === 'server') void listenClip()
     }
-    speak(text, VOICE, done, speaker)
+    speak(text, VOICE, done, speaker, (via) => {
+      const t = ears && clock.audioStarted(via, ears)
+      if (!t) return
+      keyAction('voice_turn', t)
+      if (mounted.current) setLastTurn(describeTurn(t))
+    })
   }
 
   const hush = () => {
+    clock.reset()
     cancel()
     queued.current = 0
     const now = Date.now()
@@ -144,12 +160,16 @@ export function Talk({
     setTalker(null)
   }
 
-  const send = (text: string) => {
+  const send = (text: string, wasHeld = false) => {
     if (live.current.streaming) {
       held.current = `${held.current} ${text}`.trim()
       return
     }
     muted.current = false
+    // A turn that waited for the group to finish is not timed: its wait is the group's, not ours.
+    if (!wasHeld && heardAt.current !== null) clock.sent(heardAt.current, ears === 'server' ? stoppedAt.current : null)
+    else clock.reset()
+    heardAt.current = stoppedAt.current = null
     live.current.onSay(text)
   }
 
@@ -210,6 +230,10 @@ export function Talk({
     clip.current = null
     opening.current = true
     setWriting(true)
+    // The recorder calls this after TALK_SILENCE_MS of quiet: her last word was that long ago.
+    // (At the 60 s cap, or with no loudness to watch, that is a guess.)
+    heardAt.current = Date.now() - TALK_SILENCE_MS
+    stoppedAt.current = Date.now()
     const { clip: audio } = await r.stop()
     let text = ''
     try {
@@ -279,6 +303,7 @@ export function Talk({
         muted.current = true
         hush()
       }
+      if (heard) heardAt.current = Date.now()
       clearTimeout(timer.current)
       timer.current = setTimeout(flush, TALK_SILENCE_MS)
     }
@@ -311,6 +336,7 @@ export function Talk({
   // On: listen (already started inside the tap). Off: mic and audio stop, the turn is let go.
   useEffect(() => {
     if (active) return listen()
+    clock.reset()
     close()
     if (queued.current) hush() // only what Talk queued: Listen's narration is not ours to stop
     held.current = ''
@@ -340,7 +366,7 @@ export function Talk({
     }
     const text = held.current
     held.current = ''
-    if (active) send(text)
+    if (active) send(text, true)
   }, [streaming])
 
   // Voice out: each completed sentence of the growing contribution, then the floor question.
@@ -368,7 +394,9 @@ export function Talk({
       else if (it.kind === 'facilitator') voice(it.text, 'facilitator')
       handled.current = i + 1
     }
-  }, [active, items])
+    // The answer is in and nothing of it was spoken: that turn gets no report.
+    if (!streaming) clock.unanswered()
+  }, [active, items, streaming])
 
   const tap = () => {
     if (active) return onChange(false)
@@ -421,6 +449,11 @@ export function Talk({
             </button>
           )}
         </div>
+      )}
+      {timing && lastTurn && (
+        <p data-testid="voice-timing" className="mt-1 text-[13px] leading-[20px] text-marble-400">
+          {lastTurn}
+        </p>
       )}
       {problem && (
         <p role="alert" data-testid="talk-problem" className="t-body mt-2 border-l-2 border-clay-500 pl-4">

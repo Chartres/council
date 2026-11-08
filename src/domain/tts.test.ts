@@ -68,6 +68,21 @@ describe('speak through the gateway', () => {
     expect(player().playbackRate).toBe(1.05)
   })
 
+  it('says when a line starts playing, and in whose voice (Talk measures the wait with it)', async () => {
+    vi.stubGlobal('fetch', vi.fn(audioResponse))
+    const started = vi.fn()
+    speak('gateway line', { pitch: 1, rate: 1 }, undefined, undefined, started)
+    await flush()
+    expect(started).toHaveBeenCalledWith('gateway')
+    player().end()
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: false, headers: { get: () => 'application/json' } })))
+    setFallback(() => {})
+    const fell = vi.fn()
+    speak('browser line', { pitch: 1, rate: 1 }, undefined, undefined, fell)
+    await flush()
+    expect(fell).toHaveBeenCalledWith('browser')
+  })
+
   it('unlock plays the silent clip on the same element the lines use', () => {
     unlock()
     expect(player().src).toMatch(/^data:audio\/wav/)
