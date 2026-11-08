@@ -76,7 +76,7 @@ describe('Talk with the real speaker queue', () => {
     let items: Item[] = []
     const view = () => <Talk on onChange={() => {}} items={items} streaming onSay={() => {}} />
     const { rerender } = render(view())
-    fireEvent.click(screen.getByRole('button', { name: 'Talk' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }))
     // Synchronously inside the tap, on the element every line will use.
     expect(player().play).toHaveBeenCalledTimes(1)
     expect(player().src).toMatch(/^data:audio\/wav/)

@@ -1,0 +1,23 @@
+<!doctype html>
+<meta charset="utf-8">
+<!-- What's new 1.1.0, the spoken line (flywheel docs/standards/whats-new.md): CSS only, nothing fetched.
+     4.5 s loop: the mark moves from one sentence to the next as the adviser speaks them. -->
+<style>
+  :root{--bg:#100e0b;--ink:#ece7db;--hi:#f8f5ee;--line:#342d23;--mark:rgba(227,181,106,.22)}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:14px/1.45 Inter,system-ui,sans-serif;overflow:hidden}
+  .f{display:flex;gap:12px;padding:16px}
+  .mono{flex:0 0 36px;height:36px;border:1.5px solid var(--line);border-radius:50%;display:flex;align-items:center;justify-content:center;font:15px Georgia,serif;color:var(--hi)}
+  .name{font:600 16px Georgia,serif;color:var(--hi);margin-bottom:2px}
+  mark{background:transparent;color:inherit;border-radius:2px}
+  .a{animation:a 4.5s infinite}.b{animation:b 4.5s infinite}.c{animation:c 4.5s infinite}
+  @keyframes a{0%,30%{background:var(--mark)}34%,100%{background:transparent}}
+  @keyframes b{0%,32%{background:transparent}36%,62%{background:var(--mark)}66%,100%{background:transparent}}
+  @keyframes c{0%,64%{background:transparent}68%,96%{background:var(--mark)}100%{background:transparent}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important}.b{background:var(--mark)}}
+</style>
+<div class="f" aria-hidden="true">
+  <div class="mono">S</div>
+  <div><div class="name">Seneca</div>
+    <mark class="a">Count the cost in days, not in coins.</mark> <mark class="b">A year of evenings is the real invoice.</mark> <mark class="c">Write it down before you begin.</mark>
+  </div>
+</div>

@@ -106,6 +106,14 @@ with a due date and an opt-in email reminder → Journal tab (outcomes, the even
 `council:discussions` in this browser, the newest 20) and the quick verdicts; one opens
 read-only, and "Continue this discussion" starts a gateway session seeded with its record
 (`resume` on `/v1/council/start`) while the app keeps writing to the same discussion.
+Voice bar (Talk on, `src/components/Talk.tsx`, Pavol 8 Nov): a fixed bar at the bottom with
+"Question N" and the room's state (Listening / Sending in n s / Thinking… n s / X is talking / Paused);
+tap it for the list of questions so far (one tap goes back to one). Buttons: previous question,
+pause/resume (the unfinished line is spoken again on resume), the main button (Start / Done /
+Interrupt or Cut in / Resume), next question, end. Her turn ends on Done or after 4 s of quiet
+(the last 2 s counted down). Previous/next/the list are sent as her plain words to the facilitator.
+The line being spoken is marked on screen (`now-speaking`) and kept in view. `e2e/voice-bar.spec.ts`
+checks it at 390 and 1280 px.
 Margin notes: Agree / Push back / Note under any contribution, sent with her next message. Reminder emails link to
 `/c/:commitmentId?outcome=done|later|drop`.
 v3 journeys (`/quick`): password → home → type (or dictate) an idea → convene → turns stream in →

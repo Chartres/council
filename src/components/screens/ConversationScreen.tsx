@@ -38,6 +38,11 @@ function ConversationView() {
   const [notes, setNotes] = useState<Record<number, Pick<Note, 'stance' | 'text'>>>({})
   const [listen, setListen] = useListen()
   const [talk, setTalk] = usePref(TALK_STORAGE, false)
+  // The line the voice bar is speaking: marked in its card, and kept in view (Pavol, 8 Nov).
+  const [now, setNow] = useState<{ index: number; text: string } | null>(null)
+  useEffect(() => {
+    if (now) list.current?.children[now.index]?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [now?.index])
   // Where read-aloud starts when it comes on: the turn on screen; after Talk, nothing already heard.
   const readFrom = useRef<number | null>(null)
   const list = useRef<HTMLOListElement>(null)
@@ -169,6 +174,7 @@ function ConversationView() {
               <ItemView
                 item={it}
                 index={i}
+                speaking={now?.index === i ? now.text : undefined}
                 inert={before}
                 steer={!before && i === openAt ? { busy: !!busy, run } : undefined}
                 note={!before && !ended && it.kind === 'contribution' && !it.streaming && it.text.trim() ? { value: notes[i], onChange: setNote(i) } : undefined}
@@ -225,6 +231,7 @@ function ConversationView() {
             onSay={(text) => say(withNotes(text), { voice: true })}
             onQuiet={() => setQuiet(true)}
             timing={isAdmin}
+            onNow={setNow}
           >
             <ListenToggle chip on={listen} onChange={onListen} />
           </Talk>
@@ -325,6 +332,8 @@ function ConversationView() {
       <p className="mt-12 text-[13px] leading-[18px] text-marble-400">
         {roster === 'business' ? BUSINESS_DISCLOSURE : DISCLOSURE}
       </p>
+      {/* Room for the voice bar, so the reply box and the last line are never under it. */}
+      {talk && !past && !ended && <div aria-hidden="true" className="h-36" />}
     </div>
   )
 }
@@ -372,9 +381,12 @@ function ItemView({
   steer,
   note,
   inert = false,
+  speaking,
 }: {
   item: Item
   index: number
+  /** The sentence of this item being spoken right now, if any. */
+  speaking?: string
   steer?: Steer
   note?: NoteSlot
   /** The record of an earlier session: shown, nothing to act on. */
@@ -398,7 +410,9 @@ function ItemView({
                 <span className="text-[13px] font-medium text-marble-400">confidence {item.confidence}</span>
               )}
             </p>
-            <p className="t-body mt-1">{item.text}</p>
+            <p className="t-body mt-1">
+              <Spoken text={item.text} line={speaking} />
+            </p>
             {note && <MarginNote name={personaName(item.speaker)} note={note.value} onChange={note.onChange} />}
           </div>
         </div>
@@ -406,7 +420,7 @@ function ItemView({
     case 'floor':
       return (
         <p className="t-display border-l-[3px] border-candle-500 pl-4 text-candle-200" data-testid="floor">
-          {item.question}
+          <Spoken text={item.question} line={speaking} />
         </p>
       )
     case 'user':
@@ -419,6 +433,21 @@ function ItemView({
     case 'proposal':
       return <ProposalCard item={item} index={index} steer={steer} inert={inert} />
   }
+}
+
+/** `text` with the sentence being spoken marked, the way a podcast transcript follows the voice. */
+function Spoken({ text, line }: { text: string; line?: string }) {
+  const at = line ? text.indexOf(line) : -1
+  if (!line || at < 0) return <>{text}</>
+  return (
+    <>
+      {text.slice(0, at)}
+      <mark data-testid="now-speaking" className="rounded-sm bg-candle-500/20 text-inherit">
+        {line}
+      </mark>
+      {text.slice(at + line.length)}
+    </>
+  )
 }
 
 /** Who owns it and when to look again; the reasoning and assumptions are in the quaestio. */

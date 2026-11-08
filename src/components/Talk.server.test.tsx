@@ -89,12 +89,23 @@ describe('Talk with the gateway’s ears (iPhone)', () => {
     expect(stt.record).toHaveBeenCalledTimes(2)
   })
 
+  it('Done ends her turn at once: the clip stops and goes to be written down without waiting out the pause', async () => {
+    const onSay = vi.fn()
+    render(<Talk on onChange={() => {}} items={[{ kind: 'floor', question: 'Where do you start?' }]} streaming={false} onSay={onSay} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }))
+    await act(async () => {})
+    stt.transcribe.mockResolvedValue('with the customer')
+    await act(async () => fireEvent.click(screen.getByTestId('voice-done')))
+    expect(clips[0]!.stop).toHaveBeenCalled()
+    expect(onSay).toHaveBeenCalledWith('with the customer')
+  })
+
   it('Cut in stops the adviser and opens the mic at once', async () => {
     const view = (items: Item[], streaming: boolean) => (
       <Talk on onChange={() => {}} items={items} streaming={streaming} onSay={() => {}} />
     )
     const { rerender } = render(view([], false))
-    fireEvent.click(screen.getByRole('button', { name: 'Talk' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }))
     await act(async () => rerender(view([], false)))
     stt.transcribe.mockResolvedValue('hold on')
     await act(async () => clips[0]!.opts.onSilence?.())
@@ -122,7 +133,7 @@ describe('Talk with the gateway’s ears (iPhone)', () => {
     const onSay = vi.fn()
     const view = (items: Item[], streaming: boolean) => <Talk on onChange={() => {}} items={items} streaming={streaming} onSay={onSay} />
     const { rerender } = render(view([], false))
-    fireEvent.click(screen.getByRole('button', { name: 'Talk' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }))
     await act(async () => rerender(view([], false)))
     expect(clips).toHaveLength(1)
     await act(async () => rerender(view([], true))) // she typed and sent; the group answers
@@ -135,7 +146,7 @@ describe('Talk with the gateway’s ears (iPhone)', () => {
   it('the last question and the end of the stream in one render: the mic waits for the question to be read', async () => {
     const view = (items: Item[], streaming: boolean) => <Talk on onChange={() => {}} items={items} streaming={streaming} onSay={() => {}} />
     const { rerender } = render(view([], false))
-    fireEvent.click(screen.getByRole('button', { name: 'Talk' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }))
     await act(async () => rerender(view([], false)))
     stt.transcribe.mockResolvedValue('go on')
     await act(async () => clips[0]!.opts.onSilence?.())
@@ -153,7 +164,7 @@ describe('Talk with the gateway’s ears (iPhone)', () => {
     const growing = { kind: 'contribution', speaker: 'grove', text: 'First, cut the scope. Then', streaming: true } as Item
     const view = (items: Item[], streaming: boolean) => <Talk on onChange={() => {}} items={items} streaming={streaming} onSay={onSay} />
     const { rerender } = render(view([], false))
-    fireEvent.click(screen.getByRole('button', { name: 'Talk' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }))
     await act(async () => rerender(view([], false)))
     stt.transcribe.mockResolvedValueOnce('first one')
     await act(async () => clips[0]!.opts.onSilence?.())
