@@ -60,7 +60,7 @@ describe('Talk mode: the wait to the first word', () => {
     let streaming = false
     const view = () => <Talk on onChange={vi.fn()} items={items} streaming={streaming} onSay={onSay} timing />
     const { rerender } = render(view())
-    fireEvent.click(screen.getByRole('button', { name: 'Talk' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }))
     const r = Fake.all[0]!
 
     act(() => r.say('we have no engineers'))
@@ -95,7 +95,7 @@ describe('Talk mode: the wait to the first word', () => {
     let streaming = false
     const view = () => <Talk on onChange={vi.fn()} items={items} streaming={streaming} onSay={vi.fn()} />
     const { rerender } = render(view())
-    fireEvent.click(screen.getByRole('button', { name: 'Talk' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }))
     const r = Fake.all[0]!
     act(() => r.say('we have no engineers'))
     act(() => vi.advanceTimersByTime(TALK_SILENCE_MS))
@@ -187,7 +187,7 @@ describe('Talk mode', () => {
     expect(onSay).toHaveBeenLastCalledWith('wait actually')
 
     // Off: the mic closes and the audio stops.
-    fireEvent.click(screen.getByRole('button', { name: 'Talk' }))
+    fireEvent.click(screen.getByRole('button', { name: 'End voice' }))
     expect(onChange).toHaveBeenLastCalledWith(false)
     rerender(view(false))
     expect(r.abort).toHaveBeenCalled()
@@ -200,7 +200,7 @@ describe('Talk mode', () => {
     let streaming = true
     const view = () => <Talk on onChange={() => {}} items={items} streaming={streaming} onSay={onSay} />
     const { rerender } = render(view())
-    fireEvent.click(screen.getByRole('button', { name: 'Talk' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }))
     const r = Fake.all[0]!
     items = [{ kind: 'contribution', speaker: 'jobs', text: 'Show me day one. ', streaming: true }]
     rerender(view())
@@ -224,7 +224,7 @@ describe('Talk mode', () => {
     let items: Item[] = []
     const view = () => <Talk on onChange={() => {}} items={items} streaming={false} onSay={onSay} />
     const { rerender } = render(view())
-    fireEvent.click(screen.getByRole('button', { name: 'Talk' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }))
     const r = Fake.all[0]!
     items = [
       { kind: 'contribution', speaker: 'drucker', text: 'Start with the customer. Who benefits? Then act.' },
@@ -298,14 +298,17 @@ describe('Talk mode', () => {
     let items: Item[] = []
     const view = () => <Talk on onChange={onChange} items={items} streaming={false} onSay={() => {}} />
     const { rerender } = render(view())
-    expect(screen.getByRole('button', { name: 'Talk' })).toHaveAttribute('aria-pressed', 'true')
+    // The bar is up and says so plainly: voice is on but waits for her tap (Pavol, 8 Nov: a
+    // council that went quiet after a reload looked like nothing was happening).
+    expect(screen.getByRole('button', { name: 'End voice' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('status')).toHaveTextContent('Tap to resume')
+    expect(screen.getByTestId('voice-start')).toBeEnabled()
     expect(Fake.all).toHaveLength(0)
     items = [{ kind: 'floor', question: 'Still there?' }]
     rerender(view())
     expect(tts.speak).not.toHaveBeenCalled()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Talk' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }))
     expect(tts.unlock).toHaveBeenCalled()
     expect(onChange).not.toHaveBeenCalled()
     expect(Fake.all[0]!.start).toHaveBeenCalled()
@@ -316,14 +319,13 @@ describe('Talk mode', () => {
     const onSay = vi.fn()
     const view = (on: boolean) => <Talk on={on} onChange={() => {}} items={[]} streaming={false} onSay={onSay} />
     const { rerender, unmount } = render(view(true))
-    fireEvent.click(screen.getByRole('button', { name: 'Talk' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }))
     act(() => Fake.all[0]!.say('hello there'))
     rerender(view(false))
     act(() => vi.advanceTimersByTime(TALK_SILENCE_MS * 2))
     expect(onSay).not.toHaveBeenCalled()
 
-    rerender(view(true))
-    fireEvent.click(screen.getByRole('button', { name: 'Talk' }))
+    rerender(view(true)) // back on in the same screen: already armed, it listens again
     act(() => Fake.all[Fake.all.length - 1]!.say('hello again'))
     unmount()
     act(() => vi.advanceTimersByTime(TALK_SILENCE_MS * 2))
@@ -333,7 +335,7 @@ describe('Talk mode', () => {
   it('after an engine error it waits before listening again; a refused mic turns Talk off', () => {
     const onChange = vi.fn()
     render(<Talk on onChange={onChange} items={[]} streaming={false} onSay={() => {}} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Talk' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }))
     act(() => {
       Fake.all[0]!.onerror?.({ error: 'network' })
       Fake.all[0]!.onend?.()
@@ -357,7 +359,7 @@ describe('Talk mode', () => {
     let items: Item[] = []
     const view = () => <Talk on onChange={() => {}} items={items} streaming onSay={() => {}} />
     const { rerender } = render(view())
-    fireEvent.click(screen.getByRole('button', { name: 'Talk' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }))
     items = [{ kind: 'contribution', speaker: 'grove', text: 'Who owns th', streaming: true }]
     rerender(view())
     items = [{ kind: 'contribution', speaker: 'grove', text: 'Name the owner first.' }, { kind: 'floor', question: 'Who?' }]

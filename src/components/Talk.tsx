@@ -10,16 +10,22 @@ import { keyAction } from '@/analytics'
 import { describeTurn, turnClock } from '@/domain/voiceTiming'
 import { micProblem } from '@/components/MicButton'
 
-// Talk mode (council-v4.3.md "Talk mode"): a hands-free room. The mic stays open; a pause
-// sends what was heard as a voice turn; the adviser's answer is spoken sentence by sentence
-// as it streams; two words over the audio stop it and start the next message.
+// Talk mode (council-v4.3.md "Talk mode"): a hands-free room, driven from a player bar at the
+// bottom of the screen (Pavol, 8 Nov: "something more live, podcast-like, audio-player-like").
+// She says when she is done (Done), or a long pause sends it, with a countdown she can see; the
+// adviser's answer is spoken sentence by sentence as it streams, and the line being spoken is
+// marked on screen; pause holds the room and resumes where it stopped; previous and next move
+// between the facilitator's questions; two words over the audio stop it and start her message.
 // On an iPhone (and wherever the browser has no recogniser) the gateway's ears take turns
 // instead: the mic records while the room is quiet and is closed while an adviser speaks,
 // so the phone plays through its speaker; "Cut in" stops the adviser and opens the mic.
 
 export const TALK_STORAGE = 'council:talk'
-/** The pause that ends a spoken message here; the intake's dictation keeps 2,500 ms. */
-export const TALK_SILENCE_MS = 1200
+/** The pause that sends her message on its own. Long on purpose: thinking pauses are not the end
+ *  (Pavol, 8 Nov: 1.2 s cut him off); Done sends at once. The intake's dictation keeps 2,500 ms. */
+export const TALK_SILENCE_MS = 4000
+/** The last stretch of that pause is counted down in the bar, so the send never surprises her. */
+export const COUNTDOWN_MS = 2000
 /** Words heard over the audio that count as cutting in, not a cough. */
 const BARGE_IN_WORDS = 2
 /** After an engine error (network, aborted, no-speech) wait this long before listening again. */
@@ -79,6 +85,7 @@ export function Talk({
   onQuiet,
   children,
   timing = false,
+  onNow,
 }: {
   on: boolean
   onChange: (on: boolean) => void
@@ -92,6 +99,8 @@ export function Talk({
   children?: ReactNode
   /** Admins see each turn's wait to the first word under the status line. */
   timing?: boolean
+  /** The line being spoken (its item's index and text), for the screen to mark; null when quiet. */
+  onNow?: (now: { index: number; text: string } | null) => void
 }) {
   const Ctor = recognitionCtor()
   const [ears] = useState<'browser' | 'server' | null>(() => (serverEars(!!Ctor) ? 'server' : Ctor ? 'browser' : null))
@@ -122,11 +131,25 @@ export function Talk({
   const heardAt = useRef<number | null>(null) // her last word, for the turn she sends next
   const stoppedAt = useRef<number | null>(null) // server ears: the clip went to be written down
   const [lastTurn, setLastTurn] = useState<string | null>(null)
-  const live = useRef({ active, streaming, onSay, onChange })
-  live.current = { active, streaming, onSay, onChange }
+  // Paused: the room holds. Lines that were queued or arrive meanwhile wait in `pending` and are
+  // spoken from the first unfinished one on resume; the mic stays shut.
+  const [paused, setPaused] = useState(false)
+  const pausedRef = useRef(false)
+  const pending = useRef<{ text: string; speaker: string; index: number }[]>([])
+  // Her words are in and the auto-send is counting (browser ears): when the last one came.
+  const [pendingSince, setPendingSince] = useState<number | null>(null)
+  const flushNow = useRef<(() => void) | null>(null)
+  // A ticking clock for the countdown and the "Thinking… n s" line, only while either shows.
+  const [tick, setTick] = useState(() => Date.now())
+  const thinkingSince = useRef<number | null>(null)
+  const live = useRef({ active, streaming, onSay, onChange, onNow })
+  live.current = { active, streaming, onSay, onChange, onNow }
 
-  const voice = (text: string, speaker: string) => {
+  const voice = (text: string, speaker: string, index = -1) => {
     if (muted.current) return
+    const entry = { text, speaker, index }
+    pending.current.push(entry)
+    if (pausedRef.current) return
     // The room speaks: the gateway's mic closes so the phone plays through its speaker and
     // the advisers' words are never recorded as hers.
     if (ears === 'server') shutMic()
@@ -137,13 +160,16 @@ export function Talk({
     clock.firstLine()
     const done = () => {
       line.ended = Date.now()
+      pending.current = pending.current.filter((p) => p !== entry)
       queued.current = Math.max(0, queued.current - 1)
       if (queued.current) return
       setTalker(null)
+      live.current.onNow?.(null)
       // The room went quiet: her turn. (The browser recogniser never closed.)
       if (ears === 'server') void listenClip()
     }
     speak(text, VOICE, done, speaker, (via) => {
+      if (mounted.current) live.current.onNow?.(index >= 0 ? { index, text } : null)
       const t = ears && clock.audioStarted(via, ears)
       if (!t) return
       keyAction('voice_turn', t)
@@ -155,9 +181,45 @@ export function Talk({
     clock.reset()
     cancel()
     queued.current = 0
+    pending.current = []
     const now = Date.now()
     for (const l of lines.current) l.ended ??= now
     setTalker(null)
+    live.current.onNow?.(null)
+  }
+
+  /** Hold the room: the voice stops mid-line, the mic shuts, what was left waits. */
+  const pause = () => {
+    pausedRef.current = true
+    setPaused(true)
+    clearTimeout(timer.current)
+    setPendingSince(null)
+    cancel()
+    queued.current = 0
+    setTalker(null)
+    live.current.onNow?.(null)
+    close()
+  }
+  /** Carry on from the first line that had not finished; with none left, it is her turn. */
+  const resume = () => {
+    pausedRef.current = false
+    setPaused(false)
+    unlock() // inside the tap (iOS)
+    const left = pending.current
+    pending.current = []
+    for (const p of left) voice(p.text, p.speaker, p.index)
+    if (!left.length) listen()
+  }
+
+  /** Previous / next question and the question list: her words to the facilitator, plainly. */
+  const steer = (text: string) => {
+    if (pausedRef.current) {
+      pausedRef.current = false
+      setPaused(false)
+    }
+    hush()
+    muted.current = true // what was still coming of this answer stays on screen, unspoken
+    send(text, true)
   }
 
   const send = (text: string, wasHeld = false) => {
@@ -166,6 +228,7 @@ export function Talk({
       return
     }
     muted.current = false
+    setPendingSince(null)
     // A turn that waited for the group to finish is not timed: its wait is the group's, not ours.
     if (!wasHeld && heardAt.current !== null) clock.sent(heardAt.current, ears === 'server' ? stoppedAt.current : null)
     else clock.reset()
@@ -188,7 +251,7 @@ export function Talk({
   /** Her turn may open: Talk on, nobody speaking, and the group not answering (unless she cut in). */
   const herTurn = () => {
     const { active, streaming } = live.current
-    return mounted.current && active && !queued.current && (!streaming || muted.current)
+    return mounted.current && active && !pausedRef.current && !queued.current && (!streaming || muted.current)
   }
 
   /** One turn of hers through the gateway: record until a pause, transcribe, send. */
@@ -203,7 +266,7 @@ export function Talk({
         maxMs: 60_000,
         // Nothing said for a while: drop the clip and keep listening with a fresh one.
         idleMs: 30_000,
-        onSilence: () => void heardClip(r, g),
+        onSilence: () => void heardClip(r, g, false),
         onIdle: () => {
           if (clip.current !== r) return
           clip.current = null
@@ -225,14 +288,14 @@ export function Talk({
     clip.current = r
   }
 
-  const heardClip = async (r: Recording, g: number) => {
+  const heardClip = async (r: Recording, g: number, done: boolean) => {
     if (clip.current !== r || g !== gen.current) return
     clip.current = null
     opening.current = true
     setWriting(true)
-    // The recorder calls this after TALK_SILENCE_MS of quiet: her last word was that long ago.
-    // (At the 60 s cap, or with no loudness to watch, that is a guess.)
-    heardAt.current = Date.now() - TALK_SILENCE_MS
+    // Done: she finished just now. Otherwise the recorder calls this after TALK_SILENCE_MS of quiet,
+    // so her last word was that long ago (at the 60 s cap, or with no loudness to watch, a guess).
+    heardAt.current = done ? Date.now() : Date.now() - TALK_SILENCE_MS
     stoppedAt.current = Date.now()
     const { clip: audio } = await r.stop()
     let text = ''
@@ -270,6 +333,7 @@ export function Talk({
   }
 
   const listen = () => {
+    if (pausedRef.current) return
     if (ears === 'server') return void listenClip()
     if (!Ctor || rec.current) return
     const r = new Ctor()
@@ -281,6 +345,7 @@ export function Talk({
     let error: string | null = null
     const flush = () => {
       clearTimeout(timer.current)
+      setPendingSince(null)
       offset = seen
       const text = heard
       heard = ''
@@ -304,6 +369,8 @@ export function Talk({
         hush()
       }
       if (heard) heardAt.current = Date.now()
+      // Her own turn: the bar counts the auto-send down (a word over the room is not a turn yet).
+      setPendingSince(heard && !queued.current ? Date.now() : null)
       clearTimeout(timer.current)
       timer.current = setTimeout(flush, TALK_SILENCE_MS)
     }
@@ -322,7 +389,18 @@ export function Talk({
       else listen()
     }
     rec.current = r
+    flushNow.current = flush
     r.start()
+  }
+
+  /** Done: send what she said now, without waiting out the pause. */
+  const done = () => {
+    if (ears === 'server') {
+      const r = clip.current
+      if (r) void heardClip(r, gen.current, true)
+      return
+    }
+    flushNow.current?.()
   }
 
   const close = () => {
@@ -385,13 +463,13 @@ export function Talk({
           const out = c.next.push(it.text.slice(c.text.length))
           c.text = it.text
           if (!it.streaming) out.push(...c.next.flush())
-          for (const s of out) voice(s, it.speaker)
+          for (const s of out) voice(s, it.speaker, i)
           if (it.streaming) return
         }
         // Otherwise the final text rewrote what streamed: what was spoken stands, the rest is read on screen.
         chunk.current = null
-      } else if (it.kind === 'floor') voice(it.question, 'facilitator')
-      else if (it.kind === 'facilitator') voice(it.text, 'facilitator')
+      } else if (it.kind === 'floor') voice(it.question, 'facilitator', i)
+      else if (it.kind === 'facilitator') voice(it.text, 'facilitator', i)
       handled.current = i + 1
     }
     // The answer is in and nothing of it was spoken: that turn gets no report.
@@ -408,58 +486,179 @@ export function Talk({
     listen()
   }
 
+  // "Thinking… n s" counts from the moment the group started answering.
+  if (streaming && thinkingSince.current === null) thinkingSince.current = Date.now()
+  if (!streaming) thinkingSince.current = null
+  const ticking = on && (streaming || pendingSince !== null)
+  useEffect(() => {
+    if (!ticking) return
+    setTick(Date.now())
+    const t = setInterval(() => setTick(Date.now()), 250)
+    return () => clearInterval(t)
+  }, [ticking])
+
+  const floors = items.flatMap((it) => (it.kind === 'floor' ? [it.question] : []))
+  const [list, setList] = useState(false)
+  const left = pendingSince === null ? null : Math.max(0, TALK_SILENCE_MS - (tick - pendingSince))
+  const thinking = streaming && !talker
+  const herTurnNow = active && !paused && !talker && !streaming && !writing
+
   const status = !armed
     ? 'Tap to resume'
-    : talker
-      ? `${personaName(talker)} is talking…`
-      : streaming
-        ? 'Thinking…'
-        : writing
-          ? 'Writing it down…'
-          : 'Listening…'
+    : paused
+      ? 'Paused'
+      : talker
+        ? `${personaName(talker)} is talking…`
+        : streaming
+          ? `Thinking… ${Math.max(0, Math.floor((tick - (thinkingSince.current ?? tick)) / 1000))} s`
+          : writing
+            ? 'Writing it down…'
+            : left !== null && left <= COUNTDOWN_MS
+              ? `Sending in ${Math.ceil(left / 1000)} s…`
+              : 'Listening…'
 
-  return (
-    <div className="mt-6">
-      <div className="flex items-center gap-2">
-        {ears && (
-          <button
-            type="button"
-            onClick={tap}
-            aria-pressed={on}
-            data-testid="talk"
-            className={`slab flex-1 gap-2 ${on ? '' : 'slab-off'}`}
-          >
-            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-              <rect x="9" y="3" width="6" height="11" rx="3" />
-              <path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" strokeLinecap="round" />
-            </svg>
+  // The main button does the one thing that makes sense now.
+  const main = !armed
+    ? { label: 'Start', onClick: tap, testid: 'voice-start' }
+    : paused
+      ? { label: 'Resume', onClick: resume, testid: 'voice-resume' }
+      : talker
+        ? ears === 'server'
+          ? { label: 'Cut in', onClick: cutIn, testid: 'cut-in' }
+          : {
+              label: 'Interrupt',
+              onClick: () => {
+                muted.current = true
+                hush()
+              },
+              testid: 'voice-interrupt',
+            }
+        : herTurnNow
+          ? { label: 'Done', onClick: done, testid: 'voice-done' }
+          : { label: thinking ? 'Wait' : 'Writing', onClick: undefined, testid: 'voice-wait' }
+
+  const icon = (d: string) => (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <path d={d} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+  const round = 'flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-marble-200 hover:text-marble-50 disabled:text-marble-600'
+
+  if (!ears) return null
+  if (!on)
+    return (
+      <div className="mt-6">
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={tap} aria-pressed={false} data-testid="talk" className="slab slab-off flex-1 gap-2">
+            {icon('M12 3a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3zM5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21')}
             Talk
           </button>
-        )}
-        {children}
-      </div>
-      {ears && on && (
-        <div className="mt-2 flex min-h-11 items-center gap-3">
-          <p role="status" data-testid="talk-status" className="text-[15px] leading-[23px] text-marble-300">
-            {status}
-          </p>
-          {ears === 'server' && active && talker && (
-            <button type="button" onClick={cutIn} className="chip" data-testid="cut-in">
-              Cut in
-            </button>
-          )}
+          {children}
         </div>
-      )}
-      {timing && lastTurn && (
-        <p data-testid="voice-timing" className="mt-1 text-[13px] leading-[20px] text-marble-400">
-          {lastTurn}
-        </p>
-      )}
-      {problem && (
-        <p role="alert" data-testid="talk-problem" className="t-body mt-2 border-l-2 border-clay-500 pl-4">
-          {problem}
-        </p>
-      )}
-    </div>
+        {problem && (
+          <p role="alert" data-testid="talk-problem" className="t-body mt-2 border-l-2 border-clay-500 pl-4">
+            {problem}
+          </p>
+        )}
+      </div>
+    )
+
+  return (
+    <>
+      <section
+        aria-label="Voice"
+        data-testid="voice-bar"
+        className="fixed inset-x-0 bottom-0 z-30 border-t border-ink-700 bg-ink-900"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
+        <div className="mx-auto max-w-xl px-4 pt-2 pb-3">
+          {list && (
+            <ol data-testid="voice-questions" className="mb-2 max-h-56 overflow-y-auto border-b border-ink-700 pb-2">
+              {floors.map((q, i) => (
+                <li key={i}>
+                  <button
+                    type="button"
+                    className="flex min-h-11 w-full items-baseline gap-3 py-1 text-left text-[15px] leading-[22px] text-marble-200 hover:text-marble-50"
+                    onClick={() => {
+                      setList(false)
+                      steer(`Let's go back to this question: "${q}"`)
+                    }}
+                  >
+                    <span className="t-label shrink-0 text-marble-400">{i + 1}</span>
+                    <span className={i === floors.length - 1 ? 'text-candle-200' : ''}>{q}</span>
+                  </button>
+                </li>
+              ))}
+            </ol>
+          )}
+          <button
+            type="button"
+            aria-expanded={list}
+            disabled={!floors.length}
+            onClick={() => setList((v) => !v)}
+            data-testid="voice-where"
+            className="flex min-h-11 w-full items-center gap-2 text-left"
+          >
+            <span className="t-label shrink-0 text-candle-300">{floors.length ? `Question ${floors.length}` : 'Opening'}</span>
+            <span role="status" data-testid="talk-status" className="truncate text-[15px] leading-[23px] text-marble-200">
+              {status}
+            </span>
+          </button>
+          {timing && lastTurn && (
+            <p data-testid="voice-timing" className="text-[13px] leading-[20px] text-marble-400">
+              {lastTurn}
+            </p>
+          )}
+          {problem && (
+            <p role="alert" data-testid="talk-problem" className="t-body mt-1 border-l-2 border-clay-500 pl-4">
+              {problem}
+            </p>
+          )}
+          <div className="mt-1 flex items-center justify-between gap-1">
+            <button
+              type="button"
+              aria-label="Previous question"
+              disabled={!active || floors.length < 2}
+              onClick={() => steer(`Let's go back to the previous question: "${floors[floors.length - 2]}"`)}
+              className={round}
+            >
+              {icon('M7 6v12M18 6l-8 6 8 6z')}
+            </button>
+            <button
+              type="button"
+              aria-label="Pause"
+              aria-pressed={paused}
+              data-testid="voice-pause"
+              disabled={!active}
+              onClick={paused ? resume : pause}
+              className={round}
+            >
+              {paused ? icon('M8 5l11 7-11 7z') : icon('M9 5v14M15 5v14')}
+            </button>
+            <button
+              type="button"
+              data-testid={main.testid}
+              disabled={!main.onClick}
+              onClick={main.onClick}
+              className="slab min-w-28 flex-1 gap-2"
+            >
+              {main.label}
+            </button>
+            <button
+              type="button"
+              aria-label="Next question"
+              disabled={!active || !floors.length}
+              onClick={() => steer("Let's move on to the next question.")}
+              className={round}
+            >
+              {icon('M17 6v12M6 6l8 6-8 6z')}
+            </button>
+            <button type="button" aria-label="End voice" data-testid="talk" aria-pressed={true} onClick={() => onChange(false)} className={round}>
+              {icon('M6 6l12 12M18 6L6 18')}
+            </button>
+          </div>
+        </div>
+      </section>
+    </>
   )
 }

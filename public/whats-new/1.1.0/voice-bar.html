@@ -1,0 +1,39 @@
+<!doctype html>
+<meta charset="utf-8">
+<!-- What's new 1.1.0, voice bar (flywheel docs/standards/whats-new.md): CSS only, nothing fetched.
+     5 s loop: Listening, Done is tapped, Seneca is talking, Pause is tapped, Paused. -->
+<style>
+  :root{--bg:#100e0b;--bar:#171410;--line:#342d23;--ink:#ece7db;--dim:#968d7c;--candle:#e3b56a;--label:#d9a85a;--dot:#efce8d}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:14px/1.3 Inter,system-ui,sans-serif;overflow:hidden}
+  .f{position:relative;height:100%}
+  .bar{position:absolute;left:0;right:0;bottom:0;background:var(--bar);border-top:1px solid var(--line);padding:10px 16px 14px}
+  .where{display:flex;gap:8px;align-items:baseline;height:20px}
+  .q{font-size:11px;letter-spacing:.08em;color:var(--label);font-weight:600}
+  .st{position:relative;flex:1;height:20px}
+  .st span{position:absolute;left:0;top:0;opacity:0}
+  .s1{animation:s1 5s infinite}.s2{animation:s2 5s infinite}.s3{animation:s3 5s infinite}
+  .row{display:flex;align-items:center;gap:10px;margin-top:10px}
+  .ic{width:36px;height:36px;display:flex;align-items:center;justify-content:center;color:var(--ink);font-size:15px}
+  .main{position:relative;flex:1;height:40px;border-radius:4px;background:var(--candle);color:#1a150e;font:600 16px Georgia,serif}
+  .main span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0}
+  .m1{animation:s1 5s infinite}.m2{animation:s2 5s infinite}.m3{animation:s3 5s infinite}
+  .dot{position:absolute;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50%;background:var(--dot);opacity:0}
+  .d1{left:50%;bottom:34px;animation:t1 5s infinite}.d2{left:76px;bottom:34px;animation:t2 5s infinite}
+  @keyframes s1{0%,30%{opacity:1}34%,100%{opacity:0}}
+  @keyframes s2{0%,32%{opacity:0}36%,62%{opacity:1}66%,100%{opacity:0}}
+  @keyframes s3{0%,64%{opacity:0}68%,96%{opacity:1}100%{opacity:0}}
+  @keyframes t1{0%,22%{opacity:0;transform:scale(.5)}28%{opacity:.45;transform:scale(1)}34%,100%{opacity:0}}
+  @keyframes t2{0%,54%{opacity:0;transform:scale(.5)}60%{opacity:.45;transform:scale(1)}66%,100%{opacity:0}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important}.s2,.m2{opacity:1}}
+</style>
+<div class="f" aria-hidden="true">
+  <div class="bar">
+    <div class="where"><span class="q">QUESTION 2</span><span class="st"><span class="s1">Listening…</span><span class="s2">Seneca is talking…</span><span class="s3">Paused</span></span></div>
+    <div class="row">
+      <span class="ic">⏮</span><span class="ic">⏸</span>
+      <span class="main"><span class="m1">Done</span><span class="m2">Interrupt</span><span class="m3">Resume</span></span>
+      <span class="ic">⏭</span><span class="ic">✕</span>
+    </div>
+  </div>
+  <div class="dot d1"></div><div class="dot d2"></div>
+</div>
