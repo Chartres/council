@@ -32,7 +32,8 @@ Stub controls: `POST /__reset` clears the one anonymous allowance and the `ROTAT
 `GET /v1/council/key` answers 204/401 the same way every other route does; an idea containing
 `QUOTA` returns 429, one containing `CAP` returns 503, one containing `ROTATE` returns 401
 `{reason:"password"}` once (simulating a password rotated mid-session) then behaves normally;
-`STUB_PASSWORD=x` makes it demand `x-council-key: x` (401 `{reason:"password"}` without it) and
+`STUB_PASSWORD=x` makes it demand `x-council-key: x` or a signed-in bearer (a JWT-shaped token with
+`sub` and an unexpired `exp`, as `scripts/stub-supabase.mjs` issues; 401 `{reason:"password"}` without either) and
 `STUB_TIER` sets the default session tier (overridden per-request by `x-council-tier`, the
 admin-only free/premium switch — see below). `GET /v1/admin/usage` returns running cost/session
 totals.
@@ -131,7 +132,7 @@ the top 120 px, no x-overflow at 320/375/430, and 44 px nav targets.
 | Var | What breaks without it |
 |---|---|
 | `VITE_GATEWAY_URL` | no council — every convene fails with the gateway message |
-| the private-beta password (typed, stored in `council:key`) | the gateway 401s `{reason:"password"}`; the app shows the door instead of the home screen |
+| the private-beta password (typed, stored in `council:key`), or a sign-in | the gateway 401s `{reason:"password"}`; the app shows the door instead of the home screen. Signed in, the bearer passes the door without the password (gateway change in flywheel) |
 | `VITE_SUPABASE_URL` + `VITE_SUPABASE_PUBLISHABLE_KEY` | sign-in and cloud history off; app still works anonymously with localStorage |
 | `VITE_E2E_ADMIN` | test-only; grants the admin bar with no real session. Never set outside `e2e/admin-bar.spec.ts`'s own build |
 

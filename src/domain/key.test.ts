@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { checkKey, gateState, KEY_STORAGE, loadKey, saveKey } from './key'
+import { checkKey, doorHeaders, gateState, KEY_STORAGE, loadKey, saveKey, setBearer } from './key'
 
 describe('the council key', () => {
   it('round-trips through localStorage and treats an empty string as missing', () => {
@@ -23,6 +23,24 @@ describe('gateState', () => {
 
   it('asks again when the gateway rejected the stored key', () => {
     expect(gateState('wrong', 'password')).toBe('ask')
+  })
+
+  // Eyal, 30 Oct: signed in on a new laptop, the door still asked for the password. The gateway
+  // lets a verified Supabase JWT through without x-council-key.
+  it('is ready for a signed-in user with no stored key', () => {
+    expect(gateState(null, null, true)).toBe('ready')
+  })
+
+  it('asks a signed-in user when the gateway refused them (an expired token)', () => {
+    expect(gateState(null, 'password', true)).toBe('ask')
+  })
+
+  // Review 15 Nov: a signed-in user with no stored key saw the door flash while auth loaded.
+  it('waits, neither door nor screen, while the sign-in is still loading and no key is stored', () => {
+    expect(gateState(null, null, false, true)).toBe('wait')
+    expect(gateState('tallow-candle', null, false, true)).toBe('ready')
+    expect(gateState(null, 'password', false, true)).toBe('ask')
+    expect(gateState(null, null, false, false)).toBe('ask')
   })
 
   it('leaves every other failure to the session screen', () => {
@@ -58,5 +76,24 @@ describe('checkKey', () => {
   it('reads gateway off a network failure instead of throwing', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
     await expect(checkKey('x', 'https://llm.example')).resolves.toBe('gateway')
+  })
+})
+
+describe('doorHeaders (tts and stt)', () => {
+  afterEach(() => {
+    setBearer(null)
+    localStorage.clear()
+  })
+
+  it('sends the bearer when signed in, and no key when none is stored', () => {
+    setBearer('jwt')
+    expect(doorHeaders()).toEqual({ authorization: 'Bearer jwt' })
+  })
+
+  it('sends the stored key, and both when both are there', () => {
+    saveKey('tallow-candle')
+    expect(doorHeaders()).toEqual({ 'x-council-key': 'tallow-candle' })
+    setBearer('jwt')
+    expect(doorHeaders()).toEqual({ 'x-council-key': 'tallow-candle', authorization: 'Bearer jwt' })
   })
 })

@@ -55,7 +55,8 @@ function Shell() {
         style={{ paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom))' }}
       >
         {/* The privacy page is public: readable before the beta door. */}
-        {gate === 'ask' && view !== 'privacy' ? <PasswordPanel /> : <Screen />}
+        {/* While the sign-in loads with no key stored: a blank ground, not a flash of the door. */}
+        {view === 'privacy' ? <Screen /> : gate === 'ask' ? <PasswordPanel /> : gate === 'ready' ? <Screen /> : null}
       </main>
       {gate === 'ready' && !NO_NAV.has(view) && <BottomNav />}
     </div>

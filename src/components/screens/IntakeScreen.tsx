@@ -16,9 +16,10 @@ import {
   mergeIntake,
 } from '@/domain/intakeImport'
 import { VOICE_IDLE, currentField, voiceReducer } from '@/domain/intakeVoice'
-import { INTAKE_QUESTIONS, MAX_MATERIALS, intakePayload, stableIntake, type Intake } from '@/domain/mastermind'
+import { INTAKE_QUESTIONS, MAX_MATERIALS, intakePayload, stableIntake, voiceOrder, type Intake } from '@/domain/mastermind'
 import { synthesisAvailable, VOICE } from '@/domain/speech'
 import { unlockAudioInput } from '@/domain/stt'
+import { unlock } from '@/domain/tts'
 
 const TRUST_KEY = 'council:trust-seen'
 
@@ -195,15 +196,19 @@ export function IntakeScreen() {
 
   const startVoice = () => {
     unlockAudioInput() // the mics that mount after this tap may need to hear (iOS)
+    unlock() // and the gateway voice may play the questions (iOS)
     setOpen(true)
-    dispatch({ type: 'start', empty: INTAKE_QUESTIONS.map((q) => q.id).filter((id) => !answers[id]?.trim()) })
+    dispatch({ type: 'start', empty: voiceOrder(answers) })
   }
   const stopVoice = () => {
     cancel()
     dispatch({ type: 'stop' })
   }
 
-  const about = INTAKE_QUESTIONS.filter((q) => q.id !== 'goal')
+  // Listed in the order the walk asks them, so screen and voice agree.
+  const about = voiceOrder({})
+    .filter((id) => id !== 'goal')
+    .map((id) => INTAKE_QUESTIONS.find((q) => q.id === id)!)
   const goal = INTAKE_QUESTIONS.find((q) => q.id === 'goal')!
 
   // The facilitator's question lives in the row it fills, so question, mic and Skip share a viewport.

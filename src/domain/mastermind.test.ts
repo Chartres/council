@@ -5,6 +5,7 @@ import {
   controlRoute,
   exportJournal,
   intakePayload,
+  voiceOrder,
   itemsReducer,
   settleItems,
   sendTurn,
@@ -67,6 +68,13 @@ describe('intake', () => {
     expect(INTAKE_QUESTIONS[1].hint).toBe(
       "Your industry, who you serve, and your scope of responsibility. No company or people's names needed.",
     )
+  })
+
+  it('voiceOrder asks the goal first, then the decision, then About you; filled fields are skipped', () => {
+    expect(voiceOrder({})).toEqual(['goal', 'situation', 'success', 'constraints', 'role', 'organization', 'working_style'])
+    expect(voiceOrder({ goal: 'Cut churn', role: 'CFO', success: '  ' })).toEqual([
+      'situation', 'success', 'constraints', 'organization', 'working_style',
+    ])
   })
 
   it('payload trims, drops blanks, caps each field at 1,000 characters; undefined when empty', () => {

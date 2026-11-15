@@ -162,6 +162,13 @@ export const INTAKE_QUESTIONS = [
 
 export type IntakeId = (typeof INTAKE_QUESTIONS)[number]['id']
 
+// INTAKE_QUESTIONS keeps the gateway's order. The screen and the spoken walk both use this one:
+// the goal, the decision (situation, success, constraints), then who she is.
+const VOICE_ORDER: IntakeId[] = ['goal', 'situation', 'success', 'constraints', 'role', 'organization', 'working_style']
+
+/** The questions "Talk it through" asks aloud: the still-empty ones, goal first. */
+export const voiceOrder = (answers: Intake): IntakeId[] => VOICE_ORDER.filter((id) => !answers[id]?.trim())
+
 /** The gateway rejects the whole intake when one field is longer (MAX_FIELD). */
 export const MAX_FIELD = 1000
 export const MAX_MATERIALS = 8000

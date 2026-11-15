@@ -5,7 +5,7 @@
 // ponytail: silence is judged by loudness (RMS) on an AnalyserNode, not a real VAD; the
 // gateway runs Whisper with its own VAD filter, so a little leading silence costs nothing.
 
-import { loadKey } from './key'
+import { doorHeaders } from './key'
 
 export type SttFailure = 'password' | 'quota' | 'cap' | 'too_large' | 'unavailable' | 'network' | 'denied' | 'no_mic'
 
@@ -57,14 +57,13 @@ export const STT_TIMEOUT_MS = 20_000
 export async function transcribe(clip: Blob): Promise<string> {
   const base = gatewayUrl()
   if (!base) throw new SttError('unavailable')
-  const key = loadKey()
   const abort = new AbortController()
   const timer = setTimeout(() => abort.abort(), STT_TIMEOUT_MS)
   let res: Response
   try {
     res = await fetch(`${base}/v1/stt`, {
       method: 'POST',
-      headers: { 'content-type': clip.type || 'audio/webm', ...(key ? { 'x-council-key': key } : {}) },
+      headers: { 'content-type': clip.type || 'audio/webm', ...doorHeaders() },
       credentials: 'include',
       body: clip,
       signal: abort.signal,
@@ -115,6 +114,8 @@ export interface Recording {
   stop(): Promise<{ clip: Blob; heard: boolean }>
   /** Stop and throw the clip away. */
   cancel(): void
+  /** True once something louder than the room was heard: she is speaking into it. */
+  heard?(): boolean
 }
 
 /** Opus in WebM where the browser has it (smaller), else AAC in MP4 (older iOS Safari). */
@@ -222,6 +223,7 @@ export async function record(opts: {
         recorder.onstop = done
         recorder.stop()
       }),
+    heard: () => heard,
     cancel: () => {
       recorder.onstop = null
       if (recorder.state !== 'inactive') recorder.stop()

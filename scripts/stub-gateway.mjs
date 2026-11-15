@@ -13,7 +13,8 @@
 //   idea containing "CAP"      → 503 {reason:"cap"}
 //   idea containing "ROTATE"   → 401 {reason:"password"} once (simulates a rotated
 //                                 password on an otherwise-right key), then normal
-//   STUB_PASSWORD=x            require header `x-council-key: x`, else 401 {reason:"password"}
+//   STUB_PASSWORD=x            require header `x-council-key: x` or a live bearer (a JWT-shaped
+//                              token with `sub` and an unexpired `exp`), else 401 {reason:"password"}
 //   STUB_TIER=premium          default tier on the session event when no x-council-tier header
 //   GET /v1/admin/usage        plausible running totals (admin-only on the real gateway)
 //   header x-council-tier      echoed back as the session event's tier/model (admin only)
@@ -58,6 +59,18 @@ const PORT = Number(process.env.PORT ?? 8787)
 const TURN_DELAY_MS = Number(process.env.STUB_TURN_DELAY_MS ?? 60)
 const DELTA_MS = Number(process.env.STUB_DELTA_MS ?? 30)
 const PASSWORD = process.env.STUB_PASSWORD || null
+
+/** A bearer whose payload names a user and has not expired: the stub's stand-in for a verified JWT. */
+function liveBearer(req) {
+  const m = /^Bearer [^.]+\.([^.]+)\./.exec(req.headers.authorization ?? '')
+  if (!m) return false
+  try {
+    const { sub, exp } = JSON.parse(Buffer.from(m[1], 'base64url').toString())
+    return Boolean(sub) && (!exp || exp * 1000 > Date.now())
+  } catch {
+    return false
+  }
+}
 /** The last `resume` /start received (GET /__resume), for the continue-a-discussion journey. */
 let lastResume = null
 const TIER = process.env.STUB_TIER ?? 'free'
@@ -382,8 +395,10 @@ createServer(async (req, res) => {
     return res.writeHead(204).end()
   }
 
-  // The private-beta door, ahead of everything else the gateway knows.
-  if (PASSWORD && req.headers['x-council-key'] !== PASSWORD) return fail(res, 401, 'password')
+  // The private-beta door, ahead of everything else the gateway knows. A signed-in user's
+  // token passes it without the password (the gateway verifies the Supabase JWT; the stub
+  // only reads `sub` and `exp`, which is all scripts/stub-supabase.mjs signs).
+  if (PASSWORD && req.headers['x-council-key'] !== PASSWORD && !liveBearer(req)) return fail(res, 401, 'password')
 
   // The panel checks the password here before it ever closes. The delay mirrors a
   // real round trip, long enough for a test (or a person) to see the "Checking…" state.

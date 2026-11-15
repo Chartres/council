@@ -4,6 +4,11 @@ import type { Item } from '@/domain/mastermind'
 import { cancel } from '@/domain/tts'
 import { Talk } from './Talk'
 
+let ios = false
+const analytics = vi.hoisted(() => ({ keyAction: vi.fn() }))
+vi.mock('@/analytics', () => analytics)
+vi.mock('@/domain/stt', async (orig) => ({ ...(await orig<object>()), isAppleMobile: () => ios }))
+
 // Talk against the real tts queue: only the network, the player and the recogniser are fakes.
 
 class Rec {
@@ -94,5 +99,110 @@ describe('Talk with the real speaker queue', () => {
     expect(lines()).toHaveLength(0)
     expect(Player.all).toHaveLength(1)
     expect(screen.getByRole('status')).toHaveTextContent('Thinking…')
+  })
+})
+
+// iPhone (Eyal, 30 Oct: the read-aloud voice is robotic): a line the gateway cannot speak is not
+// read by the browser voice; the room moves on and the bar offers it again.
+describe('Talk on iPhone when the gateway cannot speak a line', () => {
+  const synth = { speak: vi.fn(), cancel: vi.fn(), getVoices: () => [] }
+  const failed = () => Promise.resolve({ ok: false, headers: { get: () => 'application/json' } })
+  beforeEach(() => {
+    synth.speak.mockClear()
+    vi.stubGlobal('speechSynthesis', synth)
+    vi.stubGlobal('SpeechSynthesisUtterance', class { constructor(public text: string) {} })
+  })
+  afterEach(() => {
+    ios = false
+  })
+
+  const start = (items: Item[]) => {
+    const view = (it: Item[]) => <Talk on onChange={() => {}} items={it} streaming={false} onSay={() => {}} />
+    const r = render(view([]))
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }))
+    synth.speak.mockClear() // the unlocking tap's silent line
+    r.rerender(view(items))
+  }
+  const floor: Item[] = [{ kind: 'floor', question: 'What would change your mind?' }]
+
+  it('does not use the browser voice, hands the turn back, and offers Tap to hear', async () => {
+    ios = true
+    vi.stubGlobal('fetch', vi.fn(failed))
+    start(floor)
+    await flush()
+    await flush()
+    expect(synth.speak).not.toHaveBeenCalled()
+    expect(screen.getByRole('status')).toHaveTextContent('Listening…')
+    expect(screen.getByTestId('voice-missed')).toHaveTextContent('Voice did not load. The text is above.')
+
+    // One tap tries the gateway once more, and this time it plays.
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(audio())))
+    fireEvent.click(screen.getByRole('button', { name: 'Tap to hear' }))
+    await flush()
+    await flush()
+    expect(JSON.parse((fetch as ReturnType<typeof vi.fn>).mock.calls[0][1].body).text).toBe('What would change your mind?')
+    expect(lines()).toHaveLength(1)
+    expect(screen.queryByTestId('voice-missed')).toBeNull()
+    // Only the tap's silent unlocking line went to the browser engine.
+    expect(synth.speak.mock.calls.map((c) => (c[0] as { text: string }).text)).toEqual([' '])
+  })
+
+  it('elsewhere the browser voice reads it, as before, and nothing is offered', async () => {
+    vi.stubGlobal('fetch', vi.fn(failed))
+    start(floor)
+    await flush()
+    await flush()
+    expect(synth.speak).toHaveBeenCalledTimes(1)
+    expect(screen.queryByTestId('voice-missed')).toBeNull()
+  })
+})
+
+describe('Talk on iPhone, review 15 Nov', () => {
+  const failed = () => Promise.resolve({ ok: false, headers: { get: () => 'application/json' } })
+  beforeEach(() => {
+    vi.stubGlobal('speechSynthesis', { speak: vi.fn(), cancel: vi.fn(), getVoices: () => [] })
+    vi.stubGlobal('SpeechSynthesisUtterance', class { constructor(public text: string) {} })
+    analytics.keyAction.mockClear()
+  })
+  afterEach(() => {
+    ios = false
+  })
+
+  it('a later line that starts playing takes the Tap to hear away (one shared player)', async () => {
+    ios = true
+    let call = 0
+    vi.stubGlobal('fetch', vi.fn(() => (++call === 1 ? failed() : Promise.resolve(audio()))))
+    const view = (it: Item[]) => <Talk on onChange={() => {}} items={it} streaming={false} onSay={() => {}} />
+    const r = render(view([]))
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }))
+    const before = lines().length // the player lives for the page: earlier tests' lines are on it
+    r.rerender(view([{ kind: 'contribution', speaker: 'drucker', text: 'Start with the customer. Who benefits?' }]))
+    await flush()
+    await flush()
+    await flush()
+    expect(lines()).toHaveLength(before + 1)
+    expect(screen.queryByTestId('voice-missed')).toBeNull()
+  })
+
+  it('a retried line is not timed as the turn: the wait before the tap is hers', async () => {
+    ios = true
+    vi.stubGlobal('fetch', vi.fn(failed))
+    const onSay = vi.fn()
+    const view = (it: Item[]) => <Talk on onChange={() => {}} items={it} streaming={false} onSay={onSay} />
+    const r = render(view([]))
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }))
+    act(() => Rec.all[0]!.say('we have no engineers'))
+    fireEvent.click(screen.getByTestId('voice-done'))
+    expect(onSay).toHaveBeenCalledWith('we have no engineers')
+    r.rerender(view([{ kind: 'user', text: 'we have no engineers' }, { kind: 'floor', question: 'Who pays for it?' }]))
+    await flush()
+    await flush()
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(audio())))
+    const before = lines().length
+    fireEvent.click(screen.getByRole('button', { name: 'Tap to hear' }))
+    await flush()
+    await flush()
+    expect(lines()).toHaveLength(before + 1)
+    expect(analytics.keyAction.mock.calls.filter((c) => c[0] === 'voice_turn')).toEqual([])
   })
 })

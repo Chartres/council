@@ -101,7 +101,7 @@ const CouncilContext = createContext<CouncilContextValue | null>(null)
 export const GATEWAY_URL = (import.meta.env.VITE_GATEWAY_URL as string | undefined) ?? ''
 
 export function CouncilProvider({ children }: { children: ReactNode }) {
-  const { user, token } = useAuth()
+  const { user, token, loading } = useAuth()
   const [view, setView] = useState<View>(() => viewFromPath(window.location.pathname))
   const [locked, setLocked] = useState(false)
   const [picked, setPicked] = useState<string[]>(DEFAULT_PERSONA_IDS)
@@ -365,6 +365,20 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
     [pendingResume, runConvene, runReply, view, go],
   )
 
+  // Signed in at the door (after a 401, or on a new device): the bearer goes through the door,
+  // so it closes, and what the 401 refused runs again with the token. A token refresh lands here
+  // too, which is harmless: nothing is locked or pending then.
+  useEffect(() => {
+    if (!token) return
+    setLocked(false)
+    setKeyError(null)
+    const pending = pendingResume
+    setPendingResume(null)
+    if (pending?.kind === 'convene') runConvene(pending.idea, pending.dailyKey, pending.question, councilKey)
+    else if (pending?.kind === 'reply') runReply(pending.message, councilKey)
+    else setSession((s) => (s?.failure === 'password' ? { ...s, failure: null } : s))
+  }, [token])
+
   return (
     <CouncilContext.Provider
       value={{
@@ -377,7 +391,7 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
         reply,
         ideas,
         open,
-        gate: gateState(councilKey, session?.failure ?? (locked ? 'password' : null)),
+        gate: gateState(councilKey, session?.failure ?? (locked ? 'password' : null), !!user, loading),
         submitKey,
         checkingKey,
         keyError,

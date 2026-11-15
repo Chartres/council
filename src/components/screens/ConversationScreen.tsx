@@ -259,7 +259,7 @@ function ConversationView() {
                 rows={1}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                placeholder="Answer, push back, add what they are missing."
+                placeholder="Your answer, or push back"
                 className="min-h-11 min-w-0 flex-1 resize-none bg-transparent py-2 text-[17px] leading-[26px] text-marble-100 [field-sizing:content]"
               />
               <MicButton value={message} onChange={setMessage} label="your reply" />
