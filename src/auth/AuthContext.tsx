@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { isAuthConfigured, supabase } from './supabase'
 import { identify, track } from '@/analytics'
+import { setBearer } from '@/domain/key'
 
 export interface AuthUser {
   id: string
@@ -49,6 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const u = session?.user
       setUser(u ? { id: u.id, email: u.email ?? undefined } : null)
       setToken(session?.access_token ?? null)
+      setBearer(session?.access_token ?? null) // tts and stt read it outside React
       identify(u?.id ?? null) // cross-product identity on the shared platform
     }
     supabase.auth.getSession().then(({ data }) => {

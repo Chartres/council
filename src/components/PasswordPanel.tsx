@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useCouncil } from '@/app/CouncilContext'
 import { FAILURE_COPY } from '@/domain/council'
 import { useAuth } from '@/auth/AuthContext'
+import { SignInPanel } from '@/components/SignInPanel'
 
 /**
  * The private-beta door. One field, no account — the gateway checks the password
@@ -12,6 +13,7 @@ export function PasswordPanel() {
   const { submitKey, checkingKey, keyError } = useCouncil()
   const { user, configured } = useAuth()
   const [value, setValue] = useState('')
+  const [signIn, setSignIn] = useState(false)
   const disabled = !value.trim() || checkingKey
 
   return (
@@ -30,9 +32,17 @@ export function PasswordPanel() {
         {configured && (
           <p className="t-body mt-2 text-marble-300" data-testid="password-vs-account">
             {user
-              ? `You are signed in as ${user.email ?? 'your account'}. Each new browser also needs the beta password once; it is not your email code.`
-              : 'This is not your account sign-in. Each new browser needs it once; your email link or code (the person icon above) brings back your discussions.'}
+              ? `You are signed in as ${user.email ?? 'your account'}, but the council did not accept the sign-in this time. The beta password still works.`
+              : 'This is not your account sign-in. If you have an account, sign in with your email instead; you do not need the password.'}
           </p>
+        )}
+        {configured && !user && (
+          <>
+            <button type="button" onClick={() => setSignIn((s) => !s)} aria-expanded={signIn} className="text-btn -ml-3 mt-2 px-3">
+              Have an account? Sign in
+            </button>
+            {signIn && <SignInPanel title="Sign in" reason="We email you a link and a six-digit code." />}
+          </>
         )}
         <form
           onSubmit={(e) => {

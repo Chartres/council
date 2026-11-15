@@ -5,7 +5,7 @@
 // ponytail: silence is judged by loudness (RMS) on an AnalyserNode, not a real VAD; the
 // gateway runs Whisper with its own VAD filter, so a little leading silence costs nothing.
 
-import { loadKey } from './key'
+import { doorHeaders } from './key'
 
 export type SttFailure = 'password' | 'quota' | 'cap' | 'too_large' | 'unavailable' | 'network' | 'denied' | 'no_mic'
 
@@ -57,14 +57,13 @@ export const STT_TIMEOUT_MS = 20_000
 export async function transcribe(clip: Blob): Promise<string> {
   const base = gatewayUrl()
   if (!base) throw new SttError('unavailable')
-  const key = loadKey()
   const abort = new AbortController()
   const timer = setTimeout(() => abort.abort(), STT_TIMEOUT_MS)
   let res: Response
   try {
     res = await fetch(`${base}/v1/stt`, {
       method: 'POST',
-      headers: { 'content-type': clip.type || 'audio/webm', ...(key ? { 'x-council-key': key } : {}) },
+      headers: { 'content-type': clip.type || 'audio/webm', ...doorHeaders() },
       credentials: 'include',
       body: clip,
       signal: abort.signal,

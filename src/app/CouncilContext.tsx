@@ -377,7 +377,7 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
         reply,
         ideas,
         open,
-        gate: gateState(councilKey, session?.failure ?? (locked ? 'password' : null)),
+        gate: gateState(councilKey, session?.failure ?? (locked ? 'password' : null), !!user),
         submitKey,
         checkingKey,
         keyError,

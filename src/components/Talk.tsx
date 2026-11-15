@@ -144,11 +144,13 @@ export function Talk({
   // A ticking clock for the countdown and the "Thinking… n s" line, only while either shows.
   const [tick, setTick] = useState(() => Date.now())
   const thinkingSince = useRef<number | null>(null)
+  // iPhone/iPad: the last line the gateway could not speak (no robot voice there, Eyal 30 Oct).
+  const [missed, setMissed] = useState<{ text: string; speaker: string; index: number } | null>(null)
   const live = useRef({ active, streaming, onSay, onChange, onNow })
   live.current = { active, streaming, onSay, onChange, onNow }
 
-  const voice = (text: string, speaker: string, index = -1) => {
-    if (muted.current) return
+  const voice = (text: string, speaker: string, index = -1, again = false) => {
+    if (muted.current && !again) return
     const entry = { text, speaker, index }
     pending.current.push(entry)
     if (pausedRef.current) return
@@ -176,7 +178,15 @@ export function Talk({
       if (!t) return
       keyAction('voice_turn', t)
       if (mounted.current) setLastTurn(describeTurn(t))
-    })
+    }, () => mounted.current && setMissed(entry))
+  }
+
+  /** Tap to hear: the missed line once more through the gateway (the tap lets it play on iOS). */
+  const hearAgain = () => {
+    if (!missed) return
+    setMissed(null)
+    unlock()
+    voice(missed.text, missed.speaker, missed.index, true)
   }
 
   const hush = () => {
@@ -239,6 +249,7 @@ export function Talk({
       return
     }
     muted.current = false
+    setMissed(null)
     setPendingSince(null)
     // A turn that waited for the group to finish is not timed: its wait is the group's, not ours.
     if (!wasHeld && heardAt.current !== null) clock.sent(heardAt.current, ears === 'server' ? stoppedAt.current : null)
@@ -437,6 +448,7 @@ export function Talk({
     if (queued.current) hush() // only what Talk queued: Listen's narration is not ours to stop
     held.current = ''
     muted.current = false
+    setMissed(null)
     if (chunk.current) onQuiet?.()
   }, [active])
   useEffect(() => {
@@ -631,6 +643,14 @@ export function Talk({
           {timing && lastTurn && (
             <p data-testid="voice-timing" className="text-[13px] leading-[20px] text-marble-400">
               {lastTurn}
+            </p>
+          )}
+          {missed && active && !paused && (
+            <p data-testid="voice-missed" className="flex items-center gap-2 text-[15px] leading-[23px] text-marble-400">
+              Voice did not load. The text is above.
+              <button type="button" onClick={hearAgain} className="text-btn min-h-11 shrink-0 whitespace-nowrap px-3 text-marble-200">
+                Tap to hear
+              </button>
             </p>
           )}
           {problem && (

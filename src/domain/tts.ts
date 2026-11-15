@@ -2,11 +2,13 @@
 // on Workers AI (free inside the daily allowance),
 // one MP3 per utterance, played in order on one shared element. Where the gateway cannot speak — no key, offline,
 // the stub in e2e — the browser's own engine takes the utterance instead, so nothing is
-// ever silent that used to speak.
+// ever silent that used to speak. Except on iPhone and iPad: the browser voice there is the
+// robotic one (Eyal, 30 Oct), so a missed line stays as text and the caller offers it again.
 // ponytail: fetches are started at enqueue time so the next line is ready when this one
 // ends; no cache, no pre-splitting of long paragraphs.
 
-import { loadKey } from './key'
+import { doorHeaders } from './key'
+import { isAppleMobile } from './stt'
 
 export type Voice = { pitch: number; rate: number }
 export type Fallback = (text: string, voice: Voice, onEnd?: () => void) => void
@@ -19,6 +21,7 @@ type Item = {
   voice: Voice
   onEnd?: () => void
   onStart?: (via: 'gateway' | 'browser') => void
+  onMiss?: () => void
   audio: Promise<Blob | null>
   abort: AbortController
 }
@@ -50,7 +53,6 @@ export const TTS_TIMEOUT_MS = 6_000
 async function fetchAudio(text: string, speaker: string | undefined, signal: AbortSignal): Promise<Blob | null> {
   const base = gatewayUrl()
   if (!base) return null
-  const key = loadKey()
   // Our own controller: cancel() aborts it through `signal`, the clock aborts it on timeout.
   // Either way this returns null; next() tells them apart by `signal.aborted`.
   const ctl = new AbortController()
@@ -62,7 +64,7 @@ async function fetchAudio(text: string, speaker: string | undefined, signal: Abo
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        ...(key ? { 'x-council-key': key } : {}),
+        ...doorHeaders(),
         ...(token ? { authorization: `Bearer ${token}` } : {}),
       },
       // The anonymous session is a signed httpOnly cookie set by the Worker.
@@ -84,16 +86,18 @@ async function fetchAudio(text: string, speaker: string | undefined, signal: Abo
 /** `speaker` (an adviser id or `facilitator`) picks that adviser's gateway voice; without it
  *  the gateway uses its one default voice. `voice` is the browser fallback's pitch and rate. */
 /** `onStart` fires when the line begins: in the gateway's voice once it is playing, or as it is
- *  handed to the browser voice (Talk times the wait to the first word with it). */
+ *  handed to the browser voice (Talk times the wait to the first word with it). `onMiss` fires,
+ *  just before `onEnd`, when an iPhone or iPad leaves the line unspoken (see `miss`). */
 export function speak(
   text: string,
   voice: Voice,
   onEnd?: () => void,
   speaker?: string,
   onStart?: (via: 'gateway' | 'browser') => void,
+  onMiss?: () => void,
 ): void {
   const abort = new AbortController()
-  queue.push({ text, voice, onEnd, onStart, abort, audio: fetchAudio(text, speaker, abort.signal) })
+  queue.push({ text, voice, onEnd, onStart, onMiss, abort, audio: fetchAudio(text, speaker, abort.signal) })
   if (!busy) void next()
 }
 
@@ -138,7 +142,7 @@ async function next(): Promise<void> {
   const blob = await item.audio
   // Cancelled while downloading: cancel() already reset the queue; a later speak() runs its own loop.
   if (item.abort.signal.aborted) return
-  if (!blob) return viaFallback(item)
+  if (!blob) return miss(item)
   const url = URL.createObjectURL(blob)
   const audio = element()
   audio.src = url
@@ -160,8 +164,17 @@ async function next(): Promise<void> {
     // A cancelled line stays silent; otherwise autoplay was refused: let the browser engine try.
     if (item.abort.signal.aborted) return
     audio.onended = audio.onerror = null
-    viaFallback(item)
+    miss(item)
   }
+}
+
+/** The gateway could not speak this line. iPhone/iPad: it stays as text and the queue moves on
+ *  (onEnd keeps Talk's hands-free loop going); elsewhere the browser voice reads it. */
+function miss(item: Item): void {
+  if (!isAppleMobile()) return viaFallback(item)
+  item.onMiss?.()
+  item.onEnd?.()
+  void next()
 }
 
 /** The browser engine speaks this line; the queue moves on when it says it ended, so the next

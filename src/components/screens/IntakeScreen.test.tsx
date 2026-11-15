@@ -6,6 +6,9 @@ import { IntakeScreen } from './IntakeScreen'
 const begin = vi.fn()
 vi.mock('@/app/CouncilContext', () => ({ GATEWAY_URL: 'https://gw.test', useCouncil: () => ({ go: vi.fn(), councilKey: 'k', lockDoor: vi.fn() }) }))
 vi.mock('@/app/MastermindContext', () => ({ useMastermind: () => ({ begin, lastIntake: null }) }))
+const speak = vi.fn()
+vi.mock('@/components/Listen', () => ({ speak: (...a: unknown[]) => speak(...a), cancel: vi.fn() }))
+vi.mock('@/domain/speech', async (orig) => ({ ...(await orig<object>()), synthesisAvailable: () => true }))
 vi.mock('@/auth/AuthContext', () => ({ useAuth: () => ({ token: null }) }))
 
 const reply = (intake: object) => new Response(JSON.stringify({ intake }), { status: 200 })
@@ -116,5 +119,24 @@ describe('IntakeScreen shortcuts', () => {
     await waitFor(() => expect(screen.getByTestId('intake-note')).toHaveTextContent('Materials was cut at 8,000 characters.'))
     expect((screen.getByLabelText('Materials') as HTMLTextAreaElement).value).toHaveLength(8000)
     vi.unstubAllGlobals()
+  })
+})
+
+describe('IntakeScreen talk it through', () => {
+  it('asks the goal first when everything is empty', async () => {
+    speak.mockClear()
+    render(<IntakeScreen />)
+    await userEvent.click(screen.getByRole('button', { name: 'Talk it through' }))
+    await waitFor(() => expect(speak).toHaveBeenCalled())
+    expect(speak.mock.calls[0][0]).toBe('What would you like the group to help you achieve?')
+  })
+
+  it('skips a goal she already typed and asks what is happening today', async () => {
+    speak.mockClear()
+    render(<IntakeScreen />)
+    fireEvent.change(screen.getByLabelText('What would you like the group to help you achieve?'), { target: { value: 'Cut churn' } })
+    await userEvent.click(screen.getByRole('button', { name: 'Talk it through' }))
+    await waitFor(() => expect(speak).toHaveBeenCalled())
+    expect(speak.mock.calls[0][0]).toBe('What is happening today?')
   })
 })

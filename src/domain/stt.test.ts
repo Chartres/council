@@ -67,6 +67,18 @@ describe('transcribe', () => {
     expect(init.credentials).toBe('include')
   })
 
+  it('signed in with no key, sends the bearer and no key', async () => {
+    const { setBearer } = await import('./key')
+    setBearer('jwt')
+    const fetch = vi.fn(async () => new Response(JSON.stringify({ text: 'hi' }), { status: 200 }))
+    vi.stubGlobal('fetch', fetch)
+    await transcribe(new Blob(['aac'], { type: 'audio/mp4' }))
+    const headers = (fetch.mock.calls[0] as unknown as [string, RequestInit])[1].headers as Record<string, string>
+    expect(headers.authorization).toBe('Bearer jwt')
+    expect(headers['x-council-key']).toBeUndefined()
+    setBearer(null)
+  })
+
   it('names why it failed, so the mic can say what to do instead', async () => {
     const cases: [Response | Error, string][] = [
       [new Response(JSON.stringify({ reason: 'password' }), { status: 401 }), 'password'],

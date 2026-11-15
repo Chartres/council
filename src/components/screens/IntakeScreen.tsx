@@ -16,7 +16,7 @@ import {
   mergeIntake,
 } from '@/domain/intakeImport'
 import { VOICE_IDLE, currentField, voiceReducer } from '@/domain/intakeVoice'
-import { INTAKE_QUESTIONS, MAX_MATERIALS, intakePayload, stableIntake, type Intake } from '@/domain/mastermind'
+import { INTAKE_QUESTIONS, MAX_MATERIALS, intakePayload, stableIntake, voiceOrder, type Intake } from '@/domain/mastermind'
 import { synthesisAvailable, VOICE } from '@/domain/speech'
 import { unlockAudioInput } from '@/domain/stt'
 
@@ -196,7 +196,7 @@ export function IntakeScreen() {
   const startVoice = () => {
     unlockAudioInput() // the mics that mount after this tap may need to hear (iOS)
     setOpen(true)
-    dispatch({ type: 'start', empty: INTAKE_QUESTIONS.map((q) => q.id).filter((id) => !answers[id]?.trim()) })
+    dispatch({ type: 'start', empty: voiceOrder(answers) })
   }
   const stopVoice = () => {
     cancel()

@@ -138,7 +138,8 @@ test('talk it through: the facilitator asks each empty field aloud and the answe
   await expect(page.getByLabel('What would you like the group to help you achieve?')).toHaveValue('decide on a premium tier')
   const spoken = await page.evaluate(() => (window.speechSynthesis as unknown as { spoken: string[] }).spoken)
   expect(spoken).toHaveLength(6)
-  expect(spoken[0]).toBe('Who are you professionally?')
+  // Goal is filled, so the walk starts at the next decision question (Eyal, 29 Oct).
+  expect(spoken[0]).toBe('What is happening today?')
 })
 
 test('talk it through without voice support focuses each empty field in turn', async ({ page }) => {
@@ -151,12 +152,12 @@ test('talk it through without voice support focuses each empty field in turn', a
   await openIntake(page)
   await openAbout(page)
   await page.getByRole('button', { name: 'Talk it through' }).click()
-  await expect(page.getByLabel('Who are you professionally?')).toBeFocused()
-  await page.keyboard.type('Product manager')
-  await page.getByRole('button', { name: 'Next' }).click()
-  await expect(page.getByLabel('Where do you work?')).toBeFocused()
-  await page.getByRole('button', { name: 'Skip' }).click()
   await expect(page.getByLabel('What would you like the group to help you achieve?')).toBeFocused()
+  await page.keyboard.type('decide on a premium tier')
+  await page.getByRole('button', { name: 'Next' }).click()
+  await expect(page.getByLabel('What is happening today?')).toBeFocused()
+  await page.getByRole('button', { name: 'Skip' }).click()
+  await expect(page.getByLabel('What would a successful outcome look like?')).toBeFocused()
   await page.getByRole('button', { name: 'Stop talking' }).click()
   await expect(page.getByTestId('voice-bar')).toHaveCount(0)
 })

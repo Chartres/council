@@ -118,6 +118,19 @@ describe('speak through the gateway', () => {
     expect(JSON.parse(calls[2][1].body)).toEqual({ text: 'No session.' })
   })
 
+  it('signed in with no key and outside a session (Listen on /quick), sends the bearer', async () => {
+    const { setBearer } = await import('./key')
+    localStorage.removeItem('council:key')
+    setBearer('jwt')
+    vi.stubGlobal('fetch', vi.fn(audioResponse))
+    speak('hello', { pitch: 1, rate: 1 })
+    await flush()
+    const headers = (fetch as ReturnType<typeof vi.fn>).mock.calls[0][1].headers
+    expect(headers.authorization).toBe('Bearer jwt')
+    expect(headers['x-council-key']).toBeUndefined()
+    setBearer(null)
+  })
+
   it('hands the line to the browser engine when the gateway cannot speak', async () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: false, headers: { get: () => 'application/json' } })))
     const spoken = vi.fn()
@@ -130,6 +143,101 @@ describe('speak through the gateway', () => {
     spoken.mock.calls[0][2]()
     expect(onEnd).toHaveBeenCalledTimes(1)
     expect(lines()).toHaveLength(0)
+  })
+
+  // On iPhone/iPad the browser voice is the robotic one (Eyal, 30 Oct): a line the gateway cannot
+  // speak stays as text, the queue moves on, and the caller hears of it to offer "Tap to hear".
+  describe('on iPhone and iPad', () => {
+    const iphone = () =>
+      vi.stubGlobal('navigator', { userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0) Safari/604.1', maxTouchPoints: 5, platform: 'iPhone' })
+
+    it('a failed line is not given to the browser voice; it ends, says it missed, and the next line plays', async () => {
+      iphone()
+      let call = 0
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => (++call === 1 ? Promise.resolve({ ok: false, headers: { get: () => 'application/json' } }) : audioResponse())),
+      )
+      const spoken = vi.fn()
+      setFallback(spoken)
+      const onEnd = vi.fn()
+      const onMiss = vi.fn()
+      const onStart = vi.fn()
+      speak('lost', { pitch: 1, rate: 1 }, onEnd, 'seneca', onStart, onMiss)
+      speak('arrives', { pitch: 1, rate: 1 })
+      await flush()
+      await flush()
+      expect(spoken).not.toHaveBeenCalled()
+      expect(onMiss).toHaveBeenCalledTimes(1)
+      expect(onEnd).toHaveBeenCalledTimes(1)
+      expect(onStart).not.toHaveBeenCalled()
+      expect(lines()).toHaveLength(1)
+    })
+
+    it('a refused play() misses the same way', async () => {
+      iphone()
+      vi.stubGlobal('fetch', vi.fn(audioResponse))
+      player().play.mockImplementationOnce(() => Promise.reject(new Error('NotAllowedError')))
+      const spoken = vi.fn()
+      setFallback(spoken)
+      const onEnd = vi.fn()
+      const onMiss = vi.fn()
+      speak('refused', { pitch: 1, rate: 1 }, onEnd, undefined, undefined, onMiss)
+      await flush()
+      await flush()
+      expect(spoken).not.toHaveBeenCalled()
+      expect(onMiss).toHaveBeenCalledTimes(1)
+      expect(onEnd).toHaveBeenCalledTimes(1)
+    })
+
+    it('an iPad that reports itself as a Mac counts', async () => {
+      vi.stubGlobal('navigator', { userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', maxTouchPoints: 5, platform: 'MacIntel' })
+      vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: false, headers: { get: () => 'application/json' } })))
+      const spoken = vi.fn()
+      setFallback(spoken)
+      const onMiss = vi.fn()
+      speak('lost', { pitch: 1, rate: 1 }, undefined, undefined, undefined, onMiss)
+      await flush()
+      expect(spoken).not.toHaveBeenCalled()
+      expect(onMiss).toHaveBeenCalledTimes(1)
+    })
+
+    it('elsewhere the browser voice still speaks it and nothing is reported missed', async () => {
+      vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: false, headers: { get: () => 'application/json' } })))
+      const spoken = vi.fn()
+      setFallback(spoken)
+      const onMiss = vi.fn()
+      speak('hello', { pitch: 1, rate: 1 }, undefined, undefined, undefined, onMiss)
+      await flush()
+      expect(spoken).toHaveBeenCalledTimes(1)
+      expect(onMiss).not.toHaveBeenCalled()
+    })
+
+    describe('with a gateway that hangs', () => {
+      beforeEach(() => vi.useFakeTimers())
+      afterEach(() => vi.useRealTimers())
+      it('a timed-out line misses after the timeout and the browser voice stays quiet', async () => {
+        iphone()
+        vi.stubGlobal(
+          'fetch',
+          vi.fn(
+            (_url: string, init: RequestInit) =>
+              new Promise((_r, reject) => init.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))),
+          ),
+        )
+        const spoken = vi.fn()
+        setFallback(spoken)
+        const onEnd = vi.fn()
+        const onMiss = vi.fn()
+        speak('slow', { pitch: 1, rate: 1 }, onEnd, undefined, undefined, onMiss)
+        await vi.advanceTimersByTimeAsync(TTS_TIMEOUT_MS - 1)
+        expect(onMiss).not.toHaveBeenCalled()
+        await vi.advanceTimersByTimeAsync(1)
+        expect(onMiss).toHaveBeenCalledTimes(1)
+        expect(onEnd).toHaveBeenCalledTimes(1)
+        expect(spoken).not.toHaveBeenCalled()
+      })
+    })
   })
 
   // A gateway that accepts the request and never answers used to leave the line, and every line

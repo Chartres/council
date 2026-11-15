@@ -23,6 +23,19 @@ export function saveKey(key: string): void {
   }
 }
 
+// The signed-in user's Supabase token, kept current by AuthContext, for the callers that live
+// outside React (tts, stt). The gateway lets a verified token through without the password.
+let bearer: string | null = null
+export function setBearer(token: string | null): void {
+  bearer = token
+}
+
+/** What tts and stt send through the door: the stored password, and the bearer when signed in. */
+export function doorHeaders(): Record<string, string> {
+  const key = loadKey()
+  return { ...(key ? { 'x-council-key': key } : {}), ...(bearer ? { authorization: `Bearer ${bearer}` } : {}) }
+}
+
 export type KeyCheck = 'ok' | 'wrong' | 'gateway'
 
 /**
@@ -47,10 +60,10 @@ export async function checkKey(key: string, gatewayUrl: string): Promise<KeyChec
 export type GateState = 'ask' | 'ready'
 
 /**
- * Ask on the first visit (nothing stored) and whenever the gateway rejected the key
- * we had. Every other failure belongs to the session screen, not to the gate.
+ * Ask on the first visit (nothing stored, not signed in) and whenever the gateway rejected
+ * the key or the sign-in we had. Every other failure belongs to the session screen, not to the gate.
  */
-export function gateState(key: string | null, failure: FailureReason | null): GateState {
+export function gateState(key: string | null, failure: FailureReason | null, signedIn = false): GateState {
   if (failure === 'password') return 'ask'
-  return key ? 'ready' : 'ask'
+  return key || signedIn ? 'ready' : 'ask'
 }

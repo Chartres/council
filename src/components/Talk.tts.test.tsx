@@ -4,6 +4,9 @@ import type { Item } from '@/domain/mastermind'
 import { cancel } from '@/domain/tts'
 import { Talk } from './Talk'
 
+let ios = false
+vi.mock('@/domain/stt', async (orig) => ({ ...(await orig<object>()), isAppleMobile: () => ios }))
+
 // Talk against the real tts queue: only the network, the player and the recogniser are fakes.
 
 class Rec {
@@ -94,5 +97,60 @@ describe('Talk with the real speaker queue', () => {
     expect(lines()).toHaveLength(0)
     expect(Player.all).toHaveLength(1)
     expect(screen.getByRole('status')).toHaveTextContent('Thinking…')
+  })
+})
+
+// iPhone (Eyal, 30 Oct: the read-aloud voice is robotic): a line the gateway cannot speak is not
+// read by the browser voice; the room moves on and the bar offers it again.
+describe('Talk on iPhone when the gateway cannot speak a line', () => {
+  const synth = { speak: vi.fn(), cancel: vi.fn(), getVoices: () => [] }
+  const failed = () => Promise.resolve({ ok: false, headers: { get: () => 'application/json' } })
+  beforeEach(() => {
+    synth.speak.mockClear()
+    vi.stubGlobal('speechSynthesis', synth)
+    vi.stubGlobal('SpeechSynthesisUtterance', class { constructor(public text: string) {} })
+  })
+  afterEach(() => {
+    ios = false
+  })
+
+  const start = (items: Item[]) => {
+    const view = (it: Item[]) => <Talk on onChange={() => {}} items={it} streaming={false} onSay={() => {}} />
+    const r = render(view([]))
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }))
+    synth.speak.mockClear() // the unlocking tap's silent line
+    r.rerender(view(items))
+  }
+  const floor: Item[] = [{ kind: 'floor', question: 'What would change your mind?' }]
+
+  it('does not use the browser voice, hands the turn back, and offers Tap to hear', async () => {
+    ios = true
+    vi.stubGlobal('fetch', vi.fn(failed))
+    start(floor)
+    await flush()
+    await flush()
+    expect(synth.speak).not.toHaveBeenCalled()
+    expect(screen.getByRole('status')).toHaveTextContent('Listening…')
+    expect(screen.getByTestId('voice-missed')).toHaveTextContent('Voice did not load. The text is above.')
+
+    // One tap tries the gateway once more, and this time it plays.
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(audio())))
+    fireEvent.click(screen.getByRole('button', { name: 'Tap to hear' }))
+    await flush()
+    await flush()
+    expect(JSON.parse((fetch as ReturnType<typeof vi.fn>).mock.calls[0][1].body).text).toBe('What would change your mind?')
+    expect(lines()).toHaveLength(1)
+    expect(screen.queryByTestId('voice-missed')).toBeNull()
+    // Only the tap's silent unlocking line went to the browser engine.
+    expect(synth.speak.mock.calls.map((c) => (c[0] as { text: string }).text)).toEqual([' '])
+  })
+
+  it('elsewhere the browser voice reads it, as before, and nothing is offered', async () => {
+    vi.stubGlobal('fetch', vi.fn(failed))
+    start(floor)
+    await flush()
+    await flush()
+    expect(synth.speak).toHaveBeenCalledTimes(1)
+    expect(screen.queryByTestId('voice-missed')).toBeNull()
   })
 })
