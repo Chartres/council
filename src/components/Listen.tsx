@@ -102,7 +102,13 @@ export function ListenToggle({ on, onChange, chip = false }: { on: boolean; onCh
     ? `chip min-h-11 gap-2 font-semibold ${on ? 'bg-ink-800 text-marble-50' : 'text-marble-400'}`
     : `flex min-h-11 items-center gap-2 px-3 text-[15px] font-semibold ${on ? 'text-marble-50' : 'text-marble-400 hover:text-marble-100'}`
   return (
-    <button type="button" onClick={() => onChange(!on)} aria-pressed={on} data-testid="listen" className={look}>
+    <button
+      type="button"
+      onClick={() => {
+        if (!on) tts.unlock() // inside the tap: the gateway voice may play from now on (iOS)
+        onChange(!on)
+      }}
+      aria-pressed={on} data-testid="listen" className={look}>
       <svg
         viewBox="0 0 24 24"
         className="h-5 w-5"

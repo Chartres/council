@@ -202,6 +202,18 @@ describe('speak through the gateway', () => {
       expect(onMiss).toHaveBeenCalledTimes(1)
     })
 
+    // Review 15 Nov: Listen and the intake walk pass no onMiss and show no retry; on an iPhone
+    // they keep the browser voice rather than go silent with no notice.
+    it('a caller that cannot offer a retry (no onMiss) still gets the browser voice', async () => {
+      iphone()
+      vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: false, headers: { get: () => 'application/json' } })))
+      const spoken = vi.fn()
+      setFallback(spoken)
+      speak('hello', { pitch: 1, rate: 1 })
+      await flush()
+      expect(spoken).toHaveBeenCalledTimes(1)
+    })
+
     it('elsewhere the browser voice still speaks it and nothing is reported missed', async () => {
       vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: false, headers: { get: () => 'application/json' } })))
       const spoken = vi.fn()
@@ -390,5 +402,32 @@ describe('speak through the gateway', () => {
     refuse(new Error('play() interrupted by pause()'))
     await flush()
     expect(spoken).not.toHaveBeenCalled()
+  })
+})
+
+describe('the shared element while a line plays', () => {
+  it('unlock (a later tap) does not swap out the line that is playing', async () => {
+    vi.stubGlobal('fetch', vi.fn(audioResponse))
+    speak('playing', { pitch: 1, rate: 1 })
+    await flush()
+    await flush()
+    const src = player().src
+    expect(src).toMatch(/^blob:/)
+    unlock()
+    expect(player().src).toBe(src)
+  })
+
+  it('a line whose element errors and whose play() is refused ends once', async () => {
+    vi.stubGlobal('fetch', vi.fn(audioResponse))
+    setFallback((_t, _v, onEnd) => onEnd?.())
+    player().play.mockImplementationOnce(function (this: FakeAudio) {
+      player().onerror?.()
+      return Promise.reject(new Error('decode'))
+    })
+    const onEnd = vi.fn()
+    speak('broken', { pitch: 1, rate: 1 }, onEnd)
+    await flush()
+    await flush()
+    expect(onEnd).toHaveBeenCalledTimes(1)
   })
 })

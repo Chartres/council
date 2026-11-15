@@ -9,6 +9,8 @@ vi.mock('@/app/MastermindContext', () => ({ useMastermind: () => ({ begin, lastI
 const speak = vi.fn()
 vi.mock('@/components/Listen', () => ({ speak: (...a: unknown[]) => speak(...a), cancel: vi.fn() }))
 vi.mock('@/domain/speech', async (orig) => ({ ...(await orig<object>()), synthesisAvailable: () => true }))
+const tts = vi.hoisted(() => ({ unlock: vi.fn() }))
+vi.mock('@/domain/tts', () => tts)
 vi.mock('@/auth/AuthContext', () => ({ useAuth: () => ({ token: null }) }))
 
 const reply = (intake: object) => new Response(JSON.stringify({ intake }), { status: 200 })
@@ -138,5 +140,27 @@ describe('IntakeScreen talk it through', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Talk it through' }))
     await waitFor(() => expect(speak).toHaveBeenCalled())
     expect(speak.mock.calls[0][0]).toBe('What is happening today?')
+  })
+})
+
+describe('IntakeScreen talk it through, review 15 Nov', () => {
+  it('unlocks the gateway voice inside the tap (iPhone)', async () => {
+    tts.unlock.mockClear()
+    render(<IntakeScreen />)
+    await userEvent.click(screen.getByRole('button', { name: 'Talk it through' }))
+    expect(tts.unlock).toHaveBeenCalledTimes(1)
+  })
+
+  it('lists About you in the order the walk asks it', () => {
+    render(<IntakeScreen />)
+    const list = screen.getByRole('list', { name: 'Your context' })
+    expect(within(list).getAllByRole('textbox').map((t) => t.getAttribute('aria-label')).filter(Boolean)).toEqual([
+      'What is happening today?',
+      'What would a successful outcome look like?',
+      'What constraints should the group understand?',
+      'Who are you professionally?',
+      'Where do you work?',
+      'How would you like the group to work with you?',
+    ])
   })
 })

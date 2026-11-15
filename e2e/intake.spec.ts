@@ -136,7 +136,8 @@ test('talk it through: the facilitator asks each empty field aloud and the answe
   await expect(page.getByLabel('Who are you professionally?')).toHaveValue('spoken answer')
   // The filled field was not asked again.
   await expect(page.getByLabel('What would you like the group to help you achieve?')).toHaveValue('decide on a premium tier')
-  const spoken = await page.evaluate(() => (window.speechSynthesis as unknown as { spoken: string[] }).spoken)
+  // The tap's silent primer (one space, from the voice unlock) is not a question.
+  const spoken = (await page.evaluate(() => (window.speechSynthesis as unknown as { spoken: string[] }).spoken)).filter((t) => t.trim())
   expect(spoken).toHaveLength(6)
   // Goal is filled, so the walk starts at the next decision question (Eyal, 29 Oct).
   expect(spoken[0]).toBe('What is happening today?')

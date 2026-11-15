@@ -114,6 +114,8 @@ export interface Recording {
   stop(): Promise<{ clip: Blob; heard: boolean }>
   /** Stop and throw the clip away. */
   cancel(): void
+  /** True once something louder than the room was heard: she is speaking into it. */
+  heard?(): boolean
 }
 
 /** Opus in WebM where the browser has it (smaller), else AAC in MP4 (older iOS Safari). */
@@ -221,6 +223,7 @@ export async function record(opts: {
         recorder.onstop = done
         recorder.stop()
       }),
+    heard: () => heard,
     cancel: () => {
       recorder.onstop = null
       if (recorder.state !== 'inactive') recorder.stop()

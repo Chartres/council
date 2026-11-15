@@ -173,6 +173,9 @@ export function Talk({
       if (ears === 'server') void listenClip()
     }
     speak(text, VOICE, done, speaker, (via) => {
+      // A line is playing on the one shared player: a retry now would queue behind it, so the
+      // offer of an earlier missed line goes (only the last missed line is kept anyway).
+      if (mounted.current) setMissed(null)
       if (mounted.current) live.current.onNow?.(index >= 0 ? { index, text } : null)
       const t = ears && clock.audioStarted(via, ears)
       if (!t) return
@@ -184,7 +187,10 @@ export function Talk({
   /** Tap to hear: the missed line once more through the gateway (the tap lets it play on iOS). */
   const hearAgain = () => {
     if (!missed) return
+    // She is already speaking into an open clip (server ears): her words come first.
+    if (ears === 'server' && (writing || clip.current?.heard?.())) return
     setMissed(null)
+    clock.reset() // the wait before the tap is hers, not the voice's
     unlock()
     voice(missed.text, missed.speaker, missed.index, true)
   }

@@ -30,10 +30,12 @@ vi.mock('@/domain/stt', () => stt)
 const { Talk } = await import('./Talk')
 
 type Opts = { onSilence?: () => void }
-let clips: { opts: Opts; stop: ReturnType<typeof vi.fn>; cancel: ReturnType<typeof vi.fn> }[] = []
+let clips: { opts: Opts; stop: ReturnType<typeof vi.fn>; cancel: ReturnType<typeof vi.fn>; heard: () => boolean }[] = []
+let speaking = false // what the open clip's loudness watch reports
 
 beforeEach(() => {
   clips = []
+  speaking = false
   stt.record.mockReset()
   stt.transcribe.mockReset()
   stt.unlockAudioInput.mockClear()
@@ -41,7 +43,7 @@ beforeEach(() => {
   vi.mocked(tts.speak).mockReset()
   vi.mocked(tts.cancel).mockReset()
   stt.record.mockImplementation(async (opts: Opts) => {
-    const c = { opts, stop: vi.fn(async () => ({ clip: new Blob(['a'], { type: 'audio/mp4' }), heard: true })), cancel: vi.fn() }
+    const c = { opts, stop: vi.fn(async () => ({ clip: new Blob(['a'], { type: 'audio/mp4' }), heard: true })), cancel: vi.fn(), heard: () => speaking }
     clips.push(c)
     return c
   })
@@ -193,5 +195,40 @@ describe('Talk with the gateway’s ears (iPhone)', () => {
     expect(onSay).not.toHaveBeenCalled()
     unmount()
     expect(stt.record).toHaveBeenCalledTimes(1)
+  })
+})
+
+// Review 15 Nov: Tap to hear must not throw away a clip she is already speaking into.
+describe('Tap to hear with the gateway’s ears', () => {
+  async function missedFloor() {
+    const view = (items: Item[]) => <Talk on onChange={() => {}} items={items} streaming={false} onSay={() => {}} />
+    const { rerender } = render(view([]))
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }))
+    await act(async () => rerender(view([])))
+    stt.transcribe.mockResolvedValue('we have no engineers')
+    await act(async () => clips[0]!.opts.onSilence?.())
+    await act(async () => rerender(view([{ kind: 'user', text: 'we have no engineers' }, { kind: 'floor', question: 'Who pays for it?' }])))
+    const call = vi.mocked(tts.speak).mock.calls[0]!
+    await act(async () => {
+      ;(call[5] as () => void)() // the gateway missed it (iPhone)
+      ;(call[2] as () => void)() // and the queue moved on: her turn, the mic opens
+    })
+    expect(clips).toHaveLength(2)
+    vi.mocked(tts.speak).mockClear()
+  }
+
+  it('while she is speaking, the tap leaves her clip alone', async () => {
+    await missedFloor()
+    speaking = true
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Tap to hear' })))
+    expect(clips[1]!.cancel).not.toHaveBeenCalled()
+    expect(tts.speak).not.toHaveBeenCalled()
+  })
+
+  it('with the mic open and nothing said yet, the line is asked for again', async () => {
+    await missedFloor()
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Tap to hear' })))
+    expect(tts.speak).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(tts.speak).mock.calls[0]![0]).toBe('Who pays for it?')
   })
 })

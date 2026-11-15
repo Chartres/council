@@ -162,7 +162,8 @@ export const INTAKE_QUESTIONS = [
 
 export type IntakeId = (typeof INTAKE_QUESTIONS)[number]['id']
 
-// INTAKE_QUESTIONS keeps the gateway's order; the spoken walk follows the screen: the goal, the decision, then About you.
+// INTAKE_QUESTIONS keeps the gateway's order. The screen and the spoken walk both use this one:
+// the goal, the decision (situation, success, constraints), then who she is.
 const VOICE_ORDER: IntakeId[] = ['goal', 'situation', 'success', 'constraints', 'role', 'organization', 'working_style']
 
 /** The questions "Talk it through" asks aloud: the still-empty ones, goal first. */

@@ -1,10 +1,10 @@
-import { renderHook } from '@testing-library/react'
+import { fireEvent, render, renderHook, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const tts = vi.hoisted(() => ({ speak: vi.fn(), cancel: vi.fn(), setFallback: vi.fn(), setSession: vi.fn(), unlock: vi.fn() }))
 vi.mock('@/domain/tts', () => tts)
 
-const { useListen, useNarration } = await import('./Listen')
+const { ListenToggle, useListen, useNarration } = await import('./Listen')
 
 describe('read-aloud', () => {
   beforeEach(() => {
@@ -30,5 +30,17 @@ describe('read-aloud', () => {
       ['Drucker. Who is the customer?', { pitch: 1, rate: 1 }, 'drucker'],
       ['What would change your mind?', { pitch: 1, rate: 1 }, 'facilitator'],
     ])
+  })
+})
+
+describe('the Listen switch', () => {
+  it('unlocks the shared player inside the tap, so the gateway voice may play on an iPhone', () => {
+    vi.stubGlobal('speechSynthesis', { speak: vi.fn(), cancel: vi.fn(), getVoices: () => [] })
+    tts.unlock.mockClear()
+    const onChange = vi.fn()
+    render(<ListenToggle on={false} onChange={onChange} />)
+    fireEvent.click(screen.getByTestId('listen'))
+    expect(tts.unlock).toHaveBeenCalledTimes(1)
+    expect(onChange).toHaveBeenCalledWith(true)
   })
 })

@@ -109,15 +109,20 @@ const SILENT_WAV =
 // played it, so the tap unlocks this one and each line swaps its src.
 let player: HTMLAudioElement | null = null
 const element = () => (player ??= new Audio())
+// A line is on the element: a later tap's unlock must not swap it out (it is unlocked already).
+let playing = false
 
 /** Call inside a tap: plays the silent clip on the shared element so later lines may play,
  *  and speaks one silent line on the browser engine, which iOS also lets speak on its own
  *  only after a tap used it — without this, the fallback for a failed line is silent there. */
 export function unlock(): void {
   try {
-    const a = element()
-    a.src = SILENT_WAV
-    void a.play().catch(() => {})
+    // A line playing means the element is unlocked already; swapping its src would cut the line.
+    if (!playing) {
+      const a = element()
+      a.src = SILENT_WAV
+      void a.play().catch(() => {})
+    }
   } catch {
     // No audio element: the browser engine still speaks.
   }
@@ -145,9 +150,19 @@ async function next(): Promise<void> {
   if (!blob) return miss(item)
   const url = URL.createObjectURL(blob)
   const audio = element()
+  playing = true
   audio.src = url
   audio.defaultPlaybackRate = audio.playbackRate = item.voice.rate
+  // onerror and a refused play() can both fire for one line: it ends once.
+  let settled = false
+  const settle = () => {
+    if (settled) return false
+    settled = true
+    playing = false
+    return true
+  }
   const done = () => {
+    if (!settle()) return
     audio.onended = audio.onerror = null
     URL.revokeObjectURL(url)
     if (item.abort.signal.aborted) return
@@ -160,18 +175,20 @@ async function next(): Promise<void> {
     await audio.play()
     if (!item.abort.signal.aborted) item.onStart?.('gateway')
   } catch {
-    URL.revokeObjectURL(url)
     // A cancelled line stays silent; otherwise autoplay was refused: let the browser engine try.
+    if (!settle()) return
+    URL.revokeObjectURL(url)
     if (item.abort.signal.aborted) return
     audio.onended = audio.onerror = null
     miss(item)
   }
 }
 
-/** The gateway could not speak this line. iPhone/iPad: it stays as text and the queue moves on
+/** The gateway could not speak this line. iPhone/iPad with `onMiss`: it stays as text and the queue moves on
  *  (onEnd keeps Talk's hands-free loop going); elsewhere the browser voice reads it. */
 function miss(item: Item): void {
-  if (!isAppleMobile()) return viaFallback(item)
+  // Only a caller that can offer the line again (Talk's Tap to hear) gives up the browser voice.
+  if (!isAppleMobile() || !item.onMiss) return viaFallback(item)
   item.onMiss?.()
   item.onEnd?.()
   void next()
@@ -205,5 +222,6 @@ export function cancel(): void {
     player.onended = player.onerror = null
     player.pause()
   }
+  playing = false
   busy = false
 }

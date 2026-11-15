@@ -57,13 +57,15 @@ export async function checkKey(key: string, gatewayUrl: string): Promise<KeyChec
   }
 }
 
-export type GateState = 'ask' | 'ready'
+/** 'wait': the sign-in is still loading and no key is stored; neither door nor screen yet. */
+export type GateState = 'ask' | 'ready' | 'wait'
 
 /**
  * Ask on the first visit (nothing stored, not signed in) and whenever the gateway rejected
  * the key or the sign-in we had. Every other failure belongs to the session screen, not to the gate.
  */
-export function gateState(key: string | null, failure: FailureReason | null, signedIn = false): GateState {
+export function gateState(key: string | null, failure: FailureReason | null, signedIn = false, loading = false): GateState {
   if (failure === 'password') return 'ask'
-  return key || signedIn ? 'ready' : 'ask'
+  if (key || signedIn) return 'ready'
+  return loading ? 'wait' : 'ask'
 }

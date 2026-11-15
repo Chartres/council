@@ -35,6 +35,14 @@ describe('gateState', () => {
     expect(gateState(null, 'password', true)).toBe('ask')
   })
 
+  // Review 15 Nov: a signed-in user with no stored key saw the door flash while auth loaded.
+  it('waits, neither door nor screen, while the sign-in is still loading and no key is stored', () => {
+    expect(gateState(null, null, false, true)).toBe('wait')
+    expect(gateState('tallow-candle', null, false, true)).toBe('ready')
+    expect(gateState(null, 'password', false, true)).toBe('ask')
+    expect(gateState(null, null, false, false)).toBe('ask')
+  })
+
   it('leaves every other failure to the session screen', () => {
     for (const failure of ['sign_in', 'quota', 'cap', 'gateway'] as const) {
       expect(gateState('tallow-candle', failure)).toBe('ready')
