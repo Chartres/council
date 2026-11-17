@@ -15,6 +15,10 @@
 //                                 password on an otherwise-right key), then normal
 //   STUB_PASSWORD=x            require header `x-council-key: x` or a live bearer (a JWT-shaped
 //                              token with `sub` and an unexpired `exp`), else 401 {reason:"password"}
+//   bearer sub "pending-…"     an account waiting for approval: 401 {reason:"approval"} without
+//                              the password, until POST /__approve {sub} (or /__approve
+//                              {sub, revoke:true} to send it back). /__reset clears it.
+//   GET  /v1/council/access    204 past the door, else the door's 401 with its reason
 //   STUB_TIER=premium          default tier on the session event when no x-council-tier header
 //   GET /v1/admin/usage        plausible running totals (admin-only on the real gateway)
 //   header x-council-tier      echoed back as the session event's tier/model (admin only)
@@ -62,15 +66,23 @@ const PASSWORD = process.env.STUB_PASSWORD || null
 
 /** A bearer whose payload names a user and has not expired: the stub's stand-in for a verified JWT. */
 function liveBearer(req) {
+  return bearerSub(req) !== null
+}
+/** The live bearer's `sub`, or null. */
+function bearerSub(req) {
   const m = /^Bearer [^.]+\.([^.]+)\./.exec(req.headers.authorization ?? '')
-  if (!m) return false
+  if (!m) return null
   try {
     const { sub, exp } = JSON.parse(Buffer.from(m[1], 'base64url').toString())
-    return Boolean(sub) && (!exp || exp * 1000 > Date.now())
+    return sub && (!exp || exp * 1000 > Date.now()) ? sub : null
   } catch {
-    return false
+    return null
   }
 }
+/** Pending accounts approved by POST /__approve; any other `pending-` sub waits. */
+const approved = new Set()
+const revoked = new Set()
+const waiting = (sub) => (sub?.startsWith('pending-') && !approved.has(sub)) || revoked.has(sub)
 /** The last `resume` /start received (GET /__resume), for the continue-a-discussion journey. */
 let lastResume = null
 const TIER = process.env.STUB_TIER ?? 'free'
@@ -370,6 +382,8 @@ createServer(async (req, res) => {
     ttsSeen = []
     lastResume = null
     feedbackCount = 0
+    approved.clear()
+    revoked.clear()
     v4.clear()
     captured.entries = []
     captured.commitments = []
@@ -398,7 +412,25 @@ createServer(async (req, res) => {
   // The private-beta door, ahead of everything else the gateway knows. A signed-in user's
   // token passes it without the password (the gateway verifies the Supabase JWT; the stub
   // only reads `sub` and `exp`, which is all scripts/stub-supabase.mjs signs).
-  if (PASSWORD && req.headers['x-council-key'] !== PASSWORD && !liveBearer(req)) return fail(res, 401, 'password')
+  if (req.url === '/__approve' && req.method === 'POST') {
+    const { sub, revoke } = await readBody(req)
+    if (revoke) {
+      approved.delete(sub)
+      revoked.add(sub)
+    } else {
+      approved.add(sub)
+      revoked.delete(sub)
+    }
+    return res.writeHead(204).end()
+  }
+  if (PASSWORD && req.headers['x-council-key'] !== PASSWORD) {
+    if (!liveBearer(req)) return fail(res, 401, 'password')
+    if (waiting(bearerSub(req))) return fail(res, 401, 'approval')
+  }
+  if (req.url === '/v1/council/access' && req.method === 'GET') {
+    await sleep(TURN_DELAY_MS)
+    return res.writeHead(204).end()
+  }
 
   // The panel checks the password here before it ever closes. The delay mirrors a
   // real round trip, long enough for a test (or a person) to see the "Checking…" state.

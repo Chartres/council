@@ -131,7 +131,7 @@ function writePendingLink(v: string | null) {
 
 export function MastermindProvider({ children }: { children: ReactNode }) {
   const { user, token, loading } = useAuth()
-  const { councilKey, isAdmin, tier, lockDoor, go } = useCouncil()
+  const { councilKey, isAdmin, tier, lockDoor, lockApproval, go } = useCouncil()
   const [roster, setRosterState] = useState<RosterId>('business')
   const [advisers, setAdvisers] = useState<string[]>(() => defaultAdvisers('business'))
   const initial = useRef(loadLocalJournal()).current
@@ -196,9 +196,10 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
       if (!(e instanceof CouncilError)) logError(e, { where: 'mastermind' })
       keyAction('blocked', { reason, v: 4 })
       if (reason === 'password') lockDoor()
+      if (reason === 'approval') lockApproval()
       update((c) => ({ streaming: false, failure: reason, items: settleItems(c.items) }))
     },
-    [lockDoor, update],
+    [lockDoor, lockApproval, update],
   )
 
   const persistSession = useCallback(async () => {

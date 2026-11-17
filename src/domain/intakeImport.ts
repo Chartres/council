@@ -119,7 +119,7 @@ export function mergeIntake(base: Intake, add: Intake): { merged: Intake; overfl
   return { merged, overflow, cut }
 }
 
-export type ExtractCode = 'quota' | 'no_converter' | 'password' | 'gateway'
+export type ExtractCode = 'quota' | 'no_converter' | 'password' | 'approval' | 'gateway'
 
 export class ExtractError extends Error {
   constructor(readonly code: ExtractCode) {
@@ -132,6 +132,7 @@ export const EXTRACT_COPY: Record<ExtractCode, string> = {
   quota: 'That is enough reading for today. Fill the fields below, or try again tomorrow.',
   no_converter: 'This file cannot be read yet. Paste the text instead.',
   password: 'The beta password was not accepted.',
+  approval: 'Your account is waiting for approval.',
   gateway: 'Could not read that just now. Try again, or fill the fields below.',
 }
 
@@ -177,7 +178,7 @@ export async function extractIntake(input: string | File, opts: StreamOptions): 
   if (!res.ok) {
     if (res.status === 429) throw new ExtractError('quota')
     if (payload?.error === 'no_converter') throw new ExtractError('no_converter')
-    if (payload?.reason === 'password') throw new ExtractError('password')
+    if (payload?.reason === 'password' || payload?.reason === 'approval') throw new ExtractError(payload.reason)
     throw new ExtractError('gateway')
   }
   return sanitize(payload?.intake)
