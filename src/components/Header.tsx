@@ -10,7 +10,7 @@ import { SignInPanel } from './SignInPanel'
 
 /** One slim row: wordmark, feedback, account. No second chrome row anywhere (mobile-ux tell #8). */
 export function Header() {
-  const { configured, user, signOut } = useAuth()
+  const { configured, user, token, signOut } = useAuth()
   const { gate } = useCouncil()
   const [open, setOpen] = useState<'account' | 'feedback' | null>(null)
   const [drawer, setDrawer] = useState(false)
@@ -93,7 +93,7 @@ export function Header() {
           {open === 'feedback' ? (
             <FeedbackSheet />
           ) : user ? (
-            <AccountPanel sb={supabase} user={user} onSignOut={() => void signOut()} />
+            <AccountPanel sb={supabase} user={user} token={token} onSignOut={() => void signOut()} />
           ) : (
             <SignInPanel reason="Sign in to keep your ideas across devices." />
           )}

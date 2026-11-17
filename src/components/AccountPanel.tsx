@@ -2,17 +2,23 @@ import { useState } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { logError } from '@/analytics'
 import { PrivacyLink } from '@/components/screens/PrivacyScreen'
-import { clearLocalState, exportFilename, fetchExport, shapeExport } from '@/domain/account'
+import { clearLocalState, exportFilename, fetchExport, forgetAccess, shapeExport } from '@/domain/account'
+
+// Same source as CouncilContext's GATEWAY_URL; read here so the panel does not pull in the provider.
+const GATEWAY_URL = (import.meta.env.VITE_GATEWAY_URL as string | undefined) ?? ''
 
 /** Signed-in account menu: sign out, export everything, delete everything. */
 export function AccountPanel({
   sb,
   user,
+  token,
   onSignOut,
   onDeleted = () => window.location.replace('/'),
 }: {
   sb: SupabaseClient | null
   user: { id: string; email?: string }
+  /** The Supabase access token, for the gateway's DELETE /v1/council/access. */
+  token: string | null
   onSignOut: () => void
   onDeleted?: () => void
 }) {
@@ -41,9 +47,10 @@ export function AccountPanel({
   const deleteAll = async () => {
     if (!sb) return
     setStep('deleting')
-    const { error } = await sb.rpc('council_delete_me')
+    const forgotten = await forgetAccess(GATEWAY_URL, token)
+    const { error } = forgotten ? await sb.rpc('council_delete_me') : { error: new Error('gateway access delete failed') }
     if (error) {
-      logError(error, { where: 'delete_me' })
+      logError(error, { where: forgotten ? 'delete_me' : 'delete_access' })
       setProblem('Nothing was deleted. Try again, or write to council@dravec.org.')
       setStep('confirm')
       return

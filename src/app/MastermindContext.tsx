@@ -131,7 +131,7 @@ function writePendingLink(v: string | null) {
 
 export function MastermindProvider({ children }: { children: ReactNode }) {
   const { user, token, loading } = useAuth()
-  const { councilKey, isAdmin, tier, lockDoor, lockApproval, go } = useCouncil()
+  const { councilKey, isAdmin, tier, lockDoor, lockApproval, gate, go } = useCouncil()
   const [roster, setRosterState] = useState<RosterId>('business')
   const [advisers, setAdvisers] = useState<string[]>(() => defaultAdvisers('business'))
   const initial = useRef(loadLocalJournal()).current
@@ -144,6 +144,10 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
   const [linkNeedsSignIn, setLinkNeedsSignIn] = useState(false)
   const [discussions, setDiscussions] = useState<SavedDiscussion[]>(() => (user ? [] : loadLocalDiscussions()))
   const convo = useRef<Conversation | null>(null)
+  // The last start or turn, and the one refused for approval: run again once the door lets
+  // her in (Check again), so neither her intake nor her message is lost (Pavol, 17 Nov).
+  const last = useRef<(() => void) | null>(null)
+  const refused = useRef<(() => void) | null>(null)
   const generation = useRef(0)
   /** The open discussion is about to change hands: whatever is still streaming is let go. */
   const nextGeneration = () => {
@@ -196,7 +200,10 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
       if (!(e instanceof CouncilError)) logError(e, { where: 'mastermind' })
       keyAction('blocked', { reason, v: 4 })
       if (reason === 'password') lockDoor()
-      if (reason === 'approval') lockApproval()
+      if (reason === 'approval') {
+        refused.current = last.current
+        lockApproval()
+      }
       update((c) => ({ streaming: false, failure: reason, items: settleItems(c.items) }))
     },
     [lockDoor, lockApproval, update],
@@ -287,6 +294,7 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
         startedAt: today(),
       }
       setConversation(convo.current)
+      last.current = () => begin(intake, memory)
       if (intake) setLastIntake(intake)
       go('conversation')
       keyAction('convened', { personas: advisers.length, roster, v: 4, memory: Boolean(memory) })
@@ -302,11 +310,23 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
       const id = convo.current?.sessionId
       if (!id) return
       update((c) => ({ items: [...c.items, { kind: 'user', text: message }] }))
+      last.current = () => {
+        // Her message is already on screen; sent again, it is not added a second time.
+        update((c) => ({ items: c.items.slice(0, c.items.map((i) => i.kind).lastIndexOf('user')) }))
+        say(message, { voice })
+      }
       keyAction('replied', { v: 4, voice })
       void consume(sendTurn({ session_id: id, message, ...(voice ? { voice: true as const } : {}) }, opts()))
     },
     [update, consume, opts],
   )
+
+  useEffect(() => {
+    if (gate !== 'ready' || !refused.current) return
+    const run = refused.current
+    refused.current = null
+    run()
+  }, [gate])
 
   const exportText = useCallback(() => exportJournal(journal), [journal])
 

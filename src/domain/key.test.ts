@@ -90,6 +90,10 @@ describe('checkAccess', () => {
   it('lets the user in on anything else, so an older gateway (404) or a blip does not lock them out', async () => {
     answer(404, { error: 'not_found' })
     await expect(checkAccess('https://llm.example', 'tok', null)).resolves.toBe('ok')
+    answer(503, { reason: 'cap' })
+    await expect(checkAccess('https://llm.example', 'tok', null)).resolves.toBe('ok')
+    answer(500)
+    await expect(checkAccess('https://llm.example', 'tok', null)).resolves.toBe('ok')
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
     await expect(checkAccess('https://llm.example', 'tok', null)).resolves.toBe('ok')
   })

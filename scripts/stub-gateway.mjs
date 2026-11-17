@@ -19,6 +19,8 @@
 //                              the password, until POST /__approve {sub} (or /__approve
 //                              {sub, revoke:true} to send it back). /__reset clears it.
 //   GET  /v1/council/access    204 past the door, else the door's 401 with its reason
+//   DELETE /v1/council/access  a live bearer → 204 (its approval record forgotten), else 401
+//                              sign_in; GET /__forgotten → the subs deleted this way
 //   STUB_TIER=premium          default tier on the session event when no x-council-tier header
 //   GET /v1/admin/usage        plausible running totals (admin-only on the real gateway)
 //   header x-council-tier      echoed back as the session event's tier/model (admin only)
@@ -81,6 +83,7 @@ function bearerSub(req) {
 }
 /** Pending accounts approved by POST /__approve; any other `pending-` sub waits. */
 const approved = new Set()
+let forgotten = []
 const revoked = new Set()
 const waiting = (sub) => (sub?.startsWith('pending-') && !approved.has(sub)) || revoked.has(sub)
 /** The last `resume` /start received (GET /__resume), for the continue-a-discussion journey. */
@@ -312,7 +315,7 @@ const cors = (req, res) => {
     'access-control-allow-headers',
     'content-type, authorization, accept, x-council-key, x-council-tier',
   )
-  res.setHeader('access-control-allow-methods', 'POST, GET, OPTIONS')
+  res.setHeader('access-control-allow-methods', 'POST, GET, DELETE, OPTIONS')
   res.setHeader('access-control-expose-headers', 'x-session-id')
 }
 
@@ -384,6 +387,7 @@ createServer(async (req, res) => {
     feedbackCount = 0
     approved.clear()
     revoked.clear()
+    forgotten = []
     v4.clear()
     captured.entries = []
     captured.commitments = []
@@ -412,6 +416,17 @@ createServer(async (req, res) => {
   // The private-beta door, ahead of everything else the gateway knows. A signed-in user's
   // token passes it without the password (the gateway verifies the Supabase JWT; the stub
   // only reads `sub` and `exp`, which is all scripts/stub-supabase.mjs signs).
+  if (req.url === '/__forgotten') {
+    return res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(forgotten))
+  }
+  // Account deletion: no door, as on the gateway, so a user still waiting can do it too.
+  if (req.url === '/v1/council/access' && req.method === 'DELETE') {
+    const sub = bearerSub(req)
+    if (!sub) return fail(res, 401, 'sign_in')
+    forgotten.push(sub)
+    approved.delete(sub)
+    return res.writeHead(204).end()
+  }
   if (req.url === '/__approve' && req.method === 'POST') {
     const { sub, revoke } = await readBody(req)
     if (revoke) {
