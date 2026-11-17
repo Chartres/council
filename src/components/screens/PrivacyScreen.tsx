@@ -83,7 +83,7 @@ const ROWS: [string, string, string, string][] = [
 
 export function PrivacyScreen() {
   return (
-    <article className="mx-auto max-w-xl px-4 pb-12 text-[15px] leading-[24px] text-marble-300">
+    <article className="mx-auto max-w-xl px-4 pb-12 text-[17px] leading-[24px] text-marble-300">
       <h1 className="t-display pt-6">What we store</h1>
       <p className="mt-2">Mastermind Council is a small private beta run by one person. This is all of it.</p>
 

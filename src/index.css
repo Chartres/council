@@ -1,6 +1,10 @@
 @import 'tailwindcss';
 
 /*
+  "Night edition" (Pavol, 17 Nov 2026): every screen is set as a page of a printed book, on
+  the candle-lit study's ink ground. The book face carries body, labels and buttons; Inter is
+  kept for the 13 px legal line (.t-fine), the admin bar and the map's small SVG labels.
+
   "Candle-lit study" — ink, marble and one candle.
   A late-evening reading room: near-black warm ink, cool marble type, a single
   tallow-amber accent for anything live. Restrained: no gradients in the content
@@ -37,10 +41,21 @@
   --color-clay-500: #a8674f;
 
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
-  --font-display: 'EB Garamond', 'Iowan Old Style', Georgia, serif;
+  --font-display: 'EB Garamond', 'EB Garamond Fallback', 'Iowan Old Style', Georgia, serif;
 
   /* Soft, hand-cut corners — a bound page, not a chrome card. */
   --radius-card: 4px;
+}
+
+/* Georgia cut to EB Garamond's width and vertical metrics (1007/298 per 1000), so the first
+   screen does not jump when the web font swaps in. */
+@font-face {
+  font-family: 'EB Garamond Fallback';
+  src: local('Georgia');
+  size-adjust: 86%;
+  ascent-override: 117%;
+  descent-override: 35%;
+  line-gap-override: 0%;
 }
 
 :root {
@@ -57,7 +72,9 @@ body {
   margin: 0;
   background-color: var(--color-ink-950);
   color: var(--color-marble-100);
-  font-family: var(--font-sans);
+  font-family: var(--font-display);
+  font-size: 19px;
+  line-height: 27px;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -90,8 +107,10 @@ body {
 
 /*
   Bold by scale, not colour (DESIGN.md "Type, contrast, accent, space").
-  Four type steps; a 15 px secondary size only for chips, text buttons and the
-  facilitator. Components layer, so a utility on the element still wins.
+  Four type steps, re-derived for EB Garamond's smaller x-height (about 0.40 em against
+  Inter's 0.55): Display 28/32, Title 22/28, Body 19/27, Label 17/22 in small capitals.
+  A 17 px secondary size for chips, notes and the facilitator; .t-fine (Inter 13/18) for
+  the legal line only. Components layer, so a utility on the element still wins.
 */
 @layer components {
   .t-display {
@@ -111,35 +130,172 @@ body {
   .t-title {
     font-family: var(--font-display);
     font-weight: 500;
-    font-size: 20px;
-    line-height: 26px;
+    font-size: 22px;
+    line-height: 28px;
     color: var(--color-marble-50);
   }
   .t-body {
-    font-family: var(--font-sans);
-    font-size: 17px;
-    line-height: 26px;
+    font-family: var(--font-display);
+    font-size: 19px;
+    line-height: 27px;
     color: var(--color-marble-200);
   }
-  /* Rubric (docs/SIGNATURE.md): the quaestio's part labels, small capitals in clay, as the
-     printed Summa marked its articles. Used for those labels only. */
+  /* Rubric (docs/SIGNATURE.md): section words in clay-red small capitals, as the printed
+     Summa marked its articles. The red marks rubrics, versals and the reader's glosses. */
+  .rubric,
+  .t-label,
+  .sc {
+    font-family: var(--font-display);
+    font-variant-caps: all-small-caps;
+    letter-spacing: 0.08em;
+  }
   .rubric {
+    font-weight: 600;
+    font-size: 17px;
+    line-height: 22px;
+    color: var(--color-clay-400);
+  }
+  .t-label {
+    font-weight: 500;
+    font-size: 17px;
+    line-height: 22px;
+    color: var(--color-marble-400);
+  }
+  /* A reference under a quotation, a date, a speaker's name inline: small capitals at the
+     size of the text around it. */
+  .sc {
+    font-weight: 500;
+  }
+  .t-ref {
+    font-family: var(--font-display);
+    font-variant-caps: all-small-caps;
+    letter-spacing: 0.06em;
+    font-size: 17px;
+    line-height: 22px;
+    color: var(--color-marble-400);
+  }
+  /* An engine without small capitals in font-variant-caps: capitals, a size down. */
+  @supports not (font-variant-caps: all-small-caps) {
+    .rubric,
+    .t-label,
+    .sc,
+    .t-ref,
+    .running-head,
+    .tabs-foot {
+      text-transform: uppercase;
+      font-size: 13px;
+    }
+  }
+  /* The catalogue note and the colophon: the bookseller's voice, in italic. */
+  .t-note {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 17px;
+    line-height: 23px;
+    color: var(--color-marble-400);
+  }
+  /* Legal and disclosure microcopy: 13 px needs the sans to stay legible. */
+  .t-fine {
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 18px;
+    color: var(--color-marble-400);
+  }
+
+  /* Running head: the page's title in spaced small capitals over a double rule. */
+  .running-head {
     font-family: var(--font-display);
     font-variant-caps: all-small-caps;
     font-weight: 600;
     font-size: 17px;
-    line-height: 22px;
-    letter-spacing: 0.06em;
+    line-height: 1;
+    letter-spacing: 0.14em;
+    color: var(--color-marble-300);
+  }
+  .dbl {
+    height: 4px;
+    border-top: 1px solid var(--color-ink-700);
+    border-bottom: 1px solid var(--color-ink-700);
+  }
+  /* The foot of the page: text tabs, the open one under a clay rule. */
+  .tabs-foot {
+    font-family: var(--font-display);
+    font-variant-caps: all-small-caps;
+    font-weight: 600;
+    font-size: 18px;
+    line-height: 1;
+    letter-spacing: 0.12em;
+  }
+
+  /* Versal: the red initial on the day's question and on the quaestio's. The plain form is
+     ::first-letter; .versal-boxed hides that letter and Furniture's VersalBox draws it. */
+  .versal::first-letter {
+    float: left;
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: 62px;
+    line-height: 50px;
+    padding: 4px 8px 0 0;
     color: var(--color-clay-400);
   }
-  .t-label {
-    font-family: var(--font-sans);
-    font-weight: 500;
-    font-size: 13px;
-    line-height: 18px;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
+  .versal-boxed::first-letter {
+    font-size: 0;
+  }
+  .versal-box {
+    float: left;
+    position: relative;
+    width: 58px;
+    height: 58px;
+    margin: 4px 10px 0 0;
+    border: 1.5px solid var(--color-marble-400);
+    outline: 1px solid var(--color-marble-500);
+    outline-offset: -5px;
+    background: var(--color-ink-850);
     color: var(--color-marble-400);
+  }
+  .versal-box::after {
+    content: attr(data-letter);
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: 46px;
+    line-height: 1;
+    padding-bottom: 4px;
+    color: var(--color-clay-400);
+  }
+
+  /* A contents line: name, dotted leader, the year. */
+  .leader {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .leader > i {
+    flex: 1;
+    min-width: 12px;
+    border-bottom: 1.5px dotted var(--color-marble-500);
+    transform: translateY(-4px);
+  }
+  .leader > .died {
+    font-style: italic;
+    font-size: 17px;
+    line-height: 22px;
+    white-space: nowrap;
+    color: var(--color-marble-400);
+  }
+
+  /* A blank leaf with its corner turned (Furniture's BlankLeaf draws the corner). */
+  .leaf {
+    position: relative;
+    display: grid;
+    place-items: center;
+    min-height: 170px;
+    padding: 24px;
+    border: 1px solid var(--color-ink-500);
+    text-align: center;
   }
 
   /* A field is a filled surface, never a hairline box; focus is a candle rule along its foot. */
@@ -149,9 +305,10 @@ body {
     border: 0;
     border-radius: var(--radius-card);
     background: var(--color-ink-850);
-    padding: 14px 16px;
-    font-size: 17px;
-    line-height: 26px;
+    padding: 13px 16px;
+    font-family: var(--font-display);
+    font-size: 19px;
+    line-height: 27px;
     color: var(--color-marble-100);
   }
   .field::placeholder,
@@ -193,21 +350,25 @@ body {
     color: var(--color-marble-300);
   }
 
+  /* A printed tab, not a pill: italic in a thin ruled box. */
   .chip {
     display: inline-flex;
     min-height: 40px;
     flex: none;
     align-items: center;
-    border-radius: 9999px;
-    background: var(--color-ink-850);
-    padding: 0 14px;
-    font-size: 15px;
+    border: 1px solid var(--color-marble-500); /* 3.9:1 on ink-950: a control edge */
+    border-radius: 2px;
+    background: transparent;
+    padding: 0 12px;
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 18px;
     font-weight: 500;
     white-space: nowrap;
     color: var(--color-marble-200);
   }
   .chip:hover {
-    background: var(--color-ink-800);
+    background: var(--color-ink-850);
   }
   .chip:disabled {
     opacity: 0.4;
@@ -216,8 +377,10 @@ body {
   /* Text buttons and links: marble, never candle — the candle is spent elsewhere. */
   .text-btn {
     min-height: 44px;
-    font-size: 15px;
-    font-weight: 600;
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 19px;
+    font-weight: 500;
     color: var(--color-marble-100);
   }
   .text-btn:hover {
@@ -257,7 +420,33 @@ body {
   animation: rise 320ms ease-out both;
 }
 
+/* The device's flame while the advisers think: a slow lean, as a draught would do it. */
+@keyframes flicker {
+  0%,
+  100% {
+    transform: none;
+  }
+  30% {
+    transform: skewX(-5deg) scaleY(1.06);
+  }
+  55% {
+    transform: skewX(3deg) scaleY(0.95);
+  }
+  80% {
+    transform: skewX(-2deg) scaleY(1.03);
+  }
+}
+.device-flicker .device-flame {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: flicker 1.8s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  /* Resting pose: the flame stands still. */
+  .device-flicker .device-flame {
+    animation: none !important;
+  }
   *,
   *::before,
   *::after {

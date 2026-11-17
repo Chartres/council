@@ -12,6 +12,8 @@ import { composedLength, composeMessage, MAX_MESSAGE, quoteOf, type Note } from 
 import { CouncilMap } from '@/components/CouncilMap'
 import { SignInPanel } from '@/components/SignInPanel'
 import { Quaestio } from '@/components/Quaestio'
+import { Device } from '@/components/Furniture'
+import { NOT_SOUGHT } from '@/content/catalogue'
 import { quaestio, verifiedLine } from '@/domain/quaestio'
 import { BUSINESS_DISCLOSURE, DISCLOSURE, personaName } from '@/content/personas'
 import { FAILURE_COPY, type Turn } from '@/domain/council'
@@ -157,7 +159,7 @@ function ConversationView() {
       </div>
 
       <section aria-label="The question" className="mt-2">
-        <p className="t-label">The question</p>
+        <p className="rubric">The question</p>
         <h1 className="t-display mt-2 text-balance">{conversation.intake?.goal ?? 'Open question'}</h1>
       </section>
 
@@ -185,7 +187,8 @@ function ConversationView() {
       </ol>
 
       {streaming && !talk && (
-        <p className="t-title mt-6 italic text-marble-200" role="status" data-testid="streaming">
+        <p className="t-title mt-6 flex items-center gap-3 italic text-marble-200" role="status" data-testid="streaming">
+          <Device size={28} flicker />
           The group is talking…
         </p>
       )}
@@ -206,7 +209,7 @@ function ConversationView() {
           <button type="button" onClick={continueDiscussion} className="slab">
             Continue this discussion
           </button>
-          <p className="mt-2 text-[15px] leading-[23px] text-marble-400">
+          <p className="mt-2 text-[17px] leading-[23px] text-marble-400">
             {advisers.map(personaName).join(', ')} pick it up where it stopped.
           </p>
         </div>
@@ -260,7 +263,7 @@ function ConversationView() {
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 placeholder="Your answer, or push back"
-                className="min-h-11 min-w-0 flex-1 resize-none bg-transparent py-2 text-[17px] leading-[26px] text-marble-100 [field-sizing:content]"
+                className="min-h-11 min-w-0 flex-1 resize-none bg-transparent py-2 text-[19px] leading-[27px] text-marble-100 [field-sizing:content]"
               />
               <MicButton value={message} onChange={setMessage} label="your reply" />
               <button
@@ -329,7 +332,11 @@ function ConversationView() {
         </>
       )}
 
-      <p className="mt-12 text-[13px] leading-[18px] text-marble-400">
+      {/* The catalogue note sits beside the disclosure; the disclosure itself is unchanged. */}
+      <p className="t-note mt-12 text-balance text-center" data-testid="not-sought">
+        {NOT_SOUGHT}
+      </p>
+      <p className="t-fine mt-2 text-balance text-center">
         {roster === 'business' ? BUSINESS_DISCLOSURE : DISCLOSURE}
       </p>
       {/* Room for the voice bar, so the reply box and the last line are never under it. */}
@@ -395,7 +402,7 @@ function ItemView({
   switch (item.kind) {
     case 'facilitator':
       return (
-        <p className="text-[15px] italic leading-[23px] text-marble-400" data-testid="facilitator">
+        <p className="text-[17px] italic leading-[23px] text-marble-400" data-testid="facilitator">
           {item.text}
         </p>
       )
@@ -405,12 +412,14 @@ function ItemView({
           <Monogram id={item.speaker} />
           <div className="min-w-0 flex-1">
             <p className="flex items-baseline gap-3">
-              <span className="t-title">{personaName(item.speaker)}</span>
+              <span className="sc text-[20px] font-semibold text-marble-50" data-testid="speaker">
+                {personaName(item.speaker)}
+              </span>
               {item.confidence !== undefined && (
-                <span className="text-[13px] font-medium text-marble-400">confidence {item.confidence}</span>
+                <span className="t-ref">confidence {item.confidence}</span>
               )}
             </p>
-            <p className="t-body mt-1">
+            <p className="t-body">
               <Spoken text={item.text} line={speaking} />
             </p>
             {note && <MarginNote name={personaName(item.speaker)} note={note.value} onChange={note.onChange} />}
@@ -426,7 +435,7 @@ function ItemView({
     case 'user':
       return (
         <div data-testid="user">
-          <p className="t-title text-marble-300">You</p>
+          <p className="sc text-[20px] font-semibold text-marble-300">You</p>
           <p className="t-body mt-1 whitespace-pre-line text-marble-100">{item.text}</p>
         </div>
       )
@@ -491,7 +500,7 @@ function ProposalCard({ item: raw, index, steer, inert }: { item: Proposal; inde
       className="rounded-b-card border-t-2 border-candle-400 bg-[color-mix(in_srgb,var(--color-candle-400)_7%,var(--color-ink-950))] p-5"
     >
       <div className="flex justify-between gap-2">
-        <p className="t-label">
+        <p className="rubric">
           {state === 'open' ? 'Proposal' : state === 'declined' ? 'Proposal · not yet' : 'In your journal'}
         </p>
         {entry.confidence !== null && <p className="t-label">{entry.confidence} % confident</p>}
@@ -594,7 +603,7 @@ function ProposalCard({ item: raw, index, steer, inert }: { item: Proposal; inde
           <div className="mt-6" data-testid="in-power">
             <p className="rubric">In your power?</p>
             <p className="t-body mt-1 text-marble-200">“Some things are in our control and others not.”</p>
-            <p className="mt-1 text-[13px] text-marble-400">Epictetus, Enchiridion 1</p>
+            <p className="t-ref mt-1">Epictetus, Enchiridion 1</p>
             {partly ? (
               <label className="mt-2 block">
                 <span className="t-label">The part that is yours</span>
@@ -628,10 +637,10 @@ function ProposalCard({ item: raw, index, steer, inert }: { item: Proposal; inde
                 required
                 value={due}
                 onChange={(e) => setDue(e.target.value)}
-                className="min-h-11 min-w-0 bg-transparent text-[17px] text-marble-100 focus-visible:shadow-none"
+                className="min-h-11 min-w-0 bg-transparent text-[19px] text-marble-100 focus-visible:shadow-none"
               />
             </label>
-            <label className="flex min-h-11 items-center gap-2 text-[17px] text-marble-200">
+            <label className="flex min-h-11 items-center gap-2 text-[19px] text-marble-200">
               <input
                 type="checkbox"
                 aria-label="Remind me by email on that day"

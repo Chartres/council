@@ -52,7 +52,7 @@ export function IdeasScreen() {
                           <Monogram key={id} id={id} size={22} />
                         ))}
                       </span>
-                      <span className="text-[15px] text-marble-300">
+                      <span className="text-[17px] text-marble-300">
                         {split.for} for · {split.mixed} mixed · {split.against} against
                       </span>
                     </span>

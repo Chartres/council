@@ -620,7 +620,7 @@ export function Talk({
                 <li key={i}>
                   <button
                     type="button"
-                    className="flex min-h-11 w-full items-baseline gap-3 py-1 text-left text-[15px] leading-[22px] text-marble-200 hover:text-marble-50"
+                    className="flex min-h-11 w-full items-baseline gap-3 py-1 text-left text-[17px] leading-[22px] text-marble-200 hover:text-marble-50"
                     onClick={() => {
                       setList(false)
                       steer(`Let's go back to this question: "${q}"`)
@@ -642,17 +642,17 @@ export function Talk({
             className="flex min-h-11 w-full items-center gap-2 text-left"
           >
             <span className="t-label shrink-0 text-candle-300">{floors.length ? `Question ${floors.length}` : 'Opening'}</span>
-            <span role="status" data-testid="talk-status" className="truncate text-[15px] leading-[23px] text-marble-200">
+            <span role="status" data-testid="talk-status" className="truncate text-[18px] italic leading-[23px] text-marble-200">
               {status}
             </span>
           </button>
           {timing && lastTurn && (
-            <p data-testid="voice-timing" className="text-[13px] leading-[20px] text-marble-400">
+            <p data-testid="voice-timing" className="t-fine">
               {lastTurn}
             </p>
           )}
           {missed && active && !paused && (
-            <p data-testid="voice-missed" className="flex items-center gap-2 text-[15px] leading-[23px] text-marble-400">
+            <p data-testid="voice-missed" className="flex items-center gap-2 text-[17px] leading-[23px] text-marble-400">
               Voice did not load. The text is above.
               <button type="button" onClick={hearAgain} className="text-btn min-h-11 shrink-0 whitespace-nowrap px-3 text-marble-200">
                 Tap to hear

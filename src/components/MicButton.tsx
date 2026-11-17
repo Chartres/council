@@ -260,7 +260,7 @@ export function MicButton({
         <p
           role="alert"
           data-testid="mic-problem"
-          className="fixed inset-x-4 z-40 mx-auto max-w-xl rounded-md border border-ink-700 bg-ink-850 px-4 py-3 text-[15px] leading-[22px] text-marble-100 shadow-lg"
+          className="fixed inset-x-4 z-40 mx-auto max-w-xl rounded-md border border-ink-700 bg-ink-850 px-4 py-3 text-[17px] leading-[22px] text-marble-100 shadow-lg"
           style={{ bottom: 'calc(env(safe-area-inset-bottom) + 76px)' }}
         >
           {problem}

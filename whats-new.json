@@ -1,20 +1,20 @@
 {
-  "version": "1.1.0",
-  "date": "2026-11-08",
+  "version": "1.2.0",
+  "date": "2026-11-18",
   "items": [
     {
-      "id": "voice-bar",
-      "text": "Talk has a bar at the bottom: pause, go back or on, and tap Done.",
-      "alt": "The voice bar shows Question 2; Done is tapped, Seneca speaks, then Pause is tapped",
-      "media": "/whats-new/1.1.0/voice-bar.html",
+      "id": "book-page",
+      "text": "Every screen is now set as a book page, with running heads, rubrics and a colophon.",
+      "alt": "A running head, a double rule, a red rubric and a question under a large red initial appear one after another",
+      "media": "/whats-new/1.2.0/page.html",
       "width": 390,
-      "height": 120
+      "height": 150
     },
     {
-      "id": "spoken-line",
-      "text": "While an adviser speaks, the line being spoken is marked on screen.",
-      "alt": "An adviser's contribution with a highlight moving from one sentence to the next",
-      "media": "/whats-new/1.1.0/spoken-line.html",
+      "id": "device",
+      "text": "The mark is a candle on a closed book; the flame moves while the advisers think.",
+      "alt": "A drawn candle standing on a closed book inside an oval; its flame leans and straightens",
+      "media": "/whats-new/1.2.0/device.html",
       "width": 390,
       "height": 150
     }

@@ -54,8 +54,8 @@ test('Business roster → intake → three turns with controls → capture → c
   // the other; the notes wait above the reply box and go with her next message.
   const first = page.getByTestId('contribution').nth(0)
   const second = page.getByTestId('contribution').nth(1)
-  const firstName = (await first.locator('.t-title').textContent())!
-  const secondName = (await second.locator('.t-title').textContent())!
+  const firstName = (await first.getByTestId('speaker').textContent())!
+  const secondName = (await second.getByTestId('speaker').textContent())!
   await first.getByRole('button', { name: 'Agree' }).click()
   await second.getByRole('button', { name: 'Push back' }).click()
   await page.getByLabel(`Why you push back on ${secondName}`).fill('demand is not the question yet')

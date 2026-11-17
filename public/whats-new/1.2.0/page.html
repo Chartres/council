@@ -1,0 +1,26 @@
+<!doctype html>
+<meta charset="utf-8">
+<!-- What's new 1.2.0, the page (flywheel docs/standards/whats-new.md): CSS only, nothing fetched.
+     6 s loop: running head, double rule, rubric, then the question under its versal. -->
+<style>
+  :root{--bg:#100e0b;--hi:#f8f5ee;--dim:#b9b1a0;--rule:#342d23;--red:#cf9179}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--hi);font:20px/26px Georgia,serif;overflow:hidden}
+  .p{padding:10px 16px}
+  .rh{font:600 12px/1 Georgia,serif;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);padding-bottom:9px}
+  .dbl{height:4px;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)}
+  .rb{font:600 12px/1 Georgia,serif;letter-spacing:.1em;text-transform:uppercase;color:var(--red);margin:14px 0 8px}
+  .q b{float:left;font:500 56px/46px Georgia,serif;color:var(--red);padding:2px 8px 0 0}
+  .rh,.dbl,.rb,.q{animation:in 6s infinite both}
+  .dbl{animation-name:in2}.rb{animation-name:in3}.q{animation-name:in4}
+  @keyframes in{0%{opacity:0}6%,94%{opacity:1}100%{opacity:0}}
+  @keyframes in2{0%,10%{opacity:0}16%,94%{opacity:1}100%{opacity:0}}
+  @keyframes in3{0%,22%{opacity:0}28%,94%{opacity:1}100%{opacity:0}}
+  @keyframes in4{0%,34%{opacity:0;transform:translateY(4px)}42%,94%{opacity:1;transform:none}100%{opacity:0}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+<div class="p" aria-hidden="true">
+  <div class="rh">Mastermind Council</div>
+  <div class="dbl"></div>
+  <div class="rb">Today&#8217;s question</div>
+  <div class="q"><b>S</b>hould I return to a craft I put down ten years ago?</div>
+</div>

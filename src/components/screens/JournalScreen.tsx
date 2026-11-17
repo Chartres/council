@@ -7,6 +7,8 @@ import { Quaestio } from '@/components/Quaestio'
 import { quaestio } from '@/domain/quaestio'
 import { OutcomeButtons } from '@/components/OutcomeButtons'
 import { Examination } from '@/components/Examination'
+import { BlankLeaf, Headpiece } from '@/components/Furniture'
+import { BLANK_LEAF } from '@/content/catalogue'
 import { humanDate } from '@/domain/dates'
 import { readEvening, writeEvening } from '@/domain/evening'
 import { isOpen } from '@/domain/mastermind'
@@ -40,15 +42,21 @@ export function JournalScreen() {
 
   return (
     <div className="mx-auto max-w-xl px-4 pb-12">
-      <h1 className="t-display pt-6">Journal</h1>
+      <Headpiece className="mt-3" />
+      <h1 className="t-display pt-4">Journal</h1>
       <p className="t-body mt-2 text-marble-400">
         {user ? 'Kept on your account.' : 'Kept in this browser only. Sign in to keep it across devices.'}
       </p>
       <Examination commitments={journal.commitments} from={evening} now={now} />
 
       {entries.length === 0 ? (
-        <div className="mt-12">
-          <p className="t-body">No decisions yet.</p>
+        <div className="mt-6">
+          <BlankLeaf>
+            <p className="t-body italic text-marble-50" data-testid="blank-as-issued">
+              {BLANK_LEAF}
+            </p>
+            <p className="t-body mt-1 text-marble-400">No decisions yet.</p>
+          </BlankLeaf>
           <button type="button" onClick={() => go('start')} className="slab mt-6">
             Sit down with the group
           </button>
@@ -59,7 +67,7 @@ export function JournalScreen() {
             {entries.map((e) => (
               <li key={e.id}>
                 <p className="t-title">{e.decision}</p>
-                <p className="t-label mt-2">
+                <p className="t-ref mt-1">
                   {e.status} · {humanDate(e.created_at, { weekday: false })}
                   {e.confidence !== null && ` · ${e.confidence} % confident`}
                 </p>
@@ -87,7 +95,7 @@ export function JournalScreen() {
                         {c.outcome && <span className="text-marble-400"> · {c.outcome === 'later' ? 'not yet' : c.outcome}</span>}
                       </p>
                       {isOpen(c) && <OutcomeButtons id={c.id} />}
-                      <label className="mt-2 flex min-h-11 items-center gap-2 text-[17px] text-marble-300">
+                      <label className="mt-2 flex min-h-11 items-center gap-2 text-[19px] text-marble-300">
                         <input
                           type="checkbox"
                           checked={c.remind}
@@ -119,7 +127,7 @@ export function JournalScreen() {
                   setDraft(ev.target.value)
                   if (writeEvening(ev.target.value)) setEvening(ev.target.value)
                 }}
-                className="min-h-11 min-w-0 bg-transparent text-[17px] text-marble-100 focus-visible:shadow-none"
+                className="min-h-11 min-w-0 bg-transparent text-[19px] text-marble-100 focus-visible:shadow-none"
               />
             </label>
           )}

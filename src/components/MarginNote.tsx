@@ -34,7 +34,7 @@ export function MarginNote({
     )
   }
   return (
-    <div className="mt-2 border-l-2 border-clay-500 pl-3" data-testid="margin-note">
+    <div className="mt-2 border-l-2 border-clay-400 pl-3" data-testid="margin-note">
       <div className="flex items-center justify-between gap-2">
         <p className="rubric">{MARK[note.stance]}</p>
         <button
@@ -55,7 +55,7 @@ export function MarginNote({
           value={note.text}
           onChange={(e) => onChange({ ...note, text: e.target.value })}
           placeholder={note.stance === 'push' ? `What ${name} is missing` : `What you’d say to ${name}`}
-          className="mt-1 w-full resize-none bg-transparent text-[17px] italic leading-[26px] text-marble-100 [field-sizing:content] placeholder:text-marble-500"
+          className="mt-1 w-full resize-none bg-transparent text-[19px] italic leading-[27px] text-marble-100 [field-sizing:content] placeholder:text-marble-400"
         />
       )}
     </div>
@@ -68,7 +68,7 @@ export function NotesTray({ count, length = 0, onClear }: { count: number; lengt
   const over = length > MAX_MESSAGE
   return (
     <div className="mt-6 flex items-center justify-between gap-2" data-testid="notes-tray">
-      <p className={`text-[15px] leading-[23px] ${over ? 'text-clay-400' : 'text-marble-300'}`} role={over ? 'alert' : undefined}>
+      <p className={`text-[17px] leading-[23px] ${over ? 'text-clay-400' : 'text-marble-300'}`} role={over ? 'alert' : undefined}>
         {over
           ? `Too long for one message (${length} of ${MAX_MESSAGE} characters). Shorten a note or your reply.`
           : `${count === 1 ? 'Your note goes' : `Your ${count} notes go`} with your next message.`}

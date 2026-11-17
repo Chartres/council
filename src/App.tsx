@@ -6,6 +6,7 @@ import { AuthProvider } from '@/auth/AuthContext'
 import { track } from '@/analytics'
 import { AdminBar } from '@/components/AdminBar'
 import { BottomNav } from '@/components/BottomNav'
+import { Colophon } from '@/components/Furniture'
 import { Header } from '@/components/Header'
 import { PasswordPanel } from '@/components/PasswordPanel'
 import { ConversationScreen } from '@/components/screens/ConversationScreen'
@@ -14,6 +15,7 @@ import { IntakeScreen } from '@/components/screens/IntakeScreen'
 import { JournalScreen } from '@/components/screens/JournalScreen'
 import { StartScreen } from '@/components/screens/StartScreen'
 import { IdeasScreen } from '@/components/screens/IdeasScreen'
+import { NotFoundScreen } from '@/components/screens/NotFoundScreen'
 import { PrivacyScreen } from '@/components/screens/PrivacyScreen'
 import { SessionScreen } from '@/components/screens/SessionScreen'
 
@@ -26,7 +28,11 @@ const SCREENS = {
   session: SessionScreen,
   ideas: IdeasScreen,
   privacy: PrivacyScreen,
+  notfound: NotFoundScreen,
 }
+
+// Public: readable before the beta door. Neither holds anything private.
+const PUBLIC = new Set(['privacy', 'notfound'])
 
 // In-session views hide the tab bar: a place you are in, not a tab (DESIGN.md).
 const NO_NAV = new Set(['session', 'intake', 'conversation'])
@@ -54,9 +60,11 @@ function Shell() {
         className="flex-1"
         style={{ paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom))' }}
       >
-        {/* The privacy page is public: readable before the beta door. */}
+        {/* The privacy page and the missing leaf are public: readable before the beta door. */}
         {/* While the sign-in loads with no key stored: a blank ground, not a flash of the door. */}
-        {view === 'privacy' ? <Screen /> : gate === 'ask' || gate === 'approval' ? <PasswordPanel /> : gate === 'ready' ? <Screen /> : null}
+        {PUBLIC.has(view) ? <Screen /> : gate === 'ask' || gate === 'approval' ? <PasswordPanel /> : gate === 'ready' ? <Screen /> : null}
+        {/* The colophon closes every page that is not a sitting (those hide the tabs too). */}
+        {(PUBLIC.has(view) || gate === 'ready') && !NO_NAV.has(view) && <Colophon className="mt-12" />}
       </main>
       {gate === 'ready' && !NO_NAV.has(view) && <BottomNav />}
     </div>

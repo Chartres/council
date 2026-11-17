@@ -1,15 +1,20 @@
 import type { ReactNode } from 'react'
 import { personaName } from '@/content/personas'
 import type { Quaestio as Q } from '@/domain/quaestio'
+import { Manicule, Tailpiece, Versal } from '@/components/Furniture'
 
 // The decision record as a quaestio (docs/SIGNATURE.md, after Aquinas). Rubrics in clay small
-// capitals mark the parts, as in the printed Summa; nothing else on the card uses that red.
+// capitals mark the parts, as in the printed Summa: a pilcrow before each, the question under
+// a versal, the objections numbered in red, a manicule at what must hold, a tailpiece to close.
 
 function Part({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="mt-4">
-      <p className="rubric" data-testid="rubric">
-        {label}
+      <p className="rubric">
+        <span aria-hidden="true" className="mr-1.5 text-[19px]">
+          ¶
+        </span>
+        <span data-testid="rubric">{label}</span>
       </p>
       <div className="t-body mt-1 text-marble-200">{children}</div>
     </div>
@@ -31,15 +36,24 @@ export function Quaestio({
 }) {
   return (
     <div data-testid="quaestio" className="mt-6">
-      {q.question && <Part label="Question">{q.question}</Part>}
+      {q.question && (
+        <Part label="Question">
+          <Versal className="t-title">{q.question}</Versal>
+        </Part>
+      )}
       {q.objections && (
         <Part label="It seems not, because">
           {q.objections.length ? (
             <ol className="space-y-2">
               {q.objections.map((o, i) => (
-                <li key={i}>
-                  {o.text}
-                  {o.speaker && <span className="text-marble-400"> — {personaName(o.speaker)}</span>}
+                <li key={i} className="grid grid-cols-[22px_1fr]">
+                  <b aria-hidden="true" className="font-medium text-clay-400">
+                    {i + 1}
+                  </b>
+                  <span>
+                    {o.text}
+                    {o.speaker && <span className="sc text-marble-400"> — {personaName(o.speaker)}</span>}
+                  </span>
                 </li>
               ))}
             </ol>
@@ -57,8 +71,8 @@ export function Quaestio({
       )}
       {contra && (
         <Part label="On the contrary">
-          <p className="font-display text-[19px] leading-[27px] text-marble-100">“{contra.text.replace(/^["“]|["”]$/g, '')}”</p>
-          <p className="mt-1 text-[13px] text-marble-400">
+          <p className="text-[22px] italic leading-[28px] text-marble-50">“{contra.text.replace(/^["“]|["”]$/g, '')}”</p>
+          <p className="t-ref mt-1">
             {personaName(contra.speaker)} · {contra.source}
           </p>
         </Part>
@@ -68,11 +82,15 @@ export function Quaestio({
         <Part label="What must hold">
           <ul className="space-y-1">
             {q.mustHold.map((a, i) => (
-              <li key={i}>{a}</li>
+              <li key={i} className="grid grid-cols-[38px_1fr]">
+                <Manicule className="mt-[7px]" />
+                <span>{a}</span>
+              </li>
             ))}
           </ul>
         </Part>
       )}
+      <Tailpiece className="mt-6" />
     </div>
   )
 }

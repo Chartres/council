@@ -68,7 +68,7 @@ export function SignInPanel({ reason, title = 'Keep this idea' }: { reason?: str
               value={code}
               onChange={(e) => setCode(e.target.value)}
               placeholder="123456"
-              className="min-h-11 min-w-0 flex-1 bg-transparent text-[17px] tracking-widest text-marble-100 placeholder:text-marble-400 focus-visible:shadow-none"
+              className="min-h-11 min-w-0 flex-1 bg-transparent text-[19px] tracking-widest text-marble-100 placeholder:text-marble-400 focus-visible:shadow-none"
             />
             <button type="submit" disabled={!/\d/.test(code) || checking} className="text-btn shrink-0 px-3">
               {checking ? 'Checking…' : 'Use code'}
@@ -105,7 +105,7 @@ export function SignInPanel({ reason, title = 'Keep this idea' }: { reason?: str
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@email.com"
-              className="min-h-11 min-w-0 flex-1 bg-transparent text-[17px] text-marble-100 placeholder:text-marble-400 focus-visible:shadow-none"
+              className="min-h-11 min-w-0 flex-1 bg-transparent text-[19px] text-marble-100 placeholder:text-marble-400 focus-visible:shadow-none"
             />
             <button type="submit" className="text-btn shrink-0 px-3">
               Send link

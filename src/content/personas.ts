@@ -14,6 +14,8 @@ export interface Persona {
   source: string
   /** Ticked on first load. */
   defaultOn: boolean
+  /** Year of death as printed on the roster (sources: docs/SIGNATURE.md "Visual signature"). */
+  died: string
 }
 
 export const MAX_PERSONAS = 4
@@ -26,6 +28,7 @@ export const PERSONAS: Persona[] = [
     brings: 'Asks the question you are avoiding, then asks it again.',
     source: "Plato's dialogues (Jowett translation)",
     defaultOn: true,
+    died: 'd. 399 BC',
   },
   {
     id: 'marcus-aurelius',
@@ -34,6 +37,7 @@ export const PERSONAS: Persona[] = [
     brings: 'Strips the idea down to what is actually in your control.',
     source: 'Meditations (Long translation)',
     defaultOn: true,
+    died: 'd. AD 180',
   },
   {
     id: 'seneca',
@@ -42,6 +46,7 @@ export const PERSONAS: Persona[] = [
     brings: 'Counts the cost in time and money before anyone counts the upside.',
     source: 'Letters to Lucilius (Gummere translation)',
     defaultOn: true,
+    died: 'd. AD 65',
   },
   {
     id: 'buddha',
@@ -50,6 +55,7 @@ export const PERSONAS: Persona[] = [
     brings: 'Names the attachment driving the plan.',
     source: 'Dhammapada (Müller translation) and suttas (Sujato translation)',
     defaultOn: false,
+    died: 'd. c. 483 or 400 BC',
   },
   {
     id: 'confucius',
@@ -58,6 +64,7 @@ export const PERSONAS: Persona[] = [
     brings: 'Weighs duty, relationships and who carries the work.',
     source: 'Analects (Legge translation)',
     defaultOn: false,
+    died: 'd. 479 BC',
   },
   {
     id: 'franklin',
@@ -66,6 +73,7 @@ export const PERSONAS: Persona[] = [
     brings: 'Turns the idea into a cheap experiment you can run this week.',
     source: 'Autobiography; Poor Richard’s Almanack',
     defaultOn: false,
+    died: 'd. 1790',
   },
   {
     id: 'montessori',
@@ -74,6 +82,7 @@ export const PERSONAS: Persona[] = [
     brings: 'Asks what the user learns by doing, not by being told.',
     source: 'The Montessori Method (1912 translation)',
     defaultOn: false,
+    died: 'd. 1952',
   },
 ]
 
@@ -93,6 +102,7 @@ export const BUSINESS: Adviser[] = [
     brings: 'Asks whose circumstances improve, and how you would know.',
     source: 'The Practice of Management; The Effective Executive (ideas, short quotes)',
     defaultOn: true,
+    died: 'd. 2005',
     inspiredBy: 'Peter Drucker',
   },
   {
@@ -102,6 +112,7 @@ export const BUSINESS: Adviser[] = [
     brings: 'Makes it tangible: what someone would see and do.',
     source: 'Documented product decisions, interviews (ideas, short quotes)',
     defaultOn: true,
+    died: 'd. 2011',
     inspiredBy: 'Steve Jobs',
   },
   {
@@ -111,6 +122,7 @@ export const BUSINESS: Adviser[] = [
     brings: 'Execution, owners, and the evidence that would change course.',
     source: 'High Output Management; Only the Paranoid Survive (ideas, short quotes)',
     defaultOn: true,
+    died: 'd. 2016',
     inspiredBy: 'Andy Grove',
   },
   { ...PERSONAS[0], defaultOn: true },

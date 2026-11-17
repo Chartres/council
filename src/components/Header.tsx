@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useCouncil } from '@/app/CouncilContext'
+import { useCouncil, type View } from '@/app/CouncilContext'
+import { useMastermind } from '@/app/MastermindContext'
 import { useAuth } from '@/auth/AuthContext'
 import { supabase } from '@/auth/supabase'
 import { AccountPanel } from './AccountPanel'
@@ -8,10 +9,32 @@ import { DiscussionsDrawer } from './DiscussionsDrawer'
 import { FeedbackSheet } from './Feedback'
 import { SignInPanel } from './SignInPanel'
 
-/** One slim row: wordmark, feedback, account. No second chrome row anywhere (mobile-ux tell #8). */
+const ORDINAL = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth']
+
+const HEAD: Partial<Record<View, string>> = {
+  journal: 'Journal',
+  home: 'Quick verdict',
+  session: 'Quick verdict',
+  ideas: 'My ideas',
+  privacy: 'Privacy',
+}
+
+/** What the running head names: the book, or the part of it that is open. */
+export function runningHead(view: View, items: { kind: string; state?: string }[] = []): string {
+  if (view === 'conversation') {
+    if (items.some((it) => it.kind === 'proposal' && it.state === 'open')) return 'Quaestio'
+    const n = items.filter((it) => it.kind === 'floor').length
+    if (n) return ORDINAL[n - 1] ? `The ${ORDINAL[n - 1]} question` : `Question ${n}`
+  }
+  return HEAD[view] ?? 'Mastermind Council'
+}
+
+/** One slim row, set as a running head: discussions, the title in small capitals, feedback,
+ * account; a double rule under it. No second chrome row anywhere (mobile-ux tell #8). */
 export function Header() {
   const { configured, user, token, signOut } = useAuth()
-  const { gate } = useCouncil()
+  const { gate, view } = useCouncil()
+  const { conversation } = useMastermind()
   const [open, setOpen] = useState<'account' | 'feedback' | null>(null)
   const [drawer, setDrawer] = useState(false)
   const menu = useRef<HTMLButtonElement>(null)
@@ -24,11 +47,11 @@ export function Header() {
 
   return (
     <header
-      className="sticky top-0 z-30 border-b border-ink-800 bg-ink-950/90 backdrop-blur"
+      className="sticky top-0 z-30 bg-ink-950/90 backdrop-blur"
       style={{ paddingTop: 'max(0px, env(safe-area-inset-top))' }}
     >
-      <div className="mx-auto flex max-w-xl items-center justify-between gap-2 px-4 py-2">
-        <div className="flex items-center">
+      <div className="mx-auto flex max-w-xl items-center justify-between gap-2 px-4 py-1">
+        <div className="flex min-w-0 items-center">
           {gate === 'ready' && (
             <button
               ref={menu}
@@ -44,8 +67,8 @@ export function Header() {
               </svg>
             </button>
           )}
-          <span className="font-display text-lg font-medium text-marble-100">
-            Mastermind <span className="font-normal text-marble-400">Council</span>
+          <span className="running-head truncate py-1" data-testid="running-head">
+            {runningHead(gate === 'ready' ? view : 'start', conversation?.items)}
           </span>
         </div>
         <div className="flex items-center gap-1">
@@ -54,7 +77,7 @@ export function Header() {
               type="button"
               onClick={() => toggle('feedback')}
               aria-expanded={open === 'feedback'}
-              className="min-h-11 px-3 text-[15px] font-medium text-marble-400 hover:text-marble-100"
+              className="sc min-h-11 px-3 text-[17px] text-marble-400 hover:text-marble-100"
             >
               Feedback
             </button>
@@ -68,7 +91,7 @@ export function Header() {
               className="flex h-11 w-11 items-center justify-center rounded-full text-marble-400 hover:text-marble-100"
             >
               {user ? (
-                <span className="flex h-8 w-8 items-center justify-center rounded-full border-[1.5px] border-marble-500 bg-ink-800 font-display text-[15px] text-marble-100">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full border-[1.5px] border-marble-500 bg-ink-800 font-display text-[17px] text-marble-100">
                   {user.email?.[0]?.toUpperCase() ?? '·'}
                 </span>
               ) : (
@@ -99,6 +122,9 @@ export function Header() {
           )}
         </div>
       )}
+      <div className="mx-auto max-w-xl px-4">
+        <div className="dbl" />
+      </div>
       {/* Outside the header: its backdrop blur would make it the box a fixed sheet sits in. */}
       {drawer && createPortal(<DiscussionsDrawer onClose={closeDrawer} />, document.body)}
     </header>

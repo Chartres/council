@@ -62,7 +62,7 @@ export function AccountPanel({
   }
 
   return (
-    <section aria-label="Account" className="text-[15px]" data-testid="account-panel">
+    <section aria-label="Account" className="text-[17px]" data-testid="account-panel">
       <p className="truncate text-marble-300">{user.email}</p>
       <div className="flex flex-wrap gap-x-6">
         <button type="button" onClick={onSignOut} className="text-btn">
@@ -107,7 +107,7 @@ export function AccountPanel({
         </div>
       )}
       {problem && <p className="text-clay-400">{problem}</p>}
-      <p className="mt-2 text-[13px] text-marble-400">
+      <p className="mt-2 t-ref">
         <PrivacyLink />
       </p>
     </section>

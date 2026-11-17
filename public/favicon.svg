@@ -1,7 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Mastermind Council">
-  <rect width="32" height="32" rx="6" fill="#100e0b"/>
-  <path d="M16 5.5c1.9 1.9 2.6 3.3 2.6 4.7a2.6 2.6 0 0 1-5.2 0c0-1.4.7-2.8 2.6-4.7z" fill="#e0b263"/>
-  <rect x="13.2" y="13.2" width="5.6" height="13.3" rx="1.4" fill="#ece7db"/>
-  <rect x="13.2" y="13.2" width="5.6" height="13.3" rx="1.4" fill="none" stroke="#b9b1a0" stroke-width="0.6"/>
-  <path d="M16 11.4v2" stroke="#776f61" stroke-width="1" stroke-linecap="round"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Mastermind Council"><rect width="32" height="32" rx="6" fill="#100e0b"/><svg x="5.5" y="3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 124" width="21" height="26.04" fill="none" stroke="#b9b1a0" stroke-linecap="round" stroke-linejoin="round"><path stroke-width="5" d="M50 4C76 4 95 28 95 62s-19 58-45 58S5 96 5 62 24 4 50 4z"></path><g><path fill="#e0b263" stroke="none" d="M50 14c11 13 17 24 10 34-4.500 6-15.500 6-20 0-6-11 4-20 10-34z"></path></g><path stroke-width="5" d="M42 84V58h16v26"></path><path stroke-width="5" d="M22 90c18-5 38-5 56 0v13c-18-5-38-5-56 0z"></path></svg></svg>

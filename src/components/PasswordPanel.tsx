@@ -3,6 +3,8 @@ import { useCouncil } from '@/app/CouncilContext'
 import { FAILURE_COPY } from '@/domain/council'
 import { useAuth } from '@/auth/AuthContext'
 import { SignInPanel } from '@/components/SignInPanel'
+import { Device } from '@/components/Furniture'
+import { PRIVATELY_PRINTED } from '@/content/catalogue'
 
 /**
  * The private-beta door. One field, no account — the gateway checks the password
@@ -27,14 +29,16 @@ export function PasswordPanel() {
         data-testid="password-panel"
         className="pt-3"
       >
+        <Device size={92} label="Mastermind Council" className="mx-auto mt-3" />
+        <p className="rubric mt-4 text-center">{PRIVATELY_PRINTED}</p>
         {waiting ? (
           <>
-            <h1 className="t-display">Waiting for approval</h1>
-            <p className="t-body mt-2 text-marble-300" data-testid="approval-waiting">
+            <h1 className="t-display mt-2 text-center">Waiting for approval</h1>
+            <p className="t-body mt-2 text-center text-marble-300" data-testid="approval-waiting">
               Pavol has been told that {user?.email ?? 'your account'} would like to join. You will get in as soon as he
               approves. If you have the council password, you can enter it below.
             </p>
-            <div className="mt-4">
+            <div className="mt-6 text-center">
               <button
                 type="button"
                 className="slab"
@@ -47,20 +51,21 @@ export function PasswordPanel() {
               >
                 {checking ? 'Checking…' : 'Check again'}
               </button>
-              <button type="button" className="text-btn -ml-3 mt-2 px-3" onClick={() => void signOut()}>
+              <button type="button" className="text-btn mt-2 px-3" onClick={() => void signOut()}>
                 Sign out
               </button>
             </div>
             {stillWaiting && (
-              <p className="t-body mt-2 text-marble-300" role="status" data-testid="approval-still-waiting">
+              <p className="t-note text-center" role="status" data-testid="approval-still-waiting">
                 Not approved yet.
               </p>
             )}
+            <div className="dbl mt-4" />
           </>
         ) : (
           <>
-            <h1 className="t-display">Enter the council password</h1>
-            <p className="t-body mt-2 text-marble-300">
+            <h1 className="t-display mt-2 text-center">Enter the council password</h1>
+            <p className="t-body mt-2 text-center text-marble-300">
               The council is in private beta. The password comes from Pavol.
             </p>
           </>
@@ -68,7 +73,7 @@ export function PasswordPanel() {
         {/* Eyal, 30 Oct: on a new laptop the email code signed him in and this door still asked
             for "the password". They are two different things; say which is which. */}
         {configured && !waiting && (
-          <p className="t-body mt-2 text-marble-300" data-testid="password-vs-account">
+          <p className="t-note mt-2 text-center" data-testid="password-vs-account">
             {user
               ? `You are signed in as ${user.email ?? 'your account'}, but the council did not accept the sign-in this time. The beta password still works.`
               : 'This is not your account sign-in. If you have an account, sign in with your email instead; you do not need the password.'}
