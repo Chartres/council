@@ -83,24 +83,24 @@ const ROWS: [string, string, string, string][] = [
 
 export function PrivacyScreen() {
   return (
-    <article className="mx-auto max-w-xl px-4 pb-12 text-[17px] leading-[24px] text-marble-300">
+    <article className="mx-auto max-w-xl px-4 pb-12 text-[19px] leading-[27px] text-marble-300">
       <h1 className="t-display pt-6">What we store</h1>
       <p className="mt-2">Mastermind Council is a small private beta run by one person. This is all of it.</p>
 
       <dl className="mt-12 space-y-6">
         {ROWS.map(([what, where, howLong, who]) => (
           <div key={what}>
-            <dt className="t-body text-marble-50">{what}</dt>
+            <dt className="t-title">{what}</dt>
             <dd className="mt-2">
-              <span className="text-marble-400">Where: </span>
+              <span className="sc text-marble-400">Where: </span>
               {where}
             </dd>
             <dd>
-              <span className="text-marble-400">How long: </span>
+              <span className="sc text-marble-400">How long: </span>
               {howLong}
             </dd>
             <dd>
-              <span className="text-marble-400">Who can read it: </span>
+              <span className="sc text-marble-400">Who can read it: </span>
               {who}
             </dd>
           </div>
@@ -113,7 +113,7 @@ export function PrivacyScreen() {
         you report or when the law requires it.
       </p>
 
-      <h2 className="t-title mt-12">Your content</h2>
+      <h2 className="rubric mt-12 text-[19px]">Your content</h2>
       <p className="mt-2">
         You own what you write in Mastermind Council and what the advisers write back. We claim no rights to your ideas,
         plans or decisions. We don’t sell your content, and neither we nor our AI provider use it to train models. We use
@@ -123,13 +123,13 @@ export function PrivacyScreen() {
         account, we delete your content; provider copies expire on the schedules listed above.
       </p>
 
-      <h2 className="t-title mt-12">Using this for work?</h2>
+      <h2 className="rubric mt-12 text-[19px]">Using this for work?</h2>
       <p className="mt-2">
         Leave out anything your employer treats as confidential: client names, unreleased numbers, internal documents.
         Describe the situation in general terms; the advisers work fine with that.
       </p>
 
-      <h2 className="t-title mt-12">Who is responsible</h2>
+      <h2 className="rubric mt-12 text-[19px]">Who is responsible</h2>
       <p className="mt-2">
         Controller: Pavol Dravecký. Contact: <a className="link" href="mailto:council@dravec.org">council@dravec.org</a>.
         Address: to be added.

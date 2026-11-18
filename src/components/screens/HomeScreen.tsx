@@ -1,3 +1,4 @@
+import { Headpiece } from '@/components/Furniture'
 import { useState } from 'react'
 import { useCouncil } from '@/app/CouncilContext'
 import { MicButton } from '@/components/MicButton'
@@ -20,6 +21,7 @@ export function HomeScreen() {
 
   return (
     <div className="mx-auto max-w-xl px-4 pb-6">
+      <h1 className="sr-only">Quick verdict</h1>
       <form onSubmit={submit} className="pt-3">
         <label htmlFor="idea" className="t-display block">
           What are you working on?
@@ -103,7 +105,8 @@ export function HomeScreen() {
         data-testid="daily-card"
         className="mt-12"
       >
-        <p className="t-label">Today’s question · {humanDate(day)}</p>
+        <Headpiece className="mb-4" />
+        <p className="rubric">Today’s question · {humanDate(day)}</p>
         <h2 className="t-title mt-2 text-balance">
           {question}
         </h2>

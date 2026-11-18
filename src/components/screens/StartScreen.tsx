@@ -3,7 +3,7 @@ import { useCouncil } from '@/app/CouncilContext'
 import { useMastermind } from '@/app/MastermindContext'
 import { Monogram } from '@/components/Monogram'
 import { Headpiece, Versal } from '@/components/Furniture'
-import { NONE_LIVING } from '@/content/catalogue'
+import { NONE_LIVING, NOT_SOUGHT } from '@/content/catalogue'
 import { SignInPanel } from '@/components/SignInPanel'
 import { OutcomeButtons } from '@/components/OutcomeButtons'
 import { PrivacyLink } from '@/components/screens/PrivacyScreen'
@@ -107,7 +107,7 @@ function Today({ onOpen }: { onOpen: (question: string) => void }) {
             setPeek(false)
           }
         }}
-        className="text-btn absolute -right-3 -top-1 min-w-11 px-3 text-marble-400 hover:text-marble-100"
+        className="text-btn absolute right-0 top-0 flex min-w-11 items-start justify-end pt-2 pr-1 pl-3 leading-[22px] text-marble-400 hover:text-marble-100"
       >
         Why?
       </button>
@@ -126,6 +126,7 @@ export function StartScreen() {
 
   return (
     <div className="mx-auto max-w-xl px-4 pb-12">
+      <h1 className="sr-only">Mastermind Council</h1>
       <Headpiece className="mt-3" />
       {linkNeedsSignIn && (
         <div className="pt-3">
@@ -170,8 +171,10 @@ export function StartScreen() {
         ))}
       </div>
 
+      {/* The catalogue note sits on the Classics shelf only: the Business advisers died within living memory. */}
       <p className="t-note mt-2">
-        <span data-testid="none-living">{NONE_LIVING}</span> Pick up to {MAX_PERSONAS}. A neutral facilitator is always there.
+        {roster === 'classics' && <span data-testid="none-living">{NONE_LIVING} </span>}
+        Pick up to {MAX_PERSONAS}. A neutral facilitator is always there.
       </p>
       {inspired.length > 0 && (
         <p className="t-fine mt-2">Simulations inspired by {listOf(inspired)}.</p>
@@ -207,7 +210,7 @@ export function StartScreen() {
       </ul>
 
       {/* Above the bottom nav, so Begin is in reach however long the roster runs. */}
-      <div className="sticky z-10 mt-6 bg-ink-950 py-2" style={{ bottom: 'calc(3.625rem + env(safe-area-inset-bottom))' }}>
+      <div className="sticky z-10 mt-6 bg-ink-950 py-2" data-testid="begin-bar" style={{ bottom: 'calc(58px + env(safe-area-inset-bottom))' }}>
         <button type="button" onClick={() => go('intake')} className="slab">
           Begin
         </button>
@@ -215,7 +218,11 @@ export function StartScreen() {
 
       <ConnectPanel />
 
-      <p className="t-fine mt-6">
+      {/* The catalogue note beside the disclosure; "this" is the product. The disclosure is unchanged. */}
+      <p className="t-note mt-6 italic" data-testid="not-sought">
+        {NOT_SOUGHT}
+      </p>
+      <p className="t-fine mt-2">
         The advisers are AI. {roster === 'business' ? BUSINESS_DISCLOSURE : `${DISCLOSURE} ${MONTESSORI_NOTE}`}{' '}
         <PrivacyLink />
       </p>

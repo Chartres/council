@@ -29,6 +29,7 @@ Mastermind Council at https://council.dravec.org, in private beta behind a passw
    - Body, labels and buttons in EB Garamond; running head and text tabs; rubrics, versals, glosses; the roster with years of death; the colophon.
    - The device as the mark (door, colophon, 404, thinking state, favicon, share card), with a headpiece, tailpiece, manicule and blank leaf in `src/components/Furniture.tsx`.
    - The catalogue note on the boring surfaces (`src/content/catalogue.ts`); a 404 page ("Leaf wanting"); the 20 reading pages restyled; What's new 1.2.0.
+   - 18 Nov: an independent design review came back "merge after fixes"; its 23 items are applied (see the PR body), three of them as orchestrator defaults listed there under "Decisions for Pavol".
    - Ended: PR open on `design/night-edition`, not merged, not deployed. After-shots in `docs/review/2026-11-17-night/`. Pavol's look is the gate.
 
 ## Open threads
@@ -41,7 +42,7 @@ Mastermind Council at https://council.dravec.org, in private beta behind a passw
 - Watch whether 6 s is too short for long spoken lines.
 - Directory listings wait until a stranger can sign in to MCP without the beta password. The Official MCP Registry also waits for the dravec.org TXT record.
 - A terms page is needed before any ChatGPT listing.
-- Night edition follow-ups (not built): the share card and `index.html` still say "seven thinkers" (ten advisers now); the council map keeps Inter-era wrap widths; `ink-500` measures 2.6:1 where DESIGN.md claimed 2.9:1; the reminder letter (gateway) is not restyled.
+- Night edition follow-ups (not built): the council map keeps Inter-era wrap widths; `ink-500` measures 2.6:1 where DESIGN.md claimed 2.9:1; the reminder letter (gateway) is not restyled.
 - Proposals not picked yet:
   - topic pages trimmed to one claim
   - syncing the evening hour across devices

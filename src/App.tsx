@@ -34,6 +34,9 @@ const SCREENS = {
 // Public: readable before the beta door. Neither holds anything private.
 const PUBLIC = new Set(['privacy', 'notfound'])
 
+// The page's number at its foot. The missing leaf has none.
+const FOLIO: Partial<Record<keyof typeof SCREENS, string>> = { start: 'i', journal: 'ii', home: 'iii', ideas: 'iv', privacy: 'v' }
+
 // In-session views hide the tab bar: a place you are in, not a tab (DESIGN.md).
 const NO_NAV = new Set(['session', 'intake', 'conversation'])
 
@@ -48,7 +51,7 @@ function Shell() {
 
   return (
     <div
-      className="flex min-h-full flex-col"
+      className="page flex min-h-full flex-col"
       style={{
         paddingLeft: 'env(safe-area-inset-left)',
         paddingRight: 'env(safe-area-inset-right)',
@@ -64,7 +67,15 @@ function Shell() {
         {/* While the sign-in loads with no key stored: a blank ground, not a flash of the door. */}
         {PUBLIC.has(view) ? <Screen /> : gate === 'ask' || gate === 'approval' ? <PasswordPanel /> : gate === 'ready' ? <Screen /> : null}
         {/* The colophon closes every page that is not a sitting (those hide the tabs too). */}
-        {(PUBLIC.has(view) || gate === 'ready') && !NO_NAV.has(view) && <Colophon className="mt-12" />}
+        {(PUBLIC.has(view) || gate === 'ready') && !NO_NAV.has(view) && (
+          // "Errata: probably." is for the title page and the missing leaf, not under her own decisions.
+          <Colophon
+            className="mt-12"
+            errata={view === 'start' || view === 'notfound'}
+            device={view !== 'notfound'}
+            folio={FOLIO[view]}
+          />
+        )}
       </main>
       {gate === 'ready' && !NO_NAV.has(view) && <BottomNav />}
     </div>

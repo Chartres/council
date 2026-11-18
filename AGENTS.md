@@ -4,7 +4,7 @@ The build/test/release contract for this repo. An agent (or the overnight ralph 
 able to read only this file and ship correctly. Keep every command copy-pasteable and current.
 Taste rules that apply to every flywheel product live in the hub: `flywheel/docs/standards/taste.md`.
 
-> One-liner: Bring an idea; seven historical thinkers debate it among themselves and return a
+> One-liner: Bring an idea; up to four of ten historical thinkers debate it among themselves and return a
 > verdict with one next action.
 > Stack/template: Vite + React 19 + TS + Tailwind 4 (web-static) · Track: commercial
 > Portfolio record: `flywheel/data/products/council.json`
@@ -203,10 +203,11 @@ Look and furniture: `DESIGN.md` "The book page". Copy for the catalogue note liv
 death. An unknown path renders `NotFoundScreen` ("Leaf wanting"), public like `/privacy`; `/start`,
 `/index.html` and `/c/:id` still open the start screen (`viewFromPath`). Cloudflare Pages serves
 `index.html` for unknown paths because the build has no `404.html`; do not add one.
-After changing the device drawing:
+`scripts/copy-count.test.mjs` keeps the adviser count in `index.html`, `package.json`, `README.md` and
+this file's one-liner equal to the rosters. After changing the device drawing or the count:
 ```bash
 WRITE_ASSETS=1 npx vitest run scripts/device-asset.test.mjs   # public/device.svg, device-tile.svg, favicon.svg
-node ../flywheel/scripts/og-image.mjs --name "Mastermind Council" --tagline "Seven thinkers debate your idea, then give a verdict" \
+node ../flywheel/scripts/og-image.mjs --name "Mastermind Council" --tagline "Ten thinkers debate your idea, then give a verdict" \
   --url council.dravec.org --icon public/device-tile.svg --out public/og.png \
   --bg "#100e0b" --fg "#f8f5ee" --accent "#e0b263" --note "free · no account for the first session"
 ```

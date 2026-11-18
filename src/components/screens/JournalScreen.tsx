@@ -100,7 +100,7 @@ export function JournalScreen() {
                           type="checkbox"
                           checked={c.remind}
                           onChange={(ev) => setRemind(c.id, ev.target.checked)}
-                          className="h-5 w-5 accent-candle-400"
+                          className="check"
                         />
                         Remind me by email
                       </label>

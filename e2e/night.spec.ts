@@ -49,11 +49,28 @@ test('the start screen is a book page: running head, headpiece, versal, a conten
   expect(await today.locator('.versal-boxed').textContent()).toMatch(new RegExp(`^${letter}`))
 
   // The catalogue note beside the roster's facts, and the roster as a contents list.
-  await expect(page.getByTestId('none-living')).toHaveText('Ten advisers, none living.')
+  // The catalogue note is on the Classics shelf only; Business keeps the neutral line.
   await expect(page.getByText('Pick up to 4. A neutral facilitator is always there.')).toBeVisible()
+  await expect(page.getByTestId('none-living')).toHaveCount(0)
   await expect(page.getByRole('button', { name: /Socrates/ })).toContainText('d. 399 BC')
   await expect(page.getByRole('button', { name: /Drucker/ })).toContainText('d. 2005')
+
+  // Nothing paints between the Begin slab and the tabs, and the tabs are opaque.
+  const bar = (await page.getByTestId('begin-bar').boundingBox())!
+  const foot = (await page.getByTestId('tabs-foot').boundingBox())!
+  expect(Math.abs(foot.y - (bar.y + bar.height))).toBeLessThanOrEqual(0.5)
+  for (const id of ['begin-bar', 'tabs-foot'])
+    expect(await page.getByTestId(id).evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(16, 14, 11)')
+  expect(await page.getByTestId('tabs-foot').evaluate((el) => getComputedStyle(el).backdropFilter)).toBe('none')
+  // A roster row scrolled under them does not show: the point just above the tabs belongs to the bar.
+  await page.mouse.wheel(0, 40)
+  await settle(page)
+  const between = await page.evaluate((y) => document.elementFromPoint(195, y)?.closest('[data-testid]')?.getAttribute('data-testid'), foot.y - 1)
+  expect(between).toBe('begin-bar')
+  await page.evaluate(() => window.scrollTo(0, 0))
+
   await page.getByRole('button', { name: 'Classics' }).click()
+  await expect(page.getByTestId('none-living')).toHaveText('Ten advisers, none living.')
   await expect(page.getByRole('button', { name: /Seneca/ })).toContainText('d. AD 65')
   await expect(page.getByRole('button', { name: /Buddha/ })).toContainText('d. c. 483 or 400 BC')
   // The year does not push a name onto two lines at phone width.
@@ -65,11 +82,17 @@ test('the start screen is a book page: running head, headpiece, versal, a conten
   await expect(nav.getByRole('button', { name: 'Council' })).toHaveAttribute('aria-current', 'page')
   await expect(nav.locator('svg')).toHaveCount(0)
 
+  // "Authors' approval" sits once, beside the AI disclosure at the foot; the disclosure is word for word.
+  await expect(page.getByTestId('not-sought')).toHaveText('Authors’ approval: not sought. None of them has read this.')
+  await expect(page.getByText(DISCLOSURE, { exact: false })).toBeVisible()
+
   const colophon = page.getByTestId('colophon')
   await expect(colophon).toContainText(/Mastermind Council, edition \d+\.\d+\.\d+\./)
   await expect(colophon).toContainText('Ten advisers, none living; simulated by AI.')
+  await expect(colophon).toContainText('Set in EB Garamond; the small print in Inter.')
   await expect(colophon).toContainText('Errata: probably.')
   await expect(colophon).toContainText('Report them under Feedback.')
+  await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1)
   await expect(colophon.getByTestId('device')).toBeVisible()
   await page.screenshot({ path: 'e2e/shots/night-start.png' })
   await colophon.scrollIntoViewIfNeeded()
@@ -85,6 +108,10 @@ test('an empty journal is a blank leaf, as issued', async ({ page }) => {
   await expect(page.getByText('No decisions yet.')).toBeVisible()
   await expect(page.getByText('Kept in this browser only. Sign in to keep it across devices.')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Sit down with the group' })).toBeVisible()
+  // Under her own decisions the colophon keeps the device, edition and faces, not the errata line.
+  await expect(page.getByTestId('colophon')).toContainText('Set in EB Garamond; the small print in Inter.')
+  await expect(page.getByTestId('colophon')).not.toContainText('Errata')
+  await expect(page.getByTestId('colophon').getByTestId('device')).toBeVisible()
   await page.screenshot({ path: 'e2e/shots/night-journal-empty.png' })
 })
 
@@ -95,6 +122,9 @@ test('an unknown path is a leaf wanting, before and after the door', async ({ pa
   await expect(leaf).toContainText('This page is not in our copy.')
   await expect(leaf).toContainText('/no-such-leaf')
   await expect(leaf.getByTestId('device')).toBeVisible()
+  // One device on the page; the colophon keeps the errata line here.
+  await expect(page.getByTestId('device')).toHaveCount(1)
+  await expect(page.getByTestId('colophon')).toContainText('Errata: probably.')
   await page.screenshot({ path: 'e2e/shots/night-404.png' })
   await leaf.getByRole('button', { name: 'Back to the council' }).click()
   await expect(page).toHaveURL(/\/$/)
@@ -156,9 +186,16 @@ test('a sitting: the flame flickers while the group thinks and rests under reduc
   await expect(gloss.locator('.rubric')).toHaveText('You push back')
   expect(await gloss.getByRole('textbox').evaluate((el) => getComputedStyle(el).fontStyle)).toBe('italic')
 
-  // The catalogue note sits beside the disclosure, which is word for word what it was.
-  await expect(page.getByTestId('not-sought')).toHaveText('Authors’ approval: not sought. None of them has read this.')
+  // No catalogue note inside a conversation; the disclosure is word for word what it was.
+  await expect(page.getByTestId('not-sought')).toHaveCount(0)
   await expect(page.getByText('Simulations inspired by the documented ideas and work of real people, generated by AI.')).toBeVisible()
+
+  // The facilitator's line is at full strength once it has arrived (its fade is 320 ms, once).
+  await page.waitForTimeout(500)
+  expect(await page.getByTestId('facilitator').first().evaluate((el) => getComputedStyle(el.closest('li')!).opacity)).toBe('1')
+  // A chip that cannot be pressed is dimmed by colour, not opacity.
+  const chip = page.getByRole('button', { name: 'I disagree' })
+  expect(await chip.evaluate((el) => getComputedStyle(el).opacity)).toBe('1')
   await gloss.scrollIntoViewIfNeeded()
   await settle(page)
   await page.screenshot({ path: 'e2e/shots/night-gloss.png' })
@@ -197,6 +234,10 @@ for (const [label, viewport] of [
     await shot(page, '05-reading-advisers')
     await page.goto('/quick')
     await shot(page, '06-quick-verdict', true)
+    await page.goto('/ideas')
+    await shot(page, '19-my-ideas', true)
+    await page.goto('/privacy')
+    await shot(page, '18-privacy-full', true)
 
     await page.goto('/')
     await page.getByRole('button', { name: 'Begin' }).click()
@@ -257,12 +298,89 @@ for (const [label, viewport] of [
     await shot(door, '18-privacy')
     await fresh.close()
 
+    // The What's new sheet, as a returning reader meets it.
+    const back = await browser.newContext({
+      viewport,
+      storageState: { cookies: [], origins: [{ origin: 'http://localhost:4173', localStorage: [{ name: 'council:key', value: 'tallow-candle' }, { name: 'fw:whats-new', value: '0.9.0' }] }] },
+    })
+    const wn = await back.newPage()
+    await wn.goto('/')
+    await expect(wn.getByRole('dialog', { name: "What's new" })).toBeVisible()
+    await wn.waitForTimeout(3200)
+    await shot(wn, '20-whats-new')
+    await back.close()
+
     // The device at its sizes, for a close look.
     await page.goto('/no-such-leaf')
     await page.getByTestId('not-found').getByTestId('device').screenshot({ path: `${dir}/device-92-${label}.png` })
-    await page.getByTestId('colophon').getByTestId('device').screenshot({ path: `${dir}/device-48-${label}.png` })
+    await page.goto('/journal')
+    await page.getByTestId('colophon').getByTestId('device').screenshot({ path: `${dir}/device-64-${label}.png` })
   })
 }
+
+test('the other rooms are the same book: intake, quick verdict, my ideas, privacy', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('council:trust-seen', '1'))
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Begin' }).click()
+  await expect(page.locator('.rubric', { hasText: 'Your question' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Your question' })).toHaveCount(1)
+  expect(await page.locator('label[for="f-goal"]').evaluate((el) => getComputedStyle(el, '::first-letter').color)).toBe('rgb(207, 145, 121)')
+  await page.screenshot({ path: 'e2e/shots/night-intake.png' })
+
+  await page.goto('/quick')
+  const daily = page.getByTestId('daily-card')
+  await expect(daily.getByTestId('headpiece')).toBeVisible()
+  await expect(daily.locator('.rubric')).toContainText('Today’s question')
+  await expect(page.getByRole('heading', { level: 1, name: 'Quick verdict' })).toHaveCount(1)
+  await expect(page.getByTestId('colophon')).not.toContainText('Errata')
+
+  await page.goto('/ideas')
+  await expect(page.getByTestId('blank-leaf')).toContainText('This page is blank, as issued.')
+  await expect(page.getByTestId('blank-leaf')).toContainText('Nothing here yet.')
+  await expect(page.getByTestId('colophon')).not.toContainText('Errata')
+  await page.screenshot({ path: 'e2e/shots/night-ideas.png' })
+
+  await page.goto('/privacy')
+  await expect(page.getByTestId('running-head')).toHaveText('Privacy')
+  await expect(page.locator('h2.rubric')).toHaveText(['Your content', 'Using this for work?', 'Who is responsible'])
+  await expect(page.getByTestId('colophon')).toBeVisible()
+})
+
+test('the versal box follows the question: 58 px round a wrapped one, 40 px beside a single line', async ({ page }) => {
+  await page.goto('/')
+  const box = page.getByTestId('today').getByTestId('versal')
+  const text = page.getByTestId('today').locator('.versal-boxed')
+  const lines = async () => {
+    const m = await text.evaluate((el) => [el.getBoundingClientRect().height, parseFloat(getComputedStyle(el).lineHeight)])
+    return Math.round(m[0] / m[1])
+  }
+  // Phone: the question wraps; every line has the same leading (the hidden letter adds none).
+  expect(await lines()).toBeGreaterThanOrEqual(2)
+  expect((await box.boundingBox())!.width).toBe(58)
+  const m = await text.evaluate((el) => [el.getBoundingClientRect().height, parseFloat(getComputedStyle(el).lineHeight)])
+  expect(m[0] % m[1]).toBe(0)
+  // The letter sits in the middle of its box.
+  const offset = await box.evaluate((el) => {
+    const r = document.createRange()
+    const probe = document.createElement('span')
+    probe.textContent = el.getAttribute('data-letter')
+    Object.assign(probe.style, { font: getComputedStyle(el, '::after').font, position: 'absolute', lineHeight: '1' })
+    el.append(probe)
+    r.selectNodeContents(probe)
+    const h = probe.getBoundingClientRect().height
+    probe.remove()
+    return (el.clientHeight - h) / 2
+  })
+  expect(offset).toBeGreaterThanOrEqual(0)
+  // Wide: it fits one line, and the box shrinks to the line.
+  await page.setViewportSize({ width: 2400, height: 900 })
+  await page.addStyleTag({ content: '.max-w-xl{max-width:2000px!important}' })
+  await expect.poll(lines).toBe(1)
+  await expect.poll(async () => (await box.boundingBox())!.width).toBe(40)
+  const b = (await box.boundingBox())!
+  const t = (await text.boundingBox())!
+  expect(Math.abs(b.y + b.height / 2 - (t.y + t.height / 2))).toBeLessThanOrEqual(1)
+})
 
 test('disclosure text is unchanged on the classics roster', async ({ page }) => {
   await page.goto('/')

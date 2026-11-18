@@ -15,10 +15,12 @@ export function BottomNav() {
   return (
     <nav
       aria-label="Main navigation"
-      className="fixed inset-x-0 bottom-0 z-30 border-t border-ink-700 bg-ink-950/92 backdrop-blur"
+      data-testid="tabs-foot"
+      className="fixed inset-x-0 bottom-0 z-30 bg-ink-950"
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
-      <ul className="mx-auto flex max-w-xl">
+      {/* The rule belongs to the page: it runs the column, not the window. */}
+      <ul className="mx-auto flex h-[58px] max-w-xl border-t border-ink-700">
         {TABS.map((tab) => {
           const active = view === tab.view || (tab.view === 'home' && view === 'session')
           return (
@@ -28,7 +30,7 @@ export function BottomNav() {
                 onClick={() => go(tab.view)}
                 aria-current={active ? 'page' : undefined}
                 aria-label={tab.name}
-                className={`tabs-foot flex min-h-14 w-full items-center justify-center border-t-2 ${
+                className={`tabs-foot -mt-px flex h-full w-full items-center justify-center border-t-2 ${
                   active ? 'border-clay-400 text-marble-50' : 'border-transparent text-marble-400 hover:text-marble-200'
                 }`}
               >

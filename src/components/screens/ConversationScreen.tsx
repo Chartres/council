@@ -13,7 +13,6 @@ import { CouncilMap } from '@/components/CouncilMap'
 import { SignInPanel } from '@/components/SignInPanel'
 import { Quaestio } from '@/components/Quaestio'
 import { Device } from '@/components/Furniture'
-import { NOT_SOUGHT } from '@/content/catalogue'
 import { quaestio, verifiedLine } from '@/domain/quaestio'
 import { BUSINESS_DISCLOSURE, DISCLOSURE, personaName } from '@/content/personas'
 import { FAILURE_COPY, type Turn } from '@/domain/council'
@@ -332,11 +331,7 @@ function ConversationView() {
         </>
       )}
 
-      {/* The catalogue note sits beside the disclosure; the disclosure itself is unchanged. */}
-      <p className="t-note mt-12 text-balance text-center" data-testid="not-sought">
-        {NOT_SOUGHT}
-      </p>
-      <p className="t-fine mt-2 text-balance text-center">
+      <p className="t-fine mt-12">
         {roster === 'business' ? BUSINESS_DISCLOSURE : DISCLOSURE}
       </p>
       {/* Room for the voice bar, so the reply box and the last line are never under it. */}
@@ -646,7 +641,7 @@ function ProposalCard({ item: raw, index, steer, inert }: { item: Proposal; inde
                 aria-label="Remind me by email on that day"
                 checked={remind}
                 onChange={(e) => setRemind(e.target.checked)}
-                className="h-5 w-5 accent-candle-400"
+                className="check"
               />
               Remind me
             </label>

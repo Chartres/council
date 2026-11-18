@@ -235,13 +235,19 @@ export function IntakeScreen() {
 
   return (
     <div className="mx-auto max-w-xl px-4 pb-12">
-      <button type="button" onClick={() => go('start')} className="text-btn -ml-3 px-3 text-marble-400">
-        ← Back
-      </button>
+      <h1 className="sr-only">Your question</h1>
+      <div className="flex items-center justify-between">
+        <button type="button" onClick={() => go('start')} className="text-btn -ml-3 px-3 text-marble-400">
+          ← Back
+        </button>
+        <p className="rubric" aria-hidden="true">
+          Your question
+        </p>
+      </div>
 
       <TrustNote />
 
-      <label htmlFor="f-goal" className={`t-note mt-2 block ${field === 'goal' ? 'text-candle-300' : 'text-marble-300'}`}>
+      <label htmlFor="f-goal" className={`t-note versal-raised mt-2 block ${field === 'goal' ? 'text-candle-300' : 'text-marble-200'}`}>
         {goal.q}
       </label>
       {voiceBar('goal', goal.label)}

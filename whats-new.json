@@ -4,8 +4,8 @@
   "items": [
     {
       "id": "book-page",
-      "text": "Every screen is now set as a book page, with running heads, rubrics and a colophon.",
-      "alt": "A running head, a double rule, a red rubric and a question under a large red initial appear one after another",
+      "text": "The app is now set as a book: running heads, red rubrics and a colophon.",
+      "alt": "A running head, a double rule, a red rubric and a question beside a boxed red initial appear one after another",
       "media": "/whats-new/1.2.0/page.html",
       "width": 390,
       "height": 150

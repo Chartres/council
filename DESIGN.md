@@ -38,7 +38,7 @@ The steps were re-derived on 17 Nov 2026 for Garamond's x-height (about 0.40 em 
 0.55): 19 px Garamond reads at the size 15 px Inter did, so Body moved 17 → 19, Title 20 → 22 and
 the label from 13 px capitals to 17 px small capitals. Display stays.
 
-A 17 px secondary size is allowed: `.t-note` (italic: the catalogue note, the colophon, hints),
+A 17 px secondary size is allowed: `.t-note` (hints, upright; the catalogue note and the colophon add italic),
 `.t-ref` (small capitals: a reference under a quotation, a date), chips (18 px italic) and the
 facilitator line. `.t-fine` is Inter 13/18 for the legal line. Nothing under 13 px.
 
@@ -54,7 +54,8 @@ facilitator line. `.t-fine` is Inter 13/18 for the legal line. Nothing under 13 
   touch. A disabled action is `.slab-off`: an ink-500 outline with marble-300 text.
 - **Three gaps:** 8 px within an item, 24 between items, 48 between sections.
 - **Three chips:** the conversation shows "I disagree", "Make this concrete" and "Wrap up" as
-  `.chip`s (italic in a thin ruled box, marble-500 edge at 3.9:1, 40 px) in one scrolling row,
+  `.chip`s (italic in a thin ruled box, marble-500 edge at 3.9:1, 40 px; disabled: marble-400 text on an
+  ink-600 edge, no opacity) in one scrolling row,
   plus "More ›" for the rest.
 
 ## The book page (Night edition, 17 Nov 2026)
@@ -69,17 +70,24 @@ Pavol picked option 2 of three ("Option 2 is good, with a bit more graphics, i l
 - **Rubrics** (`.rubric`): clay-red small capitals for section words on every screen. Clay-400 on
   ink-950 measures 7.3:1 (6.6:1 on the proposal card's tint), so the token did not move.
 - **Versal** (`Versal` in `Furniture.tsx`): the first letter of today's question and of the
-  quaestio's question in clay red inside a 58 px foliate square. The text node stays whole; the
+  quaestio's question in clay red inside a foliate square: 58 px with the text running round it when
+  the question wraps, 40 px beside it when it fits one line. The intake's question has a raised
+  red initial (`.versal-raised`), since a box would crowd the field. The text node stays whole; the
   box is `aria-hidden`. A question that does not open on a capital is set plain.
 - **Roster**: name, dotted leader, year of death (`died` in `src/content/personas.ts`).
 - **Glosses**: her margin notes under a 2 px clay rule, the stance as a rubric, her line in italic.
 - **Furniture** (`src/components/Furniture.tsx`, all inline SVG, ink line 1.7 with 0.6–0.9
   hatching): `Device`, `Headpiece`, `Tailpiece`, `Manicule`, `Versal`, `BlankLeaf`, `Colophon`.
-  The device's static copies (`public/device.svg`, `device-tile.svg`, `favicon.svg`) are written by
+  The device is coarse under 60 px (oval, flame, candle, a book of two boards, spine and
+  fore-edge) and fine from 60 px. The device's static copies (`public/device.svg`, `device-tile.svg`, `favicon.svg`) are written by
   `WRITE_ASSETS=1 npx vitest run scripts/device-asset.test.mjs`; the same test fails when they are
   stale. The share card: flywheel `scripts/og-image.mjs --icon public/device-tile.svg`.
 - **The catalogue note** (`src/content/catalogue.ts`): one voice bit on the boring surfaces. It
   sits beside the facts and the disclosure and replaces neither.
+- **Page edge**: from 768 px a double hairline down each side of the 36 rem column (`.page`), the
+  tab rule kept to the column, a folio at the foot. The reading pages draw the same frame.
+- **Italic** is for text buttons, chips, glosses, the facilitator, the year of death and the
+  catalogue voice (blank leaf, colophon). Hints and notes are upright.
 - **Motion**: the device's flame leans while the group thinks (`.device-flicker`, 1.8 s); under
   `prefers-reduced-motion` it stands still (`e2e/night.spec.ts`).
 - **Fonts**: `index.html` asks for EB Garamond 400/500/600 and italic 400/500 with

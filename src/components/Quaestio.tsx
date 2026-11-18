@@ -11,7 +11,7 @@ function Part({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="mt-4">
       <p className="rubric">
-        <span aria-hidden="true" className="mr-1.5 text-[19px]">
+        <span aria-hidden="true" className="mr-1.5 font-normal opacity-70">
           ¶
         </span>
         <span data-testid="rubric">{label}</span>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import whatsNew from '../../whats-new.json'
-import { ADVISER_COUNT, COLOPHON, EDITION, NONE_LIVING } from './catalogue'
+import { ADVISER_COUNT, COLOPHON, EDITION, ERRATA, NONE_LIVING } from './catalogue'
 import { BUSINESS, PERSONAS } from './personas'
 
 const ALL = [...PERSONAS, ...BUSINESS.slice(0, 3)]
@@ -17,8 +17,8 @@ describe('the catalogue note', () => {
     for (const p of [...PERSONAS, ...BUSINESS]) expect(p.died, p.id).toMatch(/^d\. /)
   })
 
-  // Sources: docs/SIGNATURE.md "Visual signature" (Encyclopaedia Britannica and Wikipedia
-  // biographies, read 2026-11-17). The Buddha's date is disputed; both scholarly dates are printed.
+  // Sources: docs/SIGNATURE.md "Visual signature" (English Wikipedia biographies, read
+  // 2026-11-17). The Buddha's date is disputed; both scholarly dates are printed.
   it('prints the years of death as checked', () => {
     expect(Object.fromEntries(ALL.map((p) => [p.id, p.died]))).toEqual({
       socrates: 'd. 399 BC',
@@ -37,6 +37,9 @@ describe('the catalogue note', () => {
   it('the colophon names the edition from whats-new.json', () => {
     expect(EDITION).toBe(whatsNew.version)
     expect(COLOPHON[0]).toBe(`Mastermind Council, edition ${whatsNew.version}.`)
-    expect(COLOPHON.join(' ')).toContain('Errata: probably. Report them under Feedback.')
+    expect(COLOPHON).toContain('Set in EB Garamond; the small print in Inter.')
+    // The errata line is its own piece: only the start screen and the missing leaf print it.
+    expect(COLOPHON.join(' ')).not.toContain('Errata')
+    expect(ERRATA.join(' ')).toBe('Errata: probably. Report them under Feedback.')
   })
 })

@@ -20,10 +20,13 @@ export const PRIVATELY_PRINTED = 'Privately printed'
 
 export const EDITION: string = whatsNew.version
 
-/** The colophon, line by line, set to taper. */
+/** The colophon, line by line. */
 export const COLOPHON = [
   `Mastermind Council, edition ${EDITION}.`,
   `${counted} advisers, none living; simulated by AI.`,
-  'Set in EB Garamond. Errata: probably.',
-  'Report them under Feedback.',
+  'Set in EB Garamond; the small print in Inter.',
 ]
+/** Only on the start screen and the missing leaf: not under a reader's own decisions. */
+export const ERRATA = ['Errata: probably.', 'Report them under Feedback.']
+/** The count as a word, for copy that names it (index.html and the share card are checked against it). */
+export const ADVISERS_WORD = counted

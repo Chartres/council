@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "Mastermind Council — bring an idea, seven historical thinkers debate it and return a verdict with one next action.",
+  "description": "Mastermind Council — bring an idea, up to four of ten historical thinkers debate it and return a verdict with one next action.",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { COLOPHON } from '@/content/catalogue'
+import { COLOPHON, ERRATA } from '@/content/catalogue'
 import { Colophon, Device, Versal } from './Furniture'
 
 describe('Furniture', () => {
@@ -14,7 +14,9 @@ describe('Furniture', () => {
   it('the device keeps its flame at every size and flickers only when asked', () => {
     const { container, rerender } = render(<Device size={24} />)
     expect(container.querySelector('.device-flame')).not.toBeNull()
-    expect(container.querySelector('text')).toBeNull() // no initials under 48 px
+    expect(container.querySelector('text')).toBeNull() // no initials under 60 px
+    rerender(<Device size={48} />)
+    expect(container.querySelector('text')).toBeNull()
     expect(screen.getByTestId('device')).not.toHaveClass('device-flicker')
     rerender(<Device size={160} flicker />)
     expect(container.querySelectorAll('text')).toHaveLength(2)
@@ -34,8 +36,14 @@ describe('Furniture', () => {
     expect(screen.getByText('“Enough” — is it?')).toBeInTheDocument()
   })
 
-  it('the colophon prints every line of the catalogue entry', () => {
-    render(<Colophon />)
+  it('the colophon prints the edition and the faces; the errata line and the device only where asked', () => {
+    const { rerender } = render(<Colophon folio="ii" />)
     for (const line of COLOPHON) expect(screen.getByText(line)).toBeInTheDocument()
+    expect(screen.queryByText(ERRATA[0])).toBeNull()
+    expect(screen.getByTestId('device')).toBeInTheDocument()
+    expect(screen.getByTestId('folio')).toHaveTextContent('ii')
+    rerender(<Colophon errata device={false} />)
+    for (const line of ERRATA) expect(screen.getByText(line)).toBeInTheDocument()
+    expect(screen.queryByTestId('device')).toBeNull()
   })
 })
