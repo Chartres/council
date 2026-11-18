@@ -73,6 +73,12 @@ const ROWS: [string, string, string, string][] = [
     'Ids, token counts, model and refusal reasons, plus Cloudflare’s own request metadata. No message text',
   ],
   ['Your email address', 'Supabase Auth', 'While the account exists', 'Pavol; Resend when sending sign-in links'],
+  [
+    'Your email address and whether your account is approved',
+    'Cloudflare Durable Object (our gateway); one email to Pavol through Resend when you first ask, one to you when approved',
+    'Until you delete your account',
+    'The gateway code; Pavol; Resend when sending those two emails',
+  ],
 ]
 
 export function PrivacyScreen() {

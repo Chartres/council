@@ -5,7 +5,7 @@
 // Both require the private-beta header `x-council-key` and answer with an SSE stream of:
 //   {type:"session", session_id, tier, model} {type:"turn", persona, text}
 //   … {type:"verdict", summary, next_action, votes} … {type:"done", usage:{cost_cents}}
-// Error bodies: 401 {reason:"password"|"sign_in"} · 429 {reason:"quota"} · 503 {reason:"cap"}
+// Error bodies: 401 {reason:"password"|"approval"|"sign_in"} · 429 {reason:"quota"} · 503 {reason:"cap"}
 // Two reasons share 401, so the body wins over the status when it names one.
 //
 // EventSource cannot POST, so this is fetch + a hand-rolled SSE reader. That also
@@ -36,7 +36,7 @@ export type CouncilEvent =
   | { type: 'error'; reason: string; message?: string }
 
 /** `turns` / `captures`: one session's own limits (gateway 429), not the daily council quota. */
-export type FailureReason = 'password' | 'sign_in' | 'quota' | 'turns' | 'captures' | 'cap' | 'gateway'
+export type FailureReason = 'password' | 'approval' | 'sign_in' | 'quota' | 'turns' | 'captures' | 'cap' | 'gateway'
 
 export class CouncilError extends Error {
   constructor(
@@ -194,6 +194,7 @@ export function voteSplit(votes: Record<string, Vote>): { for: number; against: 
 
 export const FAILURE_COPY: Record<FailureReason, string> = {
   password: 'That password was not accepted. Check it with Pavol and try again.',
+  approval: 'Your account is waiting for approval.',
   sign_in: 'Your free session is used up. Sign in to keep this idea and convene again.',
   quota: 'You have reached today’s limit of three councils. Come back tomorrow.',
   turns: 'This session has had all its turns. Wrap up to keep the decision, or start a new council.',

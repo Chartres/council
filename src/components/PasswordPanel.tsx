@@ -10,11 +10,15 @@ import { SignInPanel } from '@/components/SignInPanel'
  * costs the idea text an in-flight convene/reply would otherwise have carried.
  */
 export function PasswordPanel() {
-  const { submitKey, checkingKey, keyError } = useCouncil()
-  const { user, configured } = useAuth()
+  const { submitKey, checkingKey, keyError, gate, checkAgain } = useCouncil()
+  const { user, configured, signOut } = useAuth()
   const [value, setValue] = useState('')
   const [signIn, setSignIn] = useState(false)
+  const [checking, setChecking] = useState(false)
+  const [stillWaiting, setStillWaiting] = useState(false)
   const disabled = !value.trim() || checkingKey
+  // Pavol, 17 Nov: a signed-in account waits for his approval; the password still opens.
+  const waiting = gate === 'approval'
 
   return (
     <div className="mx-auto max-w-xl px-4 pt-3 pb-6">
@@ -23,13 +27,47 @@ export function PasswordPanel() {
         data-testid="password-panel"
         className="pt-3"
       >
-        <h1 className="t-display">Enter the council password</h1>
-        <p className="t-body mt-2 text-marble-300">
-          The council is in private beta. The password comes from Pavol.
-        </p>
+        {waiting ? (
+          <>
+            <h1 className="t-display">Waiting for approval</h1>
+            <p className="t-body mt-2 text-marble-300" data-testid="approval-waiting">
+              Pavol has been told that {user?.email ?? 'your account'} would like to join. You will get in as soon as he
+              approves. If you have the council password, you can enter it below.
+            </p>
+            <div className="mt-4">
+              <button
+                type="button"
+                className="slab"
+                disabled={checking}
+                onClick={async () => {
+                  setChecking(true)
+                  setStillWaiting(!(await checkAgain()))
+                  setChecking(false)
+                }}
+              >
+                {checking ? 'Checking…' : 'Check again'}
+              </button>
+              <button type="button" className="text-btn -ml-3 mt-2 px-3" onClick={() => void signOut()}>
+                Sign out
+              </button>
+            </div>
+            {stillWaiting && (
+              <p className="t-body mt-2 text-marble-300" role="status" data-testid="approval-still-waiting">
+                Not approved yet.
+              </p>
+            )}
+          </>
+        ) : (
+          <>
+            <h1 className="t-display">Enter the council password</h1>
+            <p className="t-body mt-2 text-marble-300">
+              The council is in private beta. The password comes from Pavol.
+            </p>
+          </>
+        )}
         {/* Eyal, 30 Oct: on a new laptop the email code signed him in and this door still asked
             for "the password". They are two different things; say which is which. */}
-        {configured && (
+        {configured && !waiting && (
           <p className="t-body mt-2 text-marble-300" data-testid="password-vs-account">
             {user
               ? `You are signed in as ${user.email ?? 'your account'}, but the council did not accept the sign-in this time. The beta password still works.`

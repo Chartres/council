@@ -60,7 +60,7 @@ const ask = (id: string) => INTAKE_QUESTIONS.find((q) => q.id === id)!.q
 
 /** One screen: bring what you have, ask your AI, or talk it through; then review and go. */
 export function IntakeScreen() {
-  const { go, councilKey, lockDoor } = useCouncil()
+  const { go, councilKey, lockDoor, lockApproval } = useCouncil()
   const { token } = useAuth()
   const { begin, lastIntake } = useMastermind()
   const [answers, setAnswers] = useState<Intake>(() => stableIntake(lastIntake))
@@ -94,6 +94,7 @@ export function IntakeScreen() {
   const failed = (e: unknown) => {
     const code = e instanceof ExtractError ? e.code : 'gateway'
     if (code === 'password') lockDoor()
+    if (code === 'approval') lockApproval()
     setNote(EXTRACT_COPY[code])
   }
 
@@ -129,7 +130,7 @@ export function IntakeScreen() {
           got = await extractIntake(f, { gatewayUrl: GATEWAY_URL, token, councilKey })
         } catch (e) {
           const code = e instanceof ExtractError ? e.code : 'gateway'
-          if (code === 'password' || code === 'quota') return failed(e)
+          if (code === 'password' || code === 'approval' || code === 'quota') return failed(e)
           skipped.push({ name: f.name, size: f.size, reason: 'could not be read' })
           continue
         }

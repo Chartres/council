@@ -150,6 +150,8 @@ test('signed in: the journal comes from the account, export holds it, delete eve
   // user's are untouched.
   const s = await state(page)
   expect(s.rpc_calls).toEqual([{ fn: 'council_delete_me', sub: ME.id }])
+  // The gateway's approval record went first (Pavol, 17 Nov).
+  expect(await (await page.request.get('http://localhost:8787/__forgotten')).json()).toEqual([ME.id])
   expect(s.users.map((u) => u.id)).toEqual([OTHER.id])
   for (const [table, list] of Object.entries(s.rows)) {
     expect(list.filter((r) => r.user_id === ME.id), table).toEqual([])

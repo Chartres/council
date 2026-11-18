@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 // The beta door as the provider decides it (review 15 Nov): signed in passes it, loading waits,
 // and signing in at the door after a 401 closes it and resumes what was refused.
@@ -25,6 +25,9 @@ function Probe() {
       <button type="button" onClick={c.lockDoor}>
         lock
       </button>
+      <button type="button" onClick={() => void c.checkAgain()}>
+        again
+      </button>
     </>
   )
 }
@@ -36,20 +39,33 @@ const app = () => (
 const gate = () => screen.getByTestId('gate').textContent
 const signIn = () => Object.assign(auth, { user: { id: 'u1', email: 'eyal@test.dravec.org' }, token: 'jwt', loading: false })
 
+/** The gateway's door, as `GET /v1/council/access` answers it. */
+const door = { status: 204, reason: '' }
+const probes = vi.fn()
+vi.stubGlobal('fetch', async (url: string) => {
+  probes(url)
+  return door.status === 204 ? new Response(null, { status: 204 }) : new Response(JSON.stringify({ reason: door.reason }), { status: door.status })
+})
+
 beforeEach(() => {
+  Object.assign(door, { status: 204, reason: '' })
+  probes.mockReset()
   localStorage.clear()
   Object.assign(auth, { user: null, token: null, loading: false })
   council.openSession.mockReset()
 })
 
 describe('CouncilProvider gate', () => {
-  it('asks a signed-out first visitor, and lets a signed-in user in with no stored key', () => {
+  it('asks a signed-out first visitor, and lets a signed-in user in with no stored key', async () => {
     const { unmount } = render(app())
     expect(gate()).toBe('ask')
     unmount()
     signIn()
     render(app())
-    expect(gate()).toBe('ready')
+    // One access probe first, on the blank ground, then in.
+    expect(gate()).toBe('wait')
+    await waitFor(() => expect(gate()).toBe('ready'))
+    expect(probes).toHaveBeenCalledWith('/v1/council/access')
   })
 
   it('waits while the sign-in is loading and no key is stored', () => {
@@ -85,5 +101,37 @@ describe('CouncilProvider gate', () => {
     expect(council.openSession.mock.calls[1]![0]).toMatchObject({ idea: 'Hire a first engineer?' })
     expect(council.openSession.mock.calls[1]![1]).toMatchObject({ token: 'jwt' })
     expect(gate()).toBe('ready')
+  })
+
+  // Pavol, 17 Nov: new registrations wait for his approval.
+  it('a signed-in account still waiting meets the approval door before anything else', async () => {
+    Object.assign(door, { status: 401, reason: 'approval' })
+    signIn()
+    render(app())
+    expect(gate()).toBe('wait')
+    await waitFor(() => expect(gate()).toBe('approval'))
+  })
+
+  it('a council refused for approval waits at the door and runs again after Check again says yes', async () => {
+    signIn()
+    council.openSession.mockImplementationOnce(async function* () {
+      throw new CouncilError('approval')
+    })
+    council.openSession.mockImplementationOnce(async function* () {
+      yield { type: 'done' }
+    })
+    render(app())
+    await waitFor(() => expect(gate()).toBe('ready'))
+    await act(async () => fireEvent.click(screen.getByText('go')))
+    expect(gate()).toBe('approval')
+    Object.assign(door, { status: 401, reason: 'approval' })
+    await act(async () => fireEvent.click(screen.getByText('again')))
+    expect(gate()).toBe('approval')
+    expect(council.openSession).toHaveBeenCalledTimes(1)
+    Object.assign(door, { status: 204, reason: '' })
+    await act(async () => fireEvent.click(screen.getByText('again')))
+    expect(gate()).toBe('ready')
+    expect(council.openSession).toHaveBeenCalledTimes(2)
+    expect(council.openSession.mock.calls[1]![0]).toMatchObject({ idea: 'Hire a first engineer?' })
   })
 })

@@ -32,6 +32,23 @@ export function shapeExport(rows: ExportRows, email: string | undefined, now: Da
 
 export const exportFilename = (now: Date) => `council-export-${now.toISOString().slice(0, 10)}.json`
 
+/**
+ * The gateway's approval record for this account (email and state), deleted before the
+ * Supabase rows. 204 or 404 (a gateway older than the route) count as done; anything else
+ * is false, and the caller stops so nobody is told everything is gone when it is not.
+ */
+export async function forgetAccess(gatewayUrl: string, token: string | null): Promise<boolean> {
+  try {
+    const res = await fetch(`${gatewayUrl.replace(/\/$/, '')}/v1/council/access`, {
+      method: 'DELETE',
+      headers: { authorization: `Bearer ${token ?? ''}` },
+    })
+    return res.status === 204 || res.status === 404
+  } catch {
+    return false
+  }
+}
+
 /** Every key this app keeps in the browser except the beta password, plus the Supabase session. */
 export function clearLocalState(storage: Storage = localStorage) {
   try {

@@ -23,7 +23,7 @@ import {
   type Verdict,
 } from '@/domain/council'
 import { loadLocal, loadRemote, saveLocal, saveRemote, type SavedIdea } from '@/domain/ideas'
-import { checkKey, gateState, loadKey, saveKey, type GateState } from '@/domain/key'
+import { checkAccess, checkKey, gateState, loadKey, saveKey, type Access, type GateState } from '@/domain/key'
 import { loadTier, saveTier } from '@/domain/tier'
 import { fetchUsage, type Usage } from '@/domain/usage'
 
@@ -94,6 +94,11 @@ interface CouncilContextValue {
   councilKey: string | null
   /** A v4 call got 401 {reason:"password"}: reopen the door. */
   lockDoor: () => void
+  /** A call got 401 {reason:"approval"}: the door in its waiting state. */
+  lockApproval: () => void
+  /** The waiting door's "Check again": asks the gateway, and on yes reopens what was refused.
+   *  False while still waiting. */
+  checkAgain: () => Promise<boolean>
 }
 
 const CouncilContext = createContext<CouncilContextValue | null>(null)
@@ -103,7 +108,10 @@ export const GATEWAY_URL = (import.meta.env.VITE_GATEWAY_URL as string | undefin
 export function CouncilProvider({ children }: { children: ReactNode }) {
   const { user, token, loading } = useAuth()
   const [view, setView] = useState<View>(() => viewFromPath(window.location.pathname))
-  const [locked, setLocked] = useState(false)
+  const [locked, setLocked] = useState<'password' | 'approval' | null>(null)
+  // The access probe's answer, per user, so a token refresh does not probe (and blank the
+  // screen) again.
+  const [access, setAccess] = useState<{ id: string; state: Access } | null>(null)
   const [picked, setPicked] = useState<string[]>(DEFAULT_PERSONA_IDS)
   const [session, setSession] = useState<SessionState | null>(null)
   const [ideas, setIdeas] = useState<SavedIdea[]>(() => loadLocal())
@@ -177,6 +185,11 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
     [user],
   )
 
+  const lockApproval = useCallback(() => {
+    setLocked('approval')
+    if (user) setAccess({ id: user.id, state: 'approval' })
+  }, [user])
+
   const consume = useCallback(
     async (events: AsyncGenerator<CouncilEvent>, base: SessionState, pending: PendingAction) => {
       let state = base
@@ -224,6 +237,10 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
         if (e instanceof CouncilError) {
           keyAction('blocked', { reason: e.reason })
           commit({ streaming: false, failure: e.reason })
+          if (e.reason === 'approval') {
+            setPendingResume(pending)
+            lockApproval()
+          }
           // The key that opened the panel was fine a moment ago and just got rotated.
           // Reopen the door (gateState reacts to failure:'password') but keep the idea
           // text and personas already captured in `pending`/session state, and remember
@@ -235,7 +252,7 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
         }
       }
     },
-    [persist, refreshUsage],
+    [persist, refreshUsage, lockApproval],
   )
 
   // Takes the key explicitly rather than reading `councilKey` state, so a resume right
@@ -350,7 +367,7 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
 
       saveKey(trimmed)
       setCouncilKey(trimmed)
-      setLocked(false)
+      setLocked(null)
       const pending = pendingResume
       setPendingResume(null)
       if (pending?.kind === 'convene') {
@@ -370,7 +387,7 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
   // too, which is harmless: nothing is locked or pending then.
   useEffect(() => {
     if (!token) return
-    setLocked(false)
+    setLocked(null)
     setKeyError(null)
     const pending = pendingResume
     setPendingResume(null)
@@ -378,6 +395,32 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
     else if (pending?.kind === 'reply') runReply(pending.message, councilKey)
     else setSession((s) => (s?.failure === 'password' ? { ...s, failure: null } : s))
   }, [token])
+
+  // Signed in with no stored password: ask the door once per user before the app opens, so
+  // an account waiting for approval meets the door before typing anything (Pavol, 17 Nov).
+  const userId = user?.id
+  useEffect(() => {
+    if (!userId || !token || councilKey || access?.id === userId) return
+    let current = true
+    void checkAccess(GATEWAY_URL, token, null).then((state) => current && setAccess({ id: userId, state }))
+    return () => {
+      current = false
+    }
+  }, [userId, token, councilKey, access?.id])
+
+  const checkAgain = useCallback(async () => {
+    if (!user || !token) return false
+    const state = await checkAccess(GATEWAY_URL, token, councilKey)
+    setAccess({ id: user.id, state })
+    if (state !== 'ok') return false
+    setLocked(null)
+    const pending = pendingResume
+    setPendingResume(null)
+    if (pending?.kind === 'convene') runConvene(pending.idea, pending.dailyKey, pending.question, councilKey)
+    else if (pending?.kind === 'reply') runReply(pending.message, councilKey)
+    else setSession((s) => (s?.failure === 'approval' ? { ...s, failure: null } : s))
+    return true
+  }, [user, token, councilKey, pendingResume, runConvene, runReply])
 
   return (
     <CouncilContext.Provider
@@ -391,7 +434,13 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
         reply,
         ideas,
         open,
-        gate: gateState(councilKey, session?.failure ?? (locked ? 'password' : null), !!user, loading),
+        gate: gateState(
+          councilKey,
+          session?.failure ?? locked,
+          !!user,
+          loading,
+          !user ? 'ok' : access?.id === user.id ? access.state : councilKey ? 'ok' : 'checking',
+        ),
         submitKey,
         checkingKey,
         keyError,
@@ -400,7 +449,9 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
         setTier,
         usage,
         councilKey,
-        lockDoor: () => setLocked(true),
+        lockDoor: () => setLocked('password'),
+        lockApproval,
+        checkAgain,
       }}
     >
       {children}
