@@ -235,7 +235,7 @@ for (const [label, viewport] of [
     await page.goto('/quick')
     await shot(page, '06-quick-verdict', true)
     await page.goto('/ideas')
-    await shot(page, '19-my-ideas', true)
+    await shot(page, '21-my-ideas', true)
     await page.goto('/privacy')
     await shot(page, '18-privacy-full', true)
 

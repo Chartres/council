@@ -50,4 +50,4 @@ Mastermind Council at https://council.dravec.org, in private beta behind a passw
   - CIMD support in the gateway (for Smithery)
 
 ## What's next
-Pavol looks at the Night edition preview and the after-shots, then merge or changes. A parallel package adds a "Waiting for approval" state to the password door; its styling is checked against the Night edition when both have landed.
+Pavol looks at the Night edition preview and the after-shots, then merge or changes. The approval door (#39, merged 18 Nov) is styled in the same branch: device, "Privately printed", Check again as the slab.
