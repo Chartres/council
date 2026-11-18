@@ -135,7 +135,7 @@ function NodeView({ b }: { b: Box }) {
             x={x + 12 + disc}
             y={cy - ((lines.length - 1) * SANS_LH) / 2 + 5}
             lh={SANS_LH}
-            className="fill-marble-200 font-sans text-[15px]"
+            className="fill-marble-200 font-display text-[17px]"
           />
         </>
       )
@@ -151,7 +151,7 @@ function NodeView({ b }: { b: Box }) {
       return (
         <>
           <rect x={x} y={y} width={w} height={h} rx={Math.min(h / 2, 18)} className="fill-ink-850" />
-          <Lines lines={lines} x={x + 14} y={y + 21} lh={SANS_LH} className="fill-marble-300 font-sans text-[15px] font-medium" />
+          <Lines lines={lines} x={x + 14} y={y + 21} lh={SANS_LH} className="fill-marble-300 font-display text-[17px] font-medium" />
         </>
       )
     case 'action':

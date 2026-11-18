@@ -6,8 +6,9 @@ action. Answer back and the debate continues.
 
 **https://council.dravec.org** · free · no account for the first session
 
-Seven thinkers, up to four at a time: Socrates, Marcus Aurelius and Seneca sit by default;
-Buddha, Confucius, Benjamin Franklin and Maria Montessori are available. One shared question a
+Ten advisers, up to four at a time. Classics: Socrates, Marcus Aurelius and Seneca sit by default;
+Buddha, Confucius, Benjamin Franklin and Maria Montessori are available. Business: simulations
+inspired by Peter Drucker, Steve Jobs and Andy Grove, with Socrates. One shared question a
 day, the same for everyone, with a result card you can share that carries the vote split and
 never your own text.
 

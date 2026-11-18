@@ -1,6 +1,6 @@
 # Council: session summary
 
-One page, rewritten at every hand-back (AGENTS.md, "Working with the orchestrator"). Last rewrite: 2026-11-08.
+One page, rewritten at every hand-back (AGENTS.md, "Working with the orchestrator"). Last rewrite: 2026-11-18.
 
 ## What the product is now
 Mastermind Council at https://council.dravec.org, in private beta behind a password.
@@ -11,9 +11,11 @@ Mastermind Council at https://council.dravec.org, in private beta behind a passw
 - Voice out: the gateway's adviser voices, with the browser voice as fallback. Talk mode is hands-free and lets you cut in.
 - 20 public reading pages of verified classical quotes (`/on/`, `/advisers/`, `/how-it-works/`).
 - Model work happens in the gateway (`flywheel/gateway`), not here.
-- What's new sheet at 1.0.0 (#32).
+- What's new sheet at 1.1.0 on main; 1.2.0 on `design/night-edition`.
+- The look on `design/night-edition`: every screen set as a book page under the printer's device (Night edition, not merged).
 
 ## Pavol's rules in force
+- 2026-11-17: look option 2, Night edition: "Option 2 is good, with a bit more graphics, i love the logo." Logged in `docs/SIGNATURE.md`.
 - 2026-11-07: follow the orchestrator's packages unless a step is risky (the list is in AGENTS.md).
 - 2026-11-07: long-lived session, with this file rewritten at every hand-back.
 - 2026-11-01: the directory submission policy in `docs/distribution/directory-entries.md` is confirmed. Nothing has been submitted.
@@ -21,13 +23,14 @@ Mastermind Council at https://council.dravec.org, in private beta behind a passw
 - 2026-10-28: a signature move is built only after his pick. Decisions are logged in `docs/SIGNATURE.md`.
 
 ## Last three packages
-1. **3–4 Nov, Eyal's feedback and voice.**
-   - Laptop sign-in: the app asks for the emailed code, and the beta door says it isn't the account sign-in (#29, live, checked at 390 and 1280 px).
-   - Voice: a gateway line now times out after 6 s and the browser voice reads it, and the next line waits for it (#30).
-   - Eyal's 29 Oct report (past discussions) had already been fixed by #25.
-   - Ended: hand-back `docs/review/2026-11-03.json` (#31).
-2. **7 Nov, events allow-list v4.** Vendored from flywheel 24879ea, with `exam_result_reported` live. Ended: #33 merged.
-3. **7–8 Nov, orchestrator rules in AGENTS.md and this file.** The first try was blocked by the permission check; Pavol confirmed on 8 Nov. Ended: this PR.
+1. **7–8 Nov, orchestrator rules in AGENTS.md and this file.** Ended: #34 merged.
+2. **8 Nov, voice bar and Talk fixes.** A player bar for Talk (Pavol's option A, #36), each Talk turn timed (#35), Talk starts with the goal and the signed-in skip the beta door (#37). Ended: merged.
+3. **17–18 Nov, Night edition** (orchestrator package; Pavol picked option 2 on 17 Nov).
+   - Body, labels and buttons in EB Garamond; running head and text tabs; rubrics, versals, glosses; the roster with years of death; the colophon.
+   - The device as the mark (door, colophon, 404, thinking state, favicon, share card), with a headpiece, tailpiece, manicule and blank leaf in `src/components/Furniture.tsx`.
+   - The catalogue note on the boring surfaces (`src/content/catalogue.ts`); a 404 page ("Leaf wanting"); the 20 reading pages restyled; What's new 1.2.0.
+   - 18 Nov: an independent design review came back "merge after fixes"; its 23 items are applied (see the PR body), three of them as orchestrator defaults listed there under "Decisions for Pavol".
+   - Ended: PR open on `design/night-edition`, not merged, not deployed. After-shots in `docs/review/2026-11-17-night/`. Pavol's look is the gate.
 
 ## Open threads
 - Pavol closes Eyal's two feedback items with `scripts/feedback.mjs` (in flywheel).
@@ -39,6 +42,7 @@ Mastermind Council at https://council.dravec.org, in private beta behind a passw
 - Watch whether 6 s is too short for long spoken lines.
 - Directory listings wait until a stranger can sign in to MCP without the beta password. The Official MCP Registry also waits for the dravec.org TXT record.
 - A terms page is needed before any ChatGPT listing.
+- Night edition follow-ups (not built): the council map keeps Inter-era wrap widths; `ink-500` measures 2.6:1 where DESIGN.md claimed 2.9:1; the reminder letter (gateway) is not restyled.
 - Proposals not picked yet:
   - topic pages trimmed to one claim
   - syncing the evening hour across devices
@@ -46,4 +50,4 @@ Mastermind Council at https://council.dravec.org, in private beta behind a passw
   - CIMD support in the gateway (for Smithery)
 
 ## What's next
-The next orchestrator package. Nothing else is in flight in this repo.
+Pavol looks at the Night edition preview and the after-shots, then merge or changes. The approval door (#39, merged 18 Nov) is styled in the same branch: device, "Privately printed", Check again as the slab.

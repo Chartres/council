@@ -29,7 +29,7 @@ import { fetchUsage, type Usage } from '@/domain/usage'
 
 // v4 (start → intake → conversation, journal) is the main flow at `/`; v3's quick
 // verdict lives on at `/quick` with its session screen and "My ideas".
-export type View = 'start' | 'intake' | 'conversation' | 'journal' | 'home' | 'session' | 'ideas' | 'privacy'
+export type View = 'start' | 'intake' | 'conversation' | 'journal' | 'home' | 'session' | 'ideas' | 'privacy' | 'notfound'
 
 const VIEW_PATH: Partial<Record<View, string>> = {
   start: '/',
@@ -39,10 +39,13 @@ const VIEW_PATH: Partial<Record<View, string>> = {
   privacy: '/privacy',
 }
 
-/** Unknown paths (including `/start` and the `/c/:id` deep link) land on the start screen. */
+/** `/start`, `/index.html` and the `/c/:id` deep link land on the start screen; any other
+ * unknown path is a leaf wanting (NotFoundScreen). */
 export function viewFromPath(pathname: string): View {
-  const hit = Object.entries(VIEW_PATH).find(([, path]) => path === pathname.replace(/(.)\/$/, '$1'))
-  return (hit?.[0] as View | undefined) ?? 'start'
+  const path = pathname.replace(/(.)\/$/, '$1')
+  const hit = Object.entries(VIEW_PATH).find(([, known]) => known === path)
+  if (hit) return hit[0] as View
+  return /^\/(start|index\.html|c\/[^/]+)$/.test(path) ? 'start' : 'notfound'
 }
 
 /** What to resume automatically once a rotated password is re-entered and accepted. */

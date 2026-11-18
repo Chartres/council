@@ -102,7 +102,7 @@ export function SessionScreen() {
                   <li key={i}>
                     <p className="font-display text-[20px] italic leading-[28px] text-marble-100">
                       “{q.text}”{' '}
-                      <span className="font-sans text-[13px] not-italic text-marble-400">
+                      <span className="t-ref not-italic">
                         — {personaName(q.persona)}, {q.locator}
                       </span>
                     </p>
@@ -114,7 +114,7 @@ export function SessionScreen() {
 
           {dailyKey && (
             <div className="mt-6">
-              <p className="text-[15px] text-marble-300">
+              <p className="text-[17px] text-marble-300">
                 {split.for} for · {split.mixed} mixed · {split.against} against
               </p>
               <button
@@ -129,7 +129,7 @@ export function SessionScreen() {
                 Share today’s split
               </button>
               {shareState !== 'idle' && (
-                <p className="mt-2 text-[13px] text-marble-400" role="status">
+                <p className="mt-2 t-ref" role="status">
                   {shareState === 'copied'
                     ? 'Copied — your own text is never included.'
                     : shareState === 'shared'
@@ -144,7 +144,7 @@ export function SessionScreen() {
 
       {/* Which council sat, never which model (DESIGN.md: no model names in the UI). */}
       {tier && (
-        <p className="mt-6 text-[13px] text-marble-400" data-testid="tier">
+        <p className="mt-6 t-ref" data-testid="tier">
           {TIER_LABEL[tier]}
         </p>
       )}
@@ -191,7 +191,7 @@ export function SessionScreen() {
         </form>
       )}
 
-      <p className="mt-12 text-[13px] leading-[18px] text-marble-400">{DISCLOSURE}</p>
+      <p className="mt-12 t-fine">{DISCLOSURE}</p>
       <div ref={end} />
     </div>
   )

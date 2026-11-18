@@ -53,7 +53,7 @@ function TrustNote() {
   )
 }
 
-const SHORTCUT = 'text-btn text-[17px]'
+const SHORTCUT = 'text-btn text-[19px]'
 
 const filled = (a: Intake) => Object.fromEntries(Object.entries(a).filter(([, v]) => v?.trim())) as Intake
 const ask = (id: string) => INTAKE_QUESTIONS.find((q) => q.id === id)!.q
@@ -235,13 +235,19 @@ export function IntakeScreen() {
 
   return (
     <div className="mx-auto max-w-xl px-4 pb-12">
-      <button type="button" onClick={() => go('start')} className="text-btn -ml-3 px-3 text-marble-400">
-        ← Back
-      </button>
+      <h1 className="sr-only">Your question</h1>
+      <div className="flex items-center justify-between">
+        <button type="button" onClick={() => go('start')} className="text-btn -ml-3 px-3 text-marble-400">
+          ← Back
+        </button>
+        <p className="rubric" aria-hidden="true">
+          Your question
+        </p>
+      </div>
 
       <TrustNote />
 
-      <label htmlFor="f-goal" className={`t-label mt-2 block ${field === 'goal' ? 'text-candle-300' : ''}`}>
+      <label htmlFor="f-goal" className={`t-note versal-raised mt-2 block ${field === 'goal' ? 'text-candle-300' : 'text-marble-200'}`}>
         {goal.q}
       </label>
       {voiceBar('goal', goal.label)}
@@ -313,7 +319,7 @@ export function IntakeScreen() {
       >
         Bring it to the group
       </button>
-      <p className="mt-2 text-[13px] leading-[18px] text-marble-400">
+      <p className="t-note mt-2">
         Everything below is optional. The group works with what you give it.
       </p>
 
@@ -376,7 +382,7 @@ export function IntakeScreen() {
         </ul>
       </details>
 
-      <p className="mt-12 text-[13px] leading-[18px] text-marble-400">
+      <p className="t-fine mt-12">
         The advisers are AI. <PrivacyLink />
       </p>
     </div>

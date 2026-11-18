@@ -1,0 +1,29 @@
+<!doctype html>
+<meta charset="utf-8">
+<!-- What's new 1.2.0, the page (flywheel docs/standards/whats-new.md): CSS only, nothing fetched.
+     6 s loop: running head, double rule, rubric, then the question under its boxed versal.
+     The face is the app's EB Garamond where the device has it, else the system's old-style serif. -->
+<style>
+  :root{--bg:#100e0b;--hi:#f8f5ee;--dim:#b9b1a0;--rule:#342d23;--edge:#968d7c;--sur:#1e1a15;--red:#cf9179}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--hi);font:500 24px/29px 'EB Garamond','Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif;overflow:hidden}
+  .p{padding:8px 16px}
+  .sc{font-variant-caps:all-small-caps;font-weight:600;font-size:17px;line-height:20px}
+  .rh{letter-spacing:.14em;color:var(--dim);padding-bottom:6px}
+  .dbl{height:4px;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)}
+  .rb{letter-spacing:.08em;color:var(--red);margin:10px 0 6px}
+  .q{overflow:hidden}
+  .q b{float:left;width:54px;height:54px;margin:2px 10px 0 0;box-sizing:border-box;border:1.5px solid var(--edge);border-radius:0;outline:1px solid var(--rule);outline-offset:-5px;background:var(--sur);display:flex;align-items:center;justify-content:center;font:500 40px/1 inherit;font-family:inherit;color:var(--red)}
+  .rh,.dbl,.rb,.q{animation:in 6s infinite both}
+  .dbl{animation-name:in2}.rb{animation-name:in3}.q{animation-name:in4}
+  @keyframes in{0%{opacity:0}6%,94%{opacity:1}100%{opacity:0}}
+  @keyframes in2{0%,10%{opacity:0}16%,94%{opacity:1}100%{opacity:0}}
+  @keyframes in3{0%,22%{opacity:0}28%,94%{opacity:1}100%{opacity:0}}
+  @keyframes in4{0%,34%{opacity:0;transform:translateY(4px)}42%,94%{opacity:1;transform:none}100%{opacity:0}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+<div class="p" aria-hidden="true">
+  <div class="sc rh">Mastermind Council</div>
+  <div class="dbl"></div>
+  <div class="sc rb">Today’s question</div>
+  <div class="q"><b>S</b>hould I return to a craft I put down ten years ago?</div>
+</div>

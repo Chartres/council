@@ -29,7 +29,7 @@ export function Examination({
     <section
       aria-label="Tonight's examination"
       data-testid="examination"
-      className="mt-6 border-l-[3px] border-clay-500 pl-4"
+      className="mt-6 border-l-2 border-clay-400 pl-4"
       onClickCapture={(e) => {
         const b = (e.target as HTMLElement).closest('button')
         if (b) keyAction('examined', { outcome: b.textContent })
@@ -39,7 +39,7 @@ export function Examination({
       <p className="t-body mt-2 text-marble-200">
         What ill did you cure today? What fault did you resist? In what are you better?
       </p>
-      <p className="mt-1 text-[13px] text-marble-400">Seneca, De Ira III.36</p>
+      <p className="t-ref mt-1">Seneca, De Ira III.36</p>
       <ul className="mt-4 space-y-6">
         {due.map((c) => (
           <li key={c.id}>

@@ -51,7 +51,17 @@ test('a new person signs in at the door, waits for approval, and gets in after C
   }
   const width = await page.evaluate(() => document.documentElement.scrollWidth)
   expect(width).toBeLessThanOrEqual(390)
+  // Night edition: the same door as the password one (the device, the rubric), not another product.
+  await expect(door.getByRole('img', { name: 'Mastermind Council' })).toBeVisible()
+  await expect(door).toContainText('Privately printed')
+  expect(await door.getByRole('button', { name: 'Check again' }).evaluate((el) => el.classList.contains('slab'))).toBe(true)
   await page.screenshot({ path: `${SHOTS}/approval-door-phone.png`, fullPage: true })
+  if (process.env.NIGHT_REVIEW) {
+    await page.screenshot({ path: 'docs/review/2026-11-17-night/19-door-waiting-phone.png', fullPage: true })
+    await page.setViewportSize({ width: 1280, height: 800 })
+    await page.screenshot({ path: 'docs/review/2026-11-17-night/19-door-waiting-desktop.png' })
+    await page.setViewportSize({ width: 390, height: 844 })
+  }
 
   // Not yet.
   await door.getByRole('button', { name: 'Check again' }).click()

@@ -49,7 +49,7 @@ const reference = (id, q) => {
 }
 
 const footer = (montessori) =>
-  `<p class="small">${esc(DISCLOSURE)}${montessori ? ` ${esc(MONTESSORI_NOTE)}` : ''}</p>`
+  `<p class="fine">${esc(DISCLOSURE)}${montessori ? ` ${esc(MONTESSORI_NOTE)}` : ''}</p>`
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
 const listOf = (xs) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`)
@@ -66,17 +66,28 @@ export function topicGroups(quotes, topic) {
 
 const STYLE = `
   :root { color-scheme: dark; }
-  body { margin: 0; background: #100e0b; color: #ece7db; font: 17px/1.55 'EB Garamond', 'Iowan Old Style', Georgia, serif; }
-  main { max-width: 40rem; margin: 0 auto; padding: 24px 16px 64px; }
-  a { color: #efce8d; text-underline-offset: 3px; }
-  nav, .small { font: 13px/1.4 Inter, system-ui, sans-serif; color: #968d7c; }
-  h1 { font-size: 34px; line-height: 1.15; font-weight: 500; margin: 16px 0 12px; }
-  h2 { font-size: 15px; font-weight: 600; font-variant-caps: all-small-caps; letter-spacing: .06em; color: #cf9179; margin: 40px 0 8px; }
-  blockquote { margin: 16px 0 0; font-size: 20px; line-height: 1.45; }
-  cite { display: block; margin-top: 4px; font: normal 13px/1.4 Inter, system-ui, sans-serif; color: #968d7c; }
-  .lede { color: #d8d1c2; }
+  @font-face { font-family: 'EB Garamond Fallback'; src: local('Georgia'); size-adjust: 86%; ascent-override: 117%; descent-override: 35%; line-gap-override: 0%; }
+  body { margin: 0; background: #100e0b; color: #d8d1c2; font: 19px/27px 'EB Garamond', 'EB Garamond Fallback', 'Iowan Old Style', Georgia, serif; -webkit-font-smoothing: antialiased; }
+  main { max-width: 36rem; margin: 0 auto; padding: 12px 16px 48px; }
+  a { color: #d8d1c2; text-decoration-color: #776f61; text-underline-offset: 3px; }
+  a:hover { color: #f8f5ee; }
+  nav { padding: 10px 0 12px; font-weight: 600; font-size: 17px; line-height: 22px; font-variant-caps: all-small-caps; letter-spacing: .12em; color: #968d7c; box-shadow: 0 1px 0 #342d23, 0 4px 0 #100e0b, 0 5px 0 #342d23; }
+  nav a { color: #b9b1a0; text-decoration: none; }
+  .small { font-size: 17px; line-height: 23px; color: #968d7c; }
+  .colophon .small { font-style: italic; }
+  .fine { font: 13px/18px Inter, system-ui, sans-serif; color: #968d7c; }
+  h1 { font-size: 34px; line-height: 38px; font-weight: 500; letter-spacing: -.01em; color: #f8f5ee; margin: 28px 0 12px; }
+  h2 { font-size: 17px; line-height: 22px; font-weight: 600; font-variant-caps: all-small-caps; letter-spacing: .08em; color: #cf9179; margin: 40px 0 8px; }
+  blockquote { margin: 16px 0 0; font-size: 21px; line-height: 29px; color: #ece7db; }
+  cite { display: block; margin-top: 2px; font-style: normal; font-size: 17px; line-height: 22px; font-variant-caps: all-small-caps; letter-spacing: .06em; color: #968d7c; }
+  .lede { color: #ece7db; }
+  .lede::first-letter { float: left; font-weight: 500; font-size: 62px; line-height: 50px; padding: 4px 8px 0 0; color: #cf9179; }
   .cta { margin-top: 48px; padding-top: 16px; border-top: 1px solid #342d23; }
-  ul.topics { padding: 0; list-style: none; } ul.topics li { margin: 12px 0; }
+  ul.topics { padding: 0; list-style: none; } ul.topics li { margin: 12px 0; } ul.topics li > a { font-size: 22px; line-height: 28px; }
+  .colophon { margin-top: 48px; text-align: center; }
+  .colophon img { display: block; margin: 0 auto 8px; }
+  cite a { display: inline-block; padding: 11px 8px; margin: -11px -8px; }
+  @media (min-width: 768px) { body::before { content: ''; position: fixed; top: 0; bottom: 0; left: 50%; width: calc(36rem + 48px); transform: translateX(-50%); border-inline: 4px double #342d23; pointer-events: none; } }
 `
 
 function page({ path, title, description, body, jsonld }) {
@@ -97,13 +108,14 @@ function page({ path, title, description, body, jsonld }) {
 <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400&display=swap" rel="stylesheet" />
 <style>${STYLE}</style>
 <script type="application/ld+json">${JSON.stringify(jsonld).replace(/</g, '\\u003c')}</script>
 </head>
 <body>
 <main>
 ${body}
+<footer class="colophon"><img src="/device.svg" width="64" height="79" alt="" /><p class="small">Mastermind Council. Set in EB Garamond; the small print in Inter.</p></footer>
 </main>
 </body>
 </html>
@@ -288,7 +300,7 @@ export function build(quotes, lastmod) {
   return out
 }
 
-export const LASTMOD = '2026-10-30'
+export const LASTMOD = '2026-11-18'
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const quotes = JSON.parse(readFileSync('src/content/verified-quotes.json', 'utf8'))

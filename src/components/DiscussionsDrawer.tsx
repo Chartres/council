@@ -85,12 +85,12 @@ export function DiscussionsDrawer({ onClose }: { onClose: () => void }) {
                     }`}
                   >
                     <span className="t-title line-clamp-2 block">{titleOf(d)}</span>
-                    <span className="mt-1 block text-[13px] leading-[18px] text-marble-400">
+                    <span className="t-ref mt-1 block">
                       {humanDate(d.created_at, { weekday: false })} · {d.advisers.map(personaName).join(', ')}
                       {live && ' · now'}
                     </span>
                     {decision && (
-                      <span className="mt-1 line-clamp-2 block text-[15px] leading-[22px] text-marble-300">{decision}</span>
+                      <span className="mt-1 line-clamp-2 block text-[17px] leading-[22px] text-marble-300">{decision}</span>
                     )}
                   </button>
                 </li>
@@ -110,8 +110,8 @@ export function DiscussionsDrawer({ onClose }: { onClose: () => void }) {
                     onClick={leave(() => open(idea))}
                     className="block min-h-11 w-full rounded-md px-3 py-3 text-left hover:bg-ink-850"
                   >
-                    <span className="line-clamp-2 block text-[15px] leading-[22px] text-marble-100">{idea.idea}</span>
-                    <span className="mt-1 block text-[13px] text-marble-400">{humanDate(idea.created_at, { weekday: false })}</span>
+                    <span className="line-clamp-2 block text-[17px] leading-[22px] text-marble-100">{idea.idea}</span>
+                    <span className="mt-1 block t-ref">{humanDate(idea.created_at, { weekday: false })}</span>
                   </button>
                 </li>
               ))}
@@ -119,7 +119,7 @@ export function DiscussionsDrawer({ onClose }: { onClose: () => void }) {
           </>
         )}
 
-        <p className="mt-10 text-[13px] leading-[18px] text-marble-400">
+        <p className="mt-10 t-fine">
           {user ? 'Kept on your account.' : 'Kept in this browser. Sign in to keep them across devices.'}
         </p>
       </nav>

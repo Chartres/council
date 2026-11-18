@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useCouncil } from '@/app/CouncilContext'
 import { useMastermind } from '@/app/MastermindContext'
 import { Monogram } from '@/components/Monogram'
+import { Headpiece, Versal } from '@/components/Furniture'
+import { NONE_LIVING, NOT_SOUGHT } from '@/content/catalogue'
 import { SignInPanel } from '@/components/SignInPanel'
 import { OutcomeButtons } from '@/components/OutcomeButtons'
 import { PrivacyLink } from '@/components/screens/PrivacyScreen'
@@ -77,9 +79,11 @@ function Today({ onOpen }: { onOpen: (question: string) => void }) {
         }}
         className="block w-full rounded-card py-2 text-left"
       >
-        <span className="t-label block pr-14">Today’s question</span>
-        <span className="t-title mt-2 block">{question}</span>
-        <span className="t-body mt-1 block font-semibold text-candle-300">Take it to the council ›</span>
+        <span className="rubric block pr-14">Today’s question</span>
+        <span className="mt-2 block">
+          <Versal className="t-display">{question}</Versal>
+        </span>
+        <span className="t-body mt-2 block font-semibold text-candle-300">Take it to the council ›</span>
       </button>
       {/* After the card in the DOM, beside its label on screen; the note opens below the card, so
           nothing above the question moves. */}
@@ -103,11 +107,11 @@ function Today({ onOpen }: { onOpen: (question: string) => void }) {
             setPeek(false)
           }
         }}
-        className="absolute -right-3 -top-1.5 min-h-11 min-w-11 px-3 text-[13px] text-marble-400 hover:text-marble-100"
+        className="text-btn absolute right-0 top-0 flex min-w-11 items-start justify-end pt-2 pr-1 pl-3 leading-[22px] text-marble-400 hover:text-marble-100"
       >
         Why?
       </button>
-      <p id="today-root" hidden={!open} className="text-[13px] leading-snug text-marble-400">
+      <p id="today-root" hidden={!open} className="t-note">
         {TODAY_ROOT}
       </p>
     </section>
@@ -122,6 +126,8 @@ export function StartScreen() {
 
   return (
     <div className="mx-auto max-w-xl px-4 pb-12">
+      <h1 className="sr-only">Mastermind Council</h1>
+      <Headpiece className="mt-3" />
       {linkNeedsSignIn && (
         <div className="pt-3">
           <SignInPanel reason="Sign in to record how it went. The group picks up where you left off." />
@@ -130,7 +136,7 @@ export function StartScreen() {
 
       {memory && (
         <section aria-label="Last time" data-testid="last-time" className="mt-6">
-          <p className="t-label">Last time</p>
+          <p className="rubric">Last time</p>
           {last && <p className="t-title mt-2">{last.decision}</p>}
           <ul className="mt-2 space-y-6">
             {memory.commitments.map((c) => (
@@ -148,15 +154,16 @@ export function StartScreen() {
       {/* Who she is carries over (role, organization, working style); the question is today's goal. */}
       <Today onOpen={(goal) => begin({ ...stableIntake(lastIntake), goal })} />
 
-      <div role="group" aria-label="Roster" className="mt-12 grid grid-cols-2 gap-2">
+      <div className="dbl mt-6" />
+      <div role="group" aria-label="Roster" className="mt-2 flex items-baseline gap-6">
         {(Object.keys(ROSTERS) as RosterId[]).map((r) => (
           <button
             key={r}
             type="button"
             aria-pressed={roster === r}
             onClick={() => setRoster(r)}
-            className={`min-h-11 border-b-2 px-3 font-display text-xl font-medium ${
-              roster === r ? 'border-marble-100 text-marble-50' : 'border-transparent text-marble-400 hover:text-marble-200'
+            className={`rubric min-h-11 border-b-2 text-[19px] ${
+              roster === r ? 'border-clay-400' : 'border-transparent text-marble-400 hover:text-marble-200'
             }`}
           >
             {ROSTER_LABEL[r]}
@@ -164,11 +171,13 @@ export function StartScreen() {
         ))}
       </div>
 
-      <p className="t-body mt-6 text-marble-400">
+      {/* The catalogue note sits on the Classics shelf only: the Business advisers died within living memory. */}
+      <p className="t-note mt-2">
+        {roster === 'classics' && <span data-testid="none-living">{NONE_LIVING} </span>}
         Pick up to {MAX_PERSONAS}. A neutral facilitator is always there.
       </p>
       {inspired.length > 0 && (
-        <p className="mt-2 text-[13px] leading-[18px] text-marble-400">Simulations inspired by {listOf(inspired)}.</p>
+        <p className="t-fine mt-2">Simulations inspired by {listOf(inspired)}.</p>
       )}
       {/* The room's people are the picture: one seat per adviser, lit when taken, what they bring in plain sight. */}
       <ul className="mt-6 space-y-6">
@@ -182,12 +191,17 @@ export function StartScreen() {
                 onClick={() => toggleAdviser(p.id)}
                 aria-pressed={on}
                 disabled={full}
-                className={`flex w-full items-center gap-4 rounded-card text-left ${full ? 'opacity-40' : ''}`}
+                className={`flex w-full items-start gap-4 rounded-card text-left ${full ? 'opacity-40' : ''}`}
               >
-                <Monogram id={p.id} size={64} lit={on} />
+                <Monogram id={p.id} size={52} lit={on} />
                 <span className="min-w-0 flex-1">
-                  <span className={`t-title block ${on ? '' : 'text-marble-300'}`}>{p.name}</span>
-                  <span className={`t-body mt-1 block ${on ? '' : 'text-marble-400'}`}>{p.brings}</span>
+                  {/* A contents line: the name, a dotted leader, the year of death. */}
+                  <span className="leader">
+                    <span className={`t-title ${on ? '' : 'text-marble-300'}`}>{p.name}</span>
+                    <i aria-hidden="true" />
+                    <span className="died">{p.died}</span>
+                  </span>
+                  <span className={`t-body block ${on ? '' : 'text-marble-400'}`}>{p.brings}</span>
                 </span>
               </button>
             </li>
@@ -196,7 +210,7 @@ export function StartScreen() {
       </ul>
 
       {/* Above the bottom nav, so Begin is in reach however long the roster runs. */}
-      <div className="sticky z-10 mt-6 bg-ink-950 py-2" style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom))' }}>
+      <div className="sticky z-10 mt-6 bg-ink-950 py-2" data-testid="begin-bar" style={{ bottom: 'calc(58px + env(safe-area-inset-bottom))' }}>
         <button type="button" onClick={() => go('intake')} className="slab">
           Begin
         </button>
@@ -204,7 +218,11 @@ export function StartScreen() {
 
       <ConnectPanel />
 
-      <p className="mt-6 text-[13px] leading-[18px] text-marble-400">
+      {/* The catalogue note beside the disclosure; "this" is the product. The disclosure is unchanged. */}
+      <p className="t-note mt-6 italic" data-testid="not-sought">
+        {NOT_SOUGHT}
+      </p>
+      <p className="t-fine mt-2">
         The advisers are AI. {roster === 'business' ? BUSINESS_DISCLOSURE : `${DISCLOSURE} ${MONTESSORI_NOTE}`}{' '}
         <PrivacyLink />
       </p>

@@ -1,3 +1,4 @@
+import { Headpiece } from '@/components/Furniture'
 import { useState } from 'react'
 import { useCouncil } from '@/app/CouncilContext'
 import { MicButton } from '@/components/MicButton'
@@ -20,6 +21,7 @@ export function HomeScreen() {
 
   return (
     <div className="mx-auto max-w-xl px-4 pb-6">
+      <h1 className="sr-only">Quick verdict</h1>
       <form onSubmit={submit} className="pt-3">
         <label htmlFor="idea" className="t-display block">
           What are you working on?
@@ -43,10 +45,10 @@ export function HomeScreen() {
                 <Monogram key={id} id={id} size={24} />
               ))}
             </span>
-            <span className="text-[15px] text-marble-200">
+            <span className="text-[17px] text-marble-200">
               {picked.map(personaName).join(' · ')}
             </span>
-            <span className="ml-auto text-[13px] text-marble-400">
+            <span className="ml-auto t-ref">
               {picked.length}/{MAX_PERSONAS}
             </span>
           </summary>
@@ -70,13 +72,13 @@ export function HomeScreen() {
                       <span className={`t-title block ${on ? '' : 'text-marble-300'}`}>
                         {p.name}
                       </span>
-                      <span className="block text-[15px] leading-[22px] text-marble-400">
+                      <span className="block text-[17px] leading-[22px] text-marble-400">
                         {p.brings}
                       </span>
                     </span>
                     <span
                       aria-hidden="true"
-                      className={`text-[17px] ${on ? 'text-marble-50' : 'text-marble-400'}`}
+                      className={`text-[19px] ${on ? 'text-marble-50' : 'text-marble-400'}`}
                     >
                       {on ? '✓' : '+'}
                     </span>
@@ -85,7 +87,7 @@ export function HomeScreen() {
               )
             })}
           </ul>
-          <p className="py-2 text-[13px] leading-[18px] text-marble-400">
+          <p className="py-2 t-fine">
             Up to {MAX_PERSONAS} at a time. {MONTESSORI_NOTE}
           </p>
         </details>
@@ -96,18 +98,19 @@ export function HomeScreen() {
         </button>
       </form>
 
-      <p className="mt-6 text-[13px] leading-[18px] text-marble-400">{DISCLOSURE}</p>
+      <p className="mt-6 t-fine">{DISCLOSURE}</p>
 
       <section
         aria-label="Today’s question"
         data-testid="daily-card"
         className="mt-12"
       >
-        <p className="t-label">Today’s question · {humanDate(day)}</p>
+        <Headpiece className="mb-4" />
+        <p className="rubric">Today’s question · {humanDate(day)}</p>
         <h2 className="t-title mt-2 text-balance">
           {question}
         </h2>
-        <p className="mt-2 text-[15px] leading-[22px] text-marble-400">
+        <p className="mt-2 text-[17px] leading-[22px] text-marble-400">
           The same question for everyone today. Convene on it and share how your council split.
         </p>
         <button

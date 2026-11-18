@@ -1,3 +1,5 @@
+import { BlankLeaf } from '@/components/Furniture'
+import { BLANK_LEAF } from '@/content/catalogue'
 import { useCouncil } from '@/app/CouncilContext'
 import { Monogram } from '@/components/Monogram'
 import { SignInPanel } from '@/components/SignInPanel'
@@ -19,8 +21,11 @@ export function IdeasScreen() {
       </p>
 
       {ideas.length === 0 ? (
-        <div className="mt-12">
-          <p className="t-body">Nothing here yet.</p>
+        <div className="mt-6">
+          <BlankLeaf>
+            <p className="t-body italic text-marble-50">{BLANK_LEAF}</p>
+            <p className="t-body mt-1 text-marble-400">Nothing here yet.</p>
+          </BlankLeaf>
           <button
             type="button"
             onClick={() => go('home')}
@@ -52,7 +57,7 @@ export function IdeasScreen() {
                           <Monogram key={id} id={id} size={22} />
                         ))}
                       </span>
-                      <span className="text-[15px] text-marble-300">
+                      <span className="text-[17px] text-marble-300">
                         {split.for} for · {split.mixed} mixed · {split.against} against
                       </span>
                     </span>
