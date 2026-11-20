@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="robots" content="noindex" />
+<title>Real pictures: three ways</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root { --ink-950: #100e0b; --ink-700: #342d23; --m-50: #f8f5ee; --m-100: #ece7db; --m-200: #d8d1c2; --m-300: #b9b1a0; --m-400: #968d7c; --m-500: #776f61; --candle-300: #efce8d; --candle-400: #e0b263; --clay-400: #cf9179; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--ink-950); color: var(--m-100); font: 400 19px/27px 'EB Garamond', 'Iowan Old Style', Georgia, serif; min-height: 100dvh; display: flex; flex-direction: column; padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom); }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; touch-action: manipulation; }
+  button:focus-visible { outline: 2px solid var(--candle-400); outline-offset: 3px; }
+  .sc { font-variant-caps: all-small-caps; letter-spacing: .08em; font-size: 17px; line-height: 22px; }
+  .wrap { max-width: 36rem; width: 100%; margin: 0 auto; padding: 0 16px; }
+  header { padding-top: 12px; }
+  .head { display: flex; justify-content: space-between; color: var(--m-400); border-bottom: 3px double var(--m-500); padding-bottom: 6px; }
+  nav { display: flex; gap: 4px; margin-top: 8px; }
+  nav button { flex: 1; min-height: 44px; color: var(--m-400); border-bottom: 2px solid transparent; }
+  nav button[aria-selected="true"] { color: var(--m-50); border-color: var(--candle-400); }
+  main { flex: 1; display: flex; flex-direction: column; padding-top: 14px; padding-bottom: 12px; }
+  section { flex: 1; display: flex; flex-direction: column; }
+  .rubric { color: var(--clay-400); margin: 0; }
+  h1 { font: 500 28px/32px 'EB Garamond', Georgia, serif; margin: 6px 0 0; text-wrap: balance; }
+  .words { margin: 14px 0 0; color: var(--m-50); min-height: 54px; }
+  .grow { flex: 1; min-height: 12px; }
+  canvas { display: block; width: 100%; height: 40px; }
+  .status { margin: 4px 0 12px; display: flex; align-items: center; gap: 8px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: #d9534a; animation: blink 1.2s infinite; }
+  @keyframes blink { 50% { opacity: .35; } }
+  .slab { width: 100%; min-height: 56px; border-radius: 4px; border: 2px solid var(--m-300); font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 10px; }
+  .slab i { width: 16px; height: 16px; border-radius: 3px; background: #d9534a; }
+  .credit { color: var(--m-400); font-size: 17px; line-height: 22px; margin: 12px 0 0; }
+  .credit em { color: var(--m-200); }
+  .center { text-align: center; }
+
+  /* The engraving turned to light on dark: paper goes to black, and black drops out under `screen`. */
+  .plate { filter: grayscale(1) invert(1) contrast(1.25) brightness(.92); mix-blend-mode: screen; display: block; }
+
+  /* A · the emblem */
+  .emblem { position: relative; width: min(64vw, 250px); aspect-ratio: 1; margin: 10px auto 0; }
+  .emblem img { width: 100%; height: 100%; border-radius: 50%; }
+  .glow { position: absolute; left: 51.5%; top: 24.500%; width: 14%; aspect-ratio: 1; margin: -7%; border-radius: 50%; background: radial-gradient(circle, #f7e3b8 0, #e0b263 35%, transparent 70%); mix-blend-mode: screen; filter: blur(3px); will-change: transform, opacity; }
+
+  /* B · the painted flame */
+  .painted { position: relative; width: 108px; aspect-ratio: 280 / 860; margin: 0 auto; -webkit-mask-image: radial-gradient(ellipse 50% 50% at 52% 46%, #000 62%, transparent 100%); mask-image: radial-gradient(ellipse 50% 50% at 52% 46%, #000 62%, transparent 100%); }
+  .painted img { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .painted .flame { clip-path: ellipse(30% 23% at 53.500% 28%); transform-origin: 53.500% 47.500%; will-change: transform, filter; }
+
+  /* C · the Plato leaf */
+  .headpiece { width: 100%; margin: 0 0 12px; filter: grayscale(1) invert(1) contrast(1.9) brightness(.72); }
+  .small-candle { width: 54px; margin: 0 auto; display: block; }
+
+  footer { font: 400 13px/18px Inter, system-ui, sans-serif; color: var(--m-400); border-top: 1px solid var(--ink-700); padding-top: 8px; padding-bottom: 12px; }
+  [hidden] { display: none !important; }
+  @media (prefers-reduced-motion: reduce) { .dot { animation: none; } }
+</style>
+</head>
+<body>
+<header class="wrap">
+  <div class="head sc"><span>Mastermind Council</span><span>Sample · not the app</span></div>
+  <nav role="tablist" aria-label="Three pictures">
+    <button role="tab" class="sc" data-v="a" aria-selected="true">A · Emblem</button>
+    <button role="tab" class="sc" data-v="b" aria-selected="false">B · Painted</button>
+    <button role="tab" class="sc" data-v="c" aria-selected="false">C · Plato</button>
+  </nav>
+</header>
+
+<main class="wrap">
+  <section id="a">
+    <p class="rubric sc">Your question</p>
+    <h1>What would you like the group to help you achieve?</h1>
+    <div class="emblem"><img class="plate" src="img/emblem.jpg" alt="An engraved burning candle on a stand, ringed by the motto Aliis inserviendo consumor" /><div class="glow" data-glow></div></div>
+    <div class="grow"></div>
+  </section>
+
+  <section id="b" hidden>
+    <p class="rubric sc">Your question</p>
+    <h1>What would you like the group to help you achieve?</h1>
+    <div class="grow"></div>
+    <div class="painted"><img src="img/candle.jpg" alt="A painted candle burning in a brass holder" /><img class="flame" src="img/candle.jpg" alt="" data-flame /></div>
+  </section>
+
+  <section id="c" hidden>
+    <img class="headpiece plate" src="img/headpiece.jpg" alt="A woodcut headpiece of vines, hares and a mask" />
+    <p class="rubric sc">Your question</p>
+    <h1>What would you like the group to help you achieve?</h1>
+    <div class="grow"></div>
+    <svg class="small-candle" viewBox="30 14 40 90" fill="none" stroke="#b9b1a0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <g data-drawn style="transform-origin:50px 46px"><path fill="#e0b263" stroke="none" d="M50 19c8 10 12 18 7.5 25-3 5-12 5-14.5 0-4-8 3-14 7-25z"/><path fill="#f7e3b8" stroke="none" opacity=".85" d="M50.5 30c3 5 4.2 8.5 2.2 11.5-1.200 2-4.200 2-5.200 0-1.200-4 1-6.500 3-11.500z"/><path stroke-width="1.3" d="M50 19c8 10 12 18 7.5 25-3 5-12 5-14.5 0-4-8 3-14 7-25z"/></g>
+      <path stroke-width="1.3" d="M50 50v-5"/><path stroke-width="1.7" d="M44.5 82V52c3.500-2 7.500-2 11 0v30M33 85c11 5.500 23 5.500 34 0M37 81.500c9 3 17 3 26 0"/>
+    </svg>
+  </section>
+
+  <p class="words" id="words"></p>
+  <canvas id="thread"></canvas>
+  <p class="status"><span class="dot"></span><span>Recording. I can hear you.</span></p>
+  <button class="slab" id="mic"><i></i><span id="miclabel">Use my microphone</span></button>
+  <p class="credit" id="credit"></p>
+</main>
+
+<footer class="wrap" id="foot">The line and the flame move with a pretend voice until you tap the button. Then they follow your microphone. This sample stores nothing.</footer>
+
+<script>
+const $ = (s) => document.querySelector(s)
+const still = matchMedia('(prefers-reduced-motion: reduce)').matches
+const CREDIT = {
+  a: '<em>Aliis inserviendo consumor</em>: “in serving others I am spent”. George Wither, <em>A Collection of Emblemes</em>, London 1635, book 3, no. 31. Public domain; scan from the Getty Research Institute copy.',
+  b: 'Anna Dorothea Therbusch, <em>A Scientist Seated at a Desk by Candlelight</em>, about 1755 (detail). Cleveland Museum of Art, open access, CC0.',
+  c: 'Headpiece from the leaf where the <em>Apology of Socrates</em> opens. Plato, ed. Henri Estienne, Geneva 1578, vol. 1, p. 17. Public domain; scan from the Boston Public Library copy.',
+}
+const SAMPLE = 'I want to decide whether to keep the shop open on Sundays, and I keep going back and forth on it.'
+let view = 'a', level = 0, analyser, buf, t0 = performance.now()
+
+// A pretend voice: syllables in phrases, with pauses to think.
+function pretend(now) {
+  const t = (now - t0) / 1000, phrase = (t % 7) < 4.6 ? 1 : 0
+  return phrase * Math.max(0, 0.06 + 0.09 * Math.sin(t * 9) * Math.sin(t * 2.3) + 0.05 * Math.sin(t * 23))
+}
+function measure() {
+  analyser.getByteTimeDomainData(buf)
+  let s = 0
+  for (const v of buf) s += ((v - 128) / 128) ** 2
+  return Math.sqrt(s / buf.length)
+}
+
+function frame(now) {
+  requestAnimationFrame(frame)
+  const raw = analyser ? measure() : pretend(now)
+  level += (raw - level) * (raw > level ? 0.6 : 0.12)
+  const l = Math.min(1, Math.sqrt(level) * 1.8)
+  // The breath: a small lean and a few percent of height, never growth.
+  const sway = still ? 0 : Math.sin(now / 170) * 1.2 + Math.sin(now / 67) * l * 4
+  const lift = still ? 1 : 1 + l * 0.05 + Math.sin(now / 90) * 0.01
+  const flame = document.querySelector(`#${view} [data-flame]`), glow = document.querySelector(`#${view} [data-glow]`), drawn = document.querySelector(`#${view} [data-drawn]`)
+  if (flame) { flame.style.transform = `skewX(${sway}deg) scaleY(${lift})`; flame.style.filter = `brightness(${1 + l * 0.25})` }
+  if (drawn) drawn.style.transform = `skewX(${sway}deg) scaleY(${lift})`
+  if (glow) { glow.style.opacity = 0.55 + l * 0.4; glow.style.transform = `translateX(${sway * 0.3}px) scale(${1 + l * 0.12})` }
+  drawThread(now)
+  if (!analyser) { const n = Math.floor((((now - t0) / 1000) % 14) * 9); $('#words').textContent = SAMPLE.slice(0, n) }
+}
+
+function drawThread(now) {
+  const c = $('#thread'), d = devicePixelRatio || 1, w = c.clientWidth, h = 40
+  if (c.width !== w * d) { c.width = w * d; c.height = h * d }
+  const g = c.getContext('2d'); g.setTransform(d, 0, 0, d, 0, 0); g.clearRect(0, 0, w, h)
+  const a = Math.min(h / 2 - 2, Math.sqrt(level) * h * 0.7)
+  g.strokeStyle = '#e0b263'; g.lineWidth = 1.6; g.beginPath()
+  for (let x = 0; x <= w; x += 3) {
+    const env = Math.sin((x / w) * Math.PI)
+    const y = h / 2 + Math.sin(x / 9 + now / 60) * a * env * (0.6 + 0.4 * Math.sin(x / 31 - now / 140))
+    x ? g.lineTo(x, y) : g.moveTo(x, y)
+  }
+  g.stroke()
+}
+
+$('#mic').onclick = async () => {
+  if (analyser) return
+  try {
+    const C = new (window.AudioContext || window.webkitAudioContext)(); C.resume()
+    const s = await navigator.mediaDevices.getUserMedia({ audio: true })
+    const an = C.createAnalyser(); an.fftSize = 1024; C.createMediaStreamSource(s).connect(an)
+    buf = new Uint8Array(an.fftSize); analyser = an
+    $('#miclabel').textContent = 'Following your microphone'; $('#words').textContent = ''
+    $('#foot').textContent = `Mic: ${s.getAudioTracks()[0]?.label || 'unnamed input'}. Words are not shown in this sample.`
+  } catch (e) { $('#foot').textContent = 'The microphone did not open: ' + e.name }
+}
+
+function show(v) {
+  view = v
+  for (const b of document.querySelectorAll('nav button')) b.setAttribute('aria-selected', String(b.dataset.v === v))
+  for (const s of document.querySelectorAll('main section')) s.hidden = s.id !== v
+  $('#credit').innerHTML = CREDIT[v]
+}
+document.querySelectorAll('nav button').forEach((b) => (b.onclick = () => show(b.dataset.v)))
+show('a'); requestAnimationFrame(frame)
+</script>
+</body>
+</html>
