@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { keyAction } from '@/analytics'
-import { Candle, type CandleHandle } from '@/components/Candle'
+import { breathLevel, Candle, type CandleHandle } from '@/components/Candle'
 import { openCapture, SPEECH_RMS, type Capture } from '@/domain/capture'
 import { recognitionCtor } from '@/domain/speech'
 import { recordingSupported, SttError } from '@/domain/stt'
@@ -82,6 +82,7 @@ export function useCapture(opts: { talk?: boolean; onFail?: (reason: string) => 
   const [status, setStatus] = useState<ReturnType<typeof captureStatus> | null>(null)
   const cap = useRef<Capture | null>(null)
   const busy = useRef(false) // asking or live: a second tap must not open a second mic
+  const reopened = useRef(false) // the mic already came back by itself once since the last tap
   const gen = useRef(0)
   const run = useRef({ got: 0 }) // pieces that landed from the open recording
   const mounted = useRef(true)
@@ -137,9 +138,11 @@ export function useCapture(opts: { talk?: boolean; onFail?: (reason: string) => 
     }
   }, [state, meter])
 
-  /** Open the mic. Call inside the tap. Each finished piece of what he says goes to `onText`. */
-  const start = (onText: (piece: string) => void) => {
+  /** Open the mic. Call inside the tap. Each finished piece of what he says goes to `onText`.
+   *  `auto`: the mic opening again by itself after a mute (not a tap). */
+  const start = (onText: (piece: string) => void, auto = false) => {
     if (busy.current) return
+    if (!auto) reopened.current = false
     busy.current = true
     setProblem(null)
     setLost(false)
@@ -174,14 +177,21 @@ export function useCapture(opts: { talk?: boolean; onFail?: (reason: string) => 
           }
           setProblem(micProblem(['network', 'unavailable'].includes(reason) ? 'part' : reason))
         },
-        onLost: (why, away) => {
+        onLost: (why, away, track) => {
           if (g !== gen.current) return
-          keyAction('mic_failed', { engine: 'mic', reason: `lost_${why}`, away, ...extra })
+          // 20 Nov, Firefox on Android: the track went muted for over 2 s while the page was in
+          // view. Once per tap the mic is opened again by itself; only a second loss is said.
+          const again = why === 'muted' && !away && !reopened.current
+          keyAction('mic_failed', { engine: 'mic', reason: `lost_${why}`, away, muted: track.muted, state: track.state, ...(again ? { reopen: true } : {}), ...extra })
           // What was recorded so far is written down; the text stays; the stream is released.
           const c = cap.current
           idle()
           void c?.finish()
           if (!mounted.current) return
+          if (again) {
+            reopened.current = true
+            return start(onText, true)
+          }
           setLost(true)
           setProblem(micProblem(away ? 'left' : 'lost'))
         },
@@ -270,7 +280,7 @@ function drawThread(c: HTMLCanvasElement | null, level: number, now: number, liv
   if (!g) return
   const d = window.devicePixelRatio || 1
   const w = c.clientWidth
-  const h = 40
+  const h = c.clientHeight || 40
   if (c.width !== w * d) {
     c.width = w * d
     c.height = h * d
@@ -365,6 +375,56 @@ export function CapturePanel({
           {cap.problem}
         </p>
       )}
+    </div>
+  )
+}
+
+/**
+ * The floor's lamp (Pavol, 20 Nov: "I am missing the candles … I would really like it to be
+ * animated"): the candle and the thread in the bar, in every state. `voice`: they follow the
+ * open mic. `breath`: an adviser is read aloud, the flame breathes calmly and the thread moves a
+ * little. `still`: nobody speaks. Under reduced motion the breath is still; the voice thread
+ * still moves, because it is information.
+ */
+export function FloorLamp({ cap, mode, children }: { cap: CaptureHandle; mode: 'voice' | 'breath' | 'still'; children?: ReactNode }) {
+  const canvas = useRef<HTMLCanvasElement>(null)
+  const candle = useRef<CandleHandle>(null)
+  const { meter } = cap
+  const calm = typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const moving = mode === 'voice' || (mode === 'breath' && !calm)
+
+  useEffect(() => {
+    if (!moving) {
+      drawThread(canvas.current, 0, 0, false)
+      return
+    }
+    let level = 0
+    let raf = requestAnimationFrame(function frame(now) {
+      raf = requestAnimationFrame(frame)
+      if (mode === 'voice') {
+        const rms = meter?.level() ?? 0
+        level += (rms - level) * (rms > level ? 0.6 : 0.15)
+        drawThread(canvas.current, level, now, !!meter)
+        candle.current?.flicker(rms, level, now)
+      } else {
+        drawThread(canvas.current, breathLevel(now), now, true)
+        candle.current?.breathe(now)
+      }
+    })
+    const c = candle.current
+    return () => {
+      cancelAnimationFrame(raf)
+      c?.rest()
+    }
+  }, [moving, mode, meter])
+
+  return (
+    <div data-testid="lamp" data-mode={mode} className="flex items-center gap-3 overflow-clip">
+      <Candle ref={candle} size={58} crop={0.56} />
+      <div className="min-w-0 flex-1">
+        {children}
+        <canvas ref={canvas} height={28} data-testid="thread" aria-hidden="true" className="block h-7 w-full" />
+      </div>
     </div>
   )
 }

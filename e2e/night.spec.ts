@@ -1,6 +1,6 @@
 import { mkdirSync } from 'node:fs'
 import { expect, test, type Page } from '@playwright/test'
-import { FAKE_VOICE } from './fakeVoice'
+import { FAKE_VOICE, readAloud, readingAloud } from './fakeVoice'
 
 // Night edition (Pavol, 17 Nov 2026: "Option 2 is good, with a bit more graphics, i love the
 // logo"). Every screen is set as a book page; the catalogue note is held on the boring
@@ -180,11 +180,11 @@ test('a sitting: the flame flickers while the group thinks and rests under reduc
   // Speakers in small capitals; her push-back is a gloss under a red rule.
   const second = page.getByTestId('contribution').nth(1)
   expect(await second.getByTestId('speaker').evaluate((el) => getComputedStyle(el).fontVariantCaps)).toBe('all-small-caps')
+  const secondName = (await second.getByTestId('speaker').textContent())!
+  await second.getByRole('button', { name: `Answer or mark ${secondName}` }).click()
   await second.getByRole('button', { name: 'Push back' }).click()
   const gloss = second.getByTestId('margin-note')
-  await gloss.getByRole('textbox').fill('The evenings are mine to spend.')
   await expect(gloss.locator('.rubric')).toHaveText('You push back')
-  expect(await gloss.getByRole('textbox').evaluate((el) => getComputedStyle(el).fontStyle)).toBe('italic')
 
   // No catalogue note inside a conversation; the disclosure is word for word what it was.
   await expect(page.getByTestId('not-sought')).toHaveCount(0)
@@ -250,18 +250,18 @@ for (const [label, viewport] of [
     await expect(page.getByTestId('streaming')).toHaveCount(0, { timeout: 20_000 })
     await shot(page, '09-conversation')
     const second = page.getByTestId('contribution').nth(1)
+    await second.getByRole('button', { name: /^Answer or mark / }).click()
     await second.getByRole('button', { name: 'Push back' }).click()
-    await second.getByTestId('margin-note').getByRole('textbox').fill('The evenings are mine to spend.')
 
     // Talk mode: the voice bar, an adviser speaking, the gloss in the margin.
-    await page.getByTestId('talk').click()
+    await readAloud(page)
     await page.evaluate(() => (window as unknown as { __hear: (t: string) => void }).__hear('the constraint is engineering time'))
     await page.getByTestId('voice-finish').click()
     await page.getByTestId('voice-send').click()
     await expect(page.getByTestId('now-speaking')).toBeVisible({ timeout: 10_000 })
     await shot(page, '10-talk-voice-bar')
     await expect(page.getByTestId('floor')).toHaveCount(2, { timeout: 30_000 })
-    await page.getByTestId('talk').click()
+    await readAloud(page)
     await page.getByTestId('contribution').nth(2).scrollIntoViewIfNeeded()
     await shot(page, '11-conversation-turn-2')
 

@@ -1,6 +1,6 @@
 import { mkdirSync } from 'node:fs'
 import { expect, test, type Page } from '@playwright/test'
-import { FAKE_EARS, FAKE_VOICE, hear, speakInto, tone } from './fakeVoice'
+import { FAKE_EARS, FAKE_VOICE, hear, speakInto, tone, readAloud, readingAloud } from './fakeVoice'
 
 // Pavol, 20 Nov 2026: "the microphone lit up, but nothing happened. And I also don't have a
 // sense that actually something is being recorded. So I need a really live feedback where I
@@ -160,7 +160,7 @@ for (const [label, viewport] of VIEWPORTS) {
     await page.getByRole('button', { name: 'Bring it to the group' }).click()
     await expect(page.getByTestId('floor')).toHaveCount(1, { timeout: 20_000 })
 
-    await page.getByTestId('talk').click()
+    await readAloud(page)
     const bar = page.getByTestId('voice-bar')
     await expect(page.getByTestId('talk-status')).toContainText('Recording.')
     await tone(page, true)
@@ -168,8 +168,9 @@ for (const [label, viewport] of VIEWPORTS) {
     await hear(page, 'the constraint is engineering time')
     await page.evaluate(() => (window as unknown as { __forming: (t: string) => void }).__forming('and we have'))
     const draft = page.getByTestId('voice-draft')
-    await expect(draft).toHaveValue('the constraint is engineering time')
-    await expect(bar.getByTestId('capture-interim')).toHaveText('and we have')
+    const words = page.getByTestId('draft')
+    await expect(words).toContainText('the constraint is engineering time')
+    await expect(words).toContainText('and we have') // still forming, in italic
     await shot('10-talk-recording')
     await hear(page, 'and we have two engineers')
     await tone(page, false)
@@ -179,8 +180,9 @@ for (const [label, viewport] of VIEWPORTS) {
     await expect(page.getByTestId('user')).toHaveCount(0)
 
     await page.getByTestId('voice-finish').click()
-    await expect(page.getByTestId('talk-status')).toHaveText('Yours to correct before it goes.')
+    await expect(page.getByTestId('talk-status')).toHaveText('Read it over. Tap your words to correct them.')
     await expect(page.getByTestId('user')).toHaveCount(0)
+    await page.getByTestId('draft-text').click()
     await draft.fill('The constraint is engineering time: we have three engineers.')
     await shot('11-talk-text-to-correct')
 
@@ -188,13 +190,14 @@ for (const [label, viewport] of VIEWPORTS) {
     await page.getByTestId('voice-more').click()
     await expect(page.getByTestId('talk-status')).toContainText('Recording.')
     await hear(page, 'until March')
-    await expect(draft).toHaveValue('The constraint is engineering time: we have three engineers. until March')
+    await expect(words).toContainText('The constraint is engineering time: we have three engineers. until March')
     await page.getByTestId('voice-finish').click()
+    await page.getByTestId('draft-text').click()
     await draft.fill('The constraint is engineering time: we have three engineers until March.')
 
     await page.getByTestId('voice-send').click()
     await expect(page.getByTestId('user')).toHaveText(/The constraint is engineering time: we have three engineers until March\./)
-    await expect(page.getByTestId('talk-status')).toHaveText(/is talking…$/, { timeout: 15_000 })
+    await expect(page.getByTestId('talk-status')).toHaveText(/(is answering\. Tap to speak instead\.|, sentence \d of \d)$/, { timeout: 15_000 })
     await expect(page.getByTestId('cut-in')).toBeVisible()
     await shot('12-talk-adviser-speaking')
 
@@ -250,8 +253,8 @@ test('leaving the page and coming back: the words so far are kept, it says so, a
 })
 
 // Review of PR #40: "Say it" worked while the mic recorded or a part was pending, so the last
-// sentence was lost or landed in an emptied box.
-test('the reply box: Say it waits for the mic to finish and the last part to land, and what is sent includes it', async ({ page }) => {
+// sentence was lost or landed in an emptied box. Since 21 Nov the reply box is the floor.
+test('the floor: Send waits for the mic to finish and the last part to land, and what is sent includes it', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   const shot = shooter(page, 'phone')
   await page.addInitScript(FAKE_EARS)
@@ -260,27 +263,26 @@ test('the reply box: Say it waits for the mic to finish and the last part to lan
   await page.getByRole('button', { name: 'Bring it to the group' }).click()
   await expect(page.getByTestId('floor')).toHaveCount(1, { timeout: 20_000 })
 
-  const reply = page.locator('#reply')
-  const say = page.getByRole('button', { name: 'Say it' })
-  const mic = page.getByTestId('mic')
-  await reply.fill('Two things.')
-  await expect(say).toBeEnabled()
-  await mic.click()
-  await expect(say).toBeDisabled() // one filled action while it records: Finish
+  const words = page.getByTestId('draft')
+  const send = page.getByTestId('voice-send')
+  await page.getByTestId('type-instead').click()
+  await page.getByTestId('voice-draft').fill('Two things.')
+  await expect(send).toBeEnabled()
+  await page.getByTestId('voice-more').click()
+  await expect(send).toHaveCount(0) // one action while it records: Finish
   await speakInto(page, 'the constraint is engineering time')
-  await expect(reply).toHaveValue('Two things. the constraint is engineering time', { timeout: 10_000 })
-  await expect(say).toBeDisabled()
+  await expect(words).toContainText('Two things. the constraint is engineering time', { timeout: 10_000 })
   await shot('14-reply-box-recording')
   // The last sentence, with no pause after it: it is only written down after Finish.
   await tone(page, true)
   await page.evaluate(() => ((window as unknown as { __say: string }).__say = 'and the budget is fixed'))
   await page.waitForTimeout(400)
-  await mic.click()
-  await expect(reply).toHaveValue('Two things. the constraint is engineering time and the budget is fixed', { timeout: 10_000 })
-  await expect(say).toBeEnabled()
-  await say.click()
+  await page.getByTestId('voice-finish').click()
+  await expect(words).toContainText('Two things. the constraint is engineering time and the budget is fixed', { timeout: 10_000 })
+  await expect(send).toBeEnabled()
+  await send.click()
   await expect(page.getByTestId('user')).toHaveText(/Two things\. the constraint is engineering time and the budget is fixed/)
-  await expect(reply).toHaveValue('')
+  await expect(words).toHaveCount(0)
 })
 
 test('reduced motion: the flame stands still, the thread still moves', async ({ page }) => {

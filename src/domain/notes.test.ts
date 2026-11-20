@@ -46,3 +46,20 @@ describe('composeMessage: margin notes go with her next message (Eyal, 29 Oct)',
     expect(composeMessage(many, 'and so', name).length).toBe(MAX_MESSAGE)
   })
 })
+
+// Eyal (feedback 533a9ad9): answer one adviser as he goes. A reply is his next message,
+// addressed the way a note is, so the gateway hands the turn to that adviser.
+describe('a reply to one adviser', () => {
+  const reply = { speaker: 'jobs', quote: 'Make it something they can hold…' }
+  it('his words go addressed to the adviser and the point, before any marks', () => {
+    expect(composeMessage([], 'The price is the product.', name, reply)).toBe('To Jobs ("Make it something they can hold…"): The price is the product.')
+    const agree: Note = { speaker: 'drucker', quote: 'Who pays?', stance: 'agree', text: '' }
+    // Review of #41: a mark before the reply gave the turn to the marked adviser.
+    expect(composeMessage([agree], 'Not yet.', name, reply)).toBe(['To Jobs ("Make it something they can hold…"): Not yet.', '', 'To Drucker ("Who pays?"): Agree.'].join('\n'))
+    expect(composedLength([], 'abc', name, reply)).toBe('To Jobs ("Make it something they can hold…"): abc'.length)
+  })
+  it('a long reply is not cut to a note’s length', () => {
+    const words = 'z'.repeat(MAX_NOTE + 100)
+    expect(composeMessage([], words, name, reply)).toContain(words)
+  })
+})

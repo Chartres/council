@@ -419,7 +419,7 @@ describe('openCapture: the mic is taken away', () => {
     listeners.get('ended')!()
     listeners.get('ended')?.()
     expect(ev.onLost).toHaveBeenCalledTimes(1)
-    expect(ev.onLost).toHaveBeenCalledWith('ended', true) // he had left the page
+    expect(ev.onLost).toHaveBeenCalledWith('ended', true, { muted: false, state: 'ended' }) // he had left the page
     await c.finish() // what the owner does when told
     expect(s.heard).toEqual(['said before I left'])
     expect(stopped).toBe(1) // the stream is released
@@ -433,7 +433,7 @@ describe('openCapture: the mic is taken away', () => {
     expect(ev.onLost).not.toHaveBeenCalled() // leaving the page is not a loss by itself
     track.muted = true
     setHidden(false)
-    expect(ev.onLost).toHaveBeenCalledWith('muted', true)
+    expect(ev.onLost).toHaveBeenCalledWith('muted', true, { muted: true, state: 'live' })
     c.cancel()
   })
 
@@ -456,7 +456,22 @@ describe('openCapture: the mic is taken away', () => {
     vi.advanceTimersByTime(1900)
     expect(ev.onLost).not.toHaveBeenCalled()
     vi.advanceTimersByTime(200)
-    expect(ev.onLost).toHaveBeenCalledWith('muted', false)
+    // 20 Nov, Firefox on Android: lost_muted 4 s after Talk opened. The track's own state goes
+    // with the report, so the next log says whether it came back.
+    expect(ev.onLost).toHaveBeenCalledWith('muted', false, { muted: true, state: 'live' })
+    c.cancel()
+  })
+
+  it('a mute that ends within the grace is no loss', async () => {
+    const ev = events()
+    const c = await openCapture(sink(), ev)
+    track.muted = true
+    listeners.get('mute')!()
+    vi.advanceTimersByTime(1000)
+    track.muted = false
+    listeners.get('unmute')?.()
+    vi.advanceTimersByTime(2000)
+    expect(ev.onLost).not.toHaveBeenCalled()
     c.cancel()
   })
 

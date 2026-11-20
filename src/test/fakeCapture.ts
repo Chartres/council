@@ -34,7 +34,9 @@ export function fakeCaptures() {
         c.heardYet = true
       },
       /** The phone took the mic away. */
-      lose: (away = true) => c.ev.onLost('ended', away),
+      lose: (away = true) => c.ev.onLost('ended', away, { muted: false, state: 'ended' }),
+      /** The track stayed muted past its grace, the page in view (Firefox on Android, 20 Nov). */
+      mute: (away = false) => c.ev.onLost('muted', away, { muted: true, state: 'live' }),
       /** A finished piece of his words lands. */
       say: (text: string) => c.sink.onText(text),
     }

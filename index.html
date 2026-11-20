@@ -60,6 +60,13 @@
     />
   </head>
   <body>
+    <!-- The hand-drawn edge (src/index.css .slab, .mine, .floor, .dbl): lab/buttons volume 2. -->
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true" focusable="false">
+      <filter id="rough" x="-3%" y="-12%" width="106%" height="124%"><feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="7" /><feDisplacementMap in="SourceGraphic" scale="4.5" /></filter>
+      <!-- A stroke wavers but stays whole: lower frequency, smaller displacement than #rough (review of #41: #rough tore 1.6 px outlines). -->
+      <filter id="rough-line" x="-2%" y="-10%" width="104%" height="120%"><feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="1" seed="5" /><feDisplacementMap in="SourceGraphic" scale="1.8" /></filter>
+      <filter id="rough-s" x="-2%" y="-300%" width="104%" height="700%"><feTurbulence type="fractalNoise" baseFrequency="0.02 0.4" numOctaves="2" seed="11" /><feDisplacementMap in="SourceGraphic" scale="1.6" /></filter>
+    </svg>
     <div id="root">
       <!--seo-->
       <div style="max-width: 36rem; margin: 0 auto; padding: 1.5rem 1rem; color: #ece7db">

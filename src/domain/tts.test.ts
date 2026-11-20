@@ -225,7 +225,7 @@ describe('speak through the gateway', () => {
       expect(onMiss).not.toHaveBeenCalled()
     })
 
-    describe('with a gateway that hangs', () => {
+    describe('with a gateway that hangs (iPhone)', () => {
       beforeEach(() => vi.useFakeTimers())
       afterEach(() => vi.useRealTimers())
       it('a timed-out line misses after the timeout and the browser voice stays quiet', async () => {
@@ -249,6 +249,82 @@ describe('speak through the gateway', () => {
         expect(onEnd).toHaveBeenCalledTimes(1)
         expect(spoken).not.toHaveBeenCalled()
       })
+    })
+  })
+
+  // Pavol, 20 Nov (Firefox on Android): a sentence that took over 6 s came in the phone's own
+  // voice, between two in the adviser's. One message is read in one voice.
+  describe('one voice per message', () => {
+    const fail = () => Promise.resolve({ ok: false, headers: { get: () => 'application/json' } })
+    const bodyOf = (init: RequestInit) => JSON.parse(String(init.body)).text as string
+
+    it('a message the gateway began keeps its voice: a failed line is fetched once more, then offered again', async () => {
+      const tries: string[] = []
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((_u: string, init: RequestInit) => {
+          tries.push(bodyOf(init))
+          return bodyOf(init) === 'Two.' ? fail() : audioResponse()
+        }),
+      )
+      const spoken = vi.fn()
+      setFallback(spoken)
+      const onEnd = vi.fn()
+      const onMiss = vi.fn()
+      speak('One.', { pitch: 1, rate: 1 }, undefined, 'franklin', undefined, undefined, 'm1')
+      speak('Two.', { pitch: 1, rate: 1 }, onEnd, 'franklin', undefined, onMiss, 'm1')
+      await flush()
+      player().end()
+      await flush()
+      await flush()
+      expect(tries.filter((t) => t === 'Two.')).toHaveLength(2)
+      expect(spoken).not.toHaveBeenCalled()
+      expect(onMiss).toHaveBeenCalledTimes(1)
+      expect(onEnd).toHaveBeenCalledTimes(1)
+    })
+
+    it('a line fetched once more that arrives is played in the gateway voice', async () => {
+      let twos = 0
+      vi.stubGlobal('fetch', vi.fn((_u: string, init: RequestInit) => (bodyOf(init) === 'Two.' && ++twos === 1 ? fail() : audioResponse())))
+      const spoken = vi.fn()
+      setFallback(spoken)
+      speak('One.', { pitch: 1, rate: 1 }, undefined, 'franklin', undefined, undefined, 'm1')
+      speak('Two.', { pitch: 1, rate: 1 }, undefined, 'franklin', undefined, vi.fn(), 'm1')
+      await flush()
+      player().end()
+      await flush()
+      await flush()
+      expect(lines()).toHaveLength(2)
+      expect(spoken).not.toHaveBeenCalled()
+    })
+
+    it('a message that began in the browser voice ends in it, even when the gateway answers later lines', async () => {
+      let call = 0
+      vi.stubGlobal('fetch', vi.fn(() => (++call === 1 ? fail() : audioResponse())))
+      const spoken = vi.fn((_t: string, _v: unknown, onEnd?: () => void) => onEnd?.())
+      setFallback(spoken)
+      speak('One.', { pitch: 1, rate: 1 }, undefined, 'seneca', undefined, undefined, 'm2')
+      speak('Two.', { pitch: 1, rate: 1 }, undefined, 'seneca', undefined, undefined, 'm2')
+      speak('Next message.', { pitch: 1, rate: 1 }, undefined, 'socrates', undefined, undefined, 'm3')
+      await flush()
+      await flush()
+      expect(spoken.mock.calls.map((c) => c[0])).toEqual(['One.', 'Two.'])
+      expect(lines()).toHaveLength(1) // the next message is the gateway's again
+    })
+
+    it('a missed line whose owner stops the room there does not move the queue on', async () => {
+      vi.stubGlobal('fetch', vi.fn((_u: string, init: RequestInit) => (bodyOf(init) === 'Two.' ? fail() : audioResponse())))
+      setFallback(vi.fn())
+      const onEnd = vi.fn()
+      speak('One.', { pitch: 1, rate: 1 }, undefined, 'franklin', undefined, undefined, 'm4')
+      speak('Two.', { pitch: 1, rate: 1 }, onEnd, 'franklin', undefined, () => cancel(), 'm4')
+      speak('Three.', { pitch: 1, rate: 1 }, undefined, 'franklin', undefined, undefined, 'm4')
+      await flush()
+      player().end()
+      await flush()
+      await flush()
+      expect(onEnd).not.toHaveBeenCalled()
+      expect(lines()).toHaveLength(1)
     })
   })
 

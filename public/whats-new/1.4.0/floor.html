@@ -1,0 +1,21 @@
+<!doctype html>
+<meta charset="utf-8">
+<!-- What's new 1.4.0, the floor (flywheel docs/standards/whats-new.md): CSS only, nothing
+     fetched. 6 s loop: the flame breathes, the line moves, the dashed note fills, Send lights. -->
+<style>
+  html,body{margin:0;height:100%;background:#100e0b;overflow:hidden}
+  body{display:flex;flex-direction:column;justify-content:center;gap:10px;padding:0 20px;box-sizing:border-box;font:400 18px/24px "EB Garamond","Iowan Old Style",Georgia,serif;color:#ece7db}
+  .note{align-self:flex-end;border:1.5px dashed #e0b263;border-radius:12px 7px 13px 8px/7px 13px 8px 12px;padding:4px 10px;white-space:nowrap;overflow:hidden;max-width:0;animation:w 6s steps(18) infinite}
+  .bar{display:flex;align-items:center;gap:12px}
+  .flame{width:10px;height:18px;border-radius:50% 50% 45% 45%/60% 60% 40% 40%;background:radial-gradient(circle at 50% 70%,#fff3c4,#e0b263 55%,#a0521e);transform-origin:50% 100%;animation:f 1.4s ease-in-out infinite}
+  .line{flex:1;height:2px;background:#e0b263;transform-origin:center;animation:l .6s ease-in-out infinite alternate}
+  .btn{height:40px;border-radius:8px 13px 7px 14px/14px 7px 13px 8px;border:1.5px solid #b9b1a0;color:#b9b1a0;font-weight:600;display:flex;align-items:center;justify-content:center;animation:s 6s steps(1) infinite}
+  @keyframes w{0%{max-width:0}60%,100%{max-width:16em}}
+  @keyframes f{50%{transform:skewX(4deg) scaleY(.94)}}
+  @keyframes l{to{transform:scaleY(5)}}
+  @keyframes s{0%,62%{background:transparent;color:#b9b1a0}63%,100%{background:#e8c57f;color:#1a1206;border-color:#e8c57f}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important}.note{max-width:16em}}
+</style>
+<div class="note">The regulars come on Sunday.</div>
+<div class="bar"><div class="flame"></div><div class="line"></div></div>
+<div class="btn">Send</div>

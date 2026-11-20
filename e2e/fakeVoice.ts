@@ -142,3 +142,16 @@ export const hear = (page: Page, text: string) => page.evaluate((t) => (window a
 export const speakInto = (page: Page, text: string, ms = 800) =>
   page.evaluate(([t, d]) => (window as unknown as W).__speak(t as string, d as number), [text, ms] as const)
 export const tone = (page: Page, on: boolean) => page.evaluate((v) => (window as unknown as W).__tone(v), on)
+
+/** The floor's Read aloud switch lives under More (review of #41). Opens the menu and taps it. */
+export const readAloud = async (page: Page) => {
+  await page.getByTestId('floor-more').click()
+  await page.getByTestId('talk').click()
+}
+/** Whether read aloud is on, read from the menu (opened and closed again). */
+export const readingAloud = async (page: Page) => {
+  await page.getByTestId('floor-more').click()
+  const on = await page.getByTestId('talk').getAttribute('aria-pressed')
+  await page.getByTestId('floor-more').click()
+  return on === 'true'
+}

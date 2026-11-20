@@ -1,14 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useCouncil } from '@/app/CouncilContext'
 import { useMastermind, type Item } from '@/app/MastermindContext'
 import { useAuth } from '@/auth/AuthContext'
 import { keyAction } from '@/analytics'
 import { ListenToggle, useListen, useNarration, usePref } from '@/components/Listen'
-import { MicButton } from '@/components/MicButton'
-import { Talk, TALK_STORAGE } from '@/components/Talk'
+import { smooth, Talk, TALK_STORAGE, type Now } from '@/components/Talk'
 import { Monogram } from '@/components/Monogram'
-import { MarginNote, NotesTray } from '@/components/MarginNote'
-import { composedLength, composeMessage, MAX_MESSAGE, quoteOf, type Note } from '@/domain/notes'
+import { composedLength, composeMessage, quoteOf, type Note } from '@/domain/notes'
+import { sentenceAt, sentencesOf } from '@/domain/sentences'
 import { CouncilMap } from '@/components/CouncilMap'
 import { SignInPanel } from '@/components/SignInPanel'
 import { Quaestio } from '@/components/Quaestio'
@@ -32,18 +31,20 @@ function ConversationView() {
   const { go, isAdmin } = useCouncil()
   const { conversation, say, control, journal, continueDiscussion } = useMastermind()
   const { token } = useAuth()
-  const [message, setMessage] = useState('')
-  const [micBusy, setMicBusy] = useState(false) // the reply box's mic records, or a part is still being written down
   const [more, setMore] = useState(false)
   const [replyOpen, setReplyOpen] = useState(false)
-  // Margin notes, by the contribution's index; they go with her next message (Eyal, 29 Oct).
+  // Marks (Agree, Push back), by the contribution's index; they go with his next message
+  // (Eyal, 29 Oct). A reply to one adviser goes at once (Eyal, feedback 533a9ad9).
   const [notes, setNotes] = useState<Record<number, Pick<Note, 'stance' | 'text'>>>({})
+  const [replyTo, setReplyTo] = useState<number | null>(null)
+  // Where the floor sets his draft: the end of the conversation.
+  const [slot, setSlot] = useState<HTMLDivElement | null>(null)
   const [listen, setListen] = useListen()
   const [talk, setTalk] = usePref(TALK_STORAGE, false)
-  // The line the voice bar is speaking: marked in its card, and kept in view (Pavol, 8 Nov).
-  const [now, setNow] = useState<{ index: number; text: string } | null>(null)
+  // The line being read aloud: marked in its message, and kept in view (Pavol, 8 Nov).
+  const [now, setNow] = useState<Now | null>(null)
   useEffect(() => {
-    if (now) list.current?.children[now.index]?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    if (now && !now.stopped) list.current?.children[now.index]?.scrollIntoView({ block: 'center', behavior: smooth() })
   }, [now?.index])
   // Where read-aloud starts when it comes on: the turn on screen; after Talk, nothing already heard.
   const readFrom = useRef<number | null>(null)
@@ -75,9 +76,9 @@ function ConversationView() {
     readFrom.current = turns.length
     setQuiet(false)
   }, [streaming, quiet])
-  // Talk speaks for itself; read-aloud waits while it is on (it is gone once the session ended).
+  // The floor reads aloud while the discussion is open; Listen reads it once it has ended.
   // A past discussion is read on screen, never aloud: nothing there turns it on or off.
-  useNarration(turns, null, listen && !conversation?.past && !quiet && !(talk && !conversation?.ended), readFrom.current ?? current)
+  useNarration(turns, null, listen && !conversation?.past && !quiet && !!conversation?.ended, readFrom.current ?? current)
   const onListen = (on: boolean) => {
     readFrom.current = null
     setListen(on)
@@ -103,7 +104,7 @@ function ConversationView() {
   useEffect(() => {
     const i = turnStart.current
     if (i > 0 && (items?.length ?? 0) === i + 1)
-      list.current?.children[i]?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+      list.current?.children[i]?.scrollIntoView({ block: 'start', behavior: smooth() })
   }, [items?.length])
 
   if (!conversation) return null
@@ -119,34 +120,26 @@ function ConversationView() {
   )
   const committing =
     !replyOpen && !past && conversation.items.some((it, i) => i >= earlier && it.kind === 'proposal' && it.state === 'accepted')
+  const floorOn = !past && !ended && !committing
 
   const noted = Object.entries(notes).flatMap(([i, n]) => {
     const it = conversation.items[Number(i)]
     return it?.kind === 'contribution' ? [{ ...n, speaker: it.speaker, quote: quoteOf(it.text) }] : []
   })
-  const length = composedLength(noted, message, personaName)
-  const tooLong = length > MAX_MESSAGE
-  /** Her words with her notes in front; the notes are spent. */
-  const withNotes = (text: string) => {
-    if (!noted.length) return text
-    keyAction('noted', { count: noted.length, push: noted.filter((n) => n.stance === 'push').length })
+  const answered = replyTo !== null ? conversation.items[replyTo] : undefined
+  const reply = answered?.kind === 'contribution' ? { speaker: answered.speaker, quote: quoteOf(answered.text) } : undefined
+  /** His words with his marks in front, addressed to the adviser he answers; marks and reply are spent. */
+  const compose = (text: string) => {
+    if (noted.length) keyAction('noted', { count: noted.length, push: noted.filter((n) => n.stance === 'push').length })
     setNotes({})
-    return composeMessage(noted, text, personaName)
+    setReplyTo(null)
+    return composeMessage(noted, text, personaName, reply)
   }
-  const setNote = (index: number) => (next: Pick<Note, 'stance' | 'text'> | null) =>
+  const mark = (index: number, stance: Note['stance'] | null) =>
     setNotes((all) => {
       const { [index]: _gone, ...rest } = all
-      return next ? { ...rest, [index]: next } : rest
+      return stance && all[index]?.stance !== stance ? { ...rest, [index]: { stance, text: '' } } : rest
     })
-
-  const send = (e: React.FormEvent) => {
-    if (micBusy) return e.preventDefault() // Enter in the field must not get past a held button
-    e.preventDefault()
-    const text = message.trim()
-    if ((!text && !noted.length) || busy || tooLong) return
-    setMessage('')
-    say(withNotes(text))
-  }
 
   return (
     <div className="mx-auto max-w-xl px-4 pb-12">
@@ -177,15 +170,21 @@ function ConversationView() {
               <ItemView
                 item={it}
                 index={i}
-                speaking={now?.index === i ? now.text : undefined}
+                speaking={now?.index === i ? now : undefined}
                 inert={before}
                 steer={!before && i === openAt ? { busy: !!busy, run } : undefined}
-                note={!before && !ended && it.kind === 'contribution' && !it.streaming && it.text.trim() ? { value: notes[i], onChange: setNote(i) } : undefined}
+                react={
+                  !before && !ended && it.kind === 'contribution' && !it.streaming && it.text.trim()
+                    ? { mark: notes[i]?.stance, onMark: (s) => mark(i, s), onReply: () => setReplyTo(i), replying: replyTo === i }
+                    : undefined
+                }
               />
             </li>
           )
         })}
       </ol>
+      {/* The floor sets his words here, as the last message, while he speaks or corrects them. */}
+      <div ref={setSlot} className="mt-6 flex empty:hidden" />
 
       {streaming && !talk && (
         <p className="t-title mt-6 flex items-center gap-3 italic text-marble-200" role="status" data-testid="streaming">
@@ -227,19 +226,6 @@ function ConversationView() {
         </>
       ) : (
         <>
-          <Talk
-            on={talk}
-            onChange={onTalk}
-            items={conversation.items}
-            streaming={!!busy}
-            onSay={(text) => say(withNotes(text), { voice: true })}
-            onQuiet={() => setQuiet(true)}
-            timing={isAdmin}
-            onNow={setNow}
-            onLeft={(text) => setMessage((m) => (m.trim() ? `${m.trimEnd()} ${text}` : text))}
-          >
-            <ListenToggle chip on={listen} onChange={onListen} />
-          </Talk>
           {committing ? (
             <button
               type="button"
@@ -252,45 +238,26 @@ function ConversationView() {
               </svg>
             </button>
           ) : (
-          <>
-          <NotesTray count={noted.length} length={length} onClear={() => setNotes({})} />
-          <form onSubmit={send} className={noted.length ? 'mt-2' : 'mt-6'}>
-            <label htmlFor="reply" className="sr-only">
-              Your turn
-            </label>
-            <textarea
-              id="reply"
-              rows={1}
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="Your answer, or push back"
-              className="field resize-none [field-sizing:content]"
+            <Talk
+              on={talk}
+              onChange={onTalk}
+              items={conversation.items}
+              streaming={!!busy}
+              // Back / Next / the question list go as they are: his marks and his reply wait.
+              onSay={(text, voice, plain) => say(plain ? text : compose(text), voice ? { voice: true } : undefined)}
+              onQuiet={() => setQuiet(true)}
+              timing={isAdmin}
+              onNow={setNow}
+              slot={slot}
+              replyTo={reply ? personaName(reply.speaker) : null}
+              onReplyClear={() => setReplyTo(null)}
+              notes={{ count: noted.length, onClear: () => setNotes({}) }}
+              lengthOf={(words) => composedLength(noted, words, personaName, reply)}
             />
-            {/* Two word buttons of one kind: talk, and send. With Talk on, the voice bar is the mic. */}
-            {(() => {
-              const sendBtn = (
-                <button
-                  type="submit"
-                  disabled={(!message.trim() && !noted.length) || busy || tooLong || micBusy}
-                  className="slab min-w-0 flex-1 enabled:bg-marble-100 enabled:hover:bg-marble-50"
-                >
-                  Say it
-                </button>
-              )
-              return talk ? (
-                <div className="mt-2 flex">{sendBtn}</div>
-              ) : (
-                <MicButton value={message} onChange={setMessage} label="your reply" onBusy={setMicBusy} className="mt-2">
-                  {sendBtn}
-                </MicButton>
-              )
-            })()}
-          </form>
-          </>
           )}
 
-          <div role="group" aria-label="Steer the group" className="mt-2">
-            <div className="-mx-4 flex gap-2 overflow-x-auto px-4 py-1 [scrollbar-width:none]">
+          <div role="group" aria-label="Steer the group" className="mt-6">
+            <div className="flex flex-wrap gap-2 py-1">
               <button type="button" disabled={busy} className="chip" onClick={() => run({ kind: 'disagree' })}>
                 I disagree
               </button>
@@ -343,8 +310,8 @@ function ConversationView() {
       <p className="t-fine mt-12">
         {roster === 'business' ? BUSINESS_DISCLOSURE : DISCLOSURE}
       </p>
-      {/* Room for the voice bar, so the reply box and the last line are never under it. */}
-      {talk && !past && !ended && <div aria-hidden="true" className="h-80" />}
+      {/* Room for the floor, so the last line is never under it. */}
+      {floorOn && <div aria-hidden="true" style={{ height: 'calc(var(--floor-h, 18rem) + 1.5rem)' }} />}
     </div>
   )
 }
@@ -384,22 +351,25 @@ function LetExplore({ advisers, disabled, onRun }: { advisers: string[]; disable
 
 type Steer = { busy: boolean; run: (c: Control) => void }
 
-type NoteSlot = { value?: Pick<Note, 'stance' | 'text'>; onChange: (next: Pick<Note, 'stance' | 'text'> | null) => void }
+/** What he can do with one adviser's message: answer it, or mark it for his next message. */
+type Reactions = { mark?: Note['stance']; onMark: (s: Note['stance'] | null) => void; onReply: () => void; replying: boolean }
+
+const MARK: Partial<Record<Note['stance'], string>> = { agree: 'You agree', push: 'You push back' }
 
 function ItemView({
   item,
   index,
   steer,
-  note,
+  react,
   inert = false,
   speaking,
 }: {
   item: Item
   index: number
-  /** The sentence of this item being spoken right now, if any. */
-  speaking?: string
+  /** The sentence of this item being read aloud right now, if any. */
+  speaking?: Now
   steer?: Steer
-  note?: NoteSlot
+  react?: Reactions
   /** The record of an earlier session: shown, nothing to act on. */
   inert?: boolean
 }) {
@@ -411,36 +381,19 @@ function ItemView({
         </p>
       )
     case 'contribution':
-      return (
-        <div className="flex gap-4" data-testid="contribution" data-streaming={item.streaming || undefined}>
-          <Monogram id={item.speaker} />
-          <div className="min-w-0 flex-1">
-            <p className="flex items-baseline gap-3">
-              <span className="sc text-[20px] font-semibold text-marble-50" data-testid="speaker">
-                {personaName(item.speaker)}
-              </span>
-              {item.confidence !== undefined && (
-                <span className="t-ref">confidence {item.confidence}</span>
-              )}
-            </p>
-            <p className="t-body">
-              <Spoken text={item.text} line={speaking} />
-            </p>
-            {note && <MarginNote name={personaName(item.speaker)} note={note.value} onChange={note.onChange} />}
-          </div>
-        </div>
-      )
+      return <Contribution item={item} speaking={speaking} react={react} />
     case 'floor':
       return (
         <p className="t-display border-l-[3px] border-candle-500 pl-4 text-candle-200" data-testid="floor">
-          <Spoken text={item.question} line={speaking} />
+          <Spoken text={item.question} now={speaking} />
         </p>
       )
     case 'user':
       return (
-        <div data-testid="user">
-          <p className="sc text-[20px] font-semibold text-marble-300">You</p>
-          <p className="t-body mt-1 whitespace-pre-line text-marble-100">{item.text}</p>
+        // His words: the ink-outlined note on the right, as his draft was before it went.
+        <div data-testid="user" className="mine ml-auto max-w-[88%]">
+          <p className="sr-only">You</p>
+          <p className="t-body whitespace-pre-line text-marble-50">{item.text}</p>
         </div>
       )
     case 'proposal':
@@ -448,18 +401,147 @@ function ItemView({
   }
 }
 
-/** `text` with the sentence being spoken marked, the way a podcast transcript follows the voice. */
-function Spoken({ text, line }: { text: string; line?: string }) {
-  const at = line ? text.indexOf(line) : -1
-  if (!line || at < 0) return <>{text}</>
+/** `text` as it is read aloud, the way a podcast transcript follows the voice: the sentence
+ *  being read marked, those read in a lighter ink, those to come grey. After a cut-in it stops
+ *  there: what was not read stays grey. */
+function Spoken({ text, now }: { text: string; now?: Now }) {
+  const k = now ? sentenceAt(text, now.text) : -1
+  if (!now || k < 0) return <>{text}</>
   return (
     <>
-      {text.slice(0, at)}
-      <mark data-testid="now-speaking" className="rounded-sm bg-candle-500/20 text-inherit">
-        {line}
-      </mark>
-      {text.slice(at + line.length)}
+      {sentencesOf(text).map((s, i) =>
+        i === k && !now.stopped ? (
+          <mark key={i} data-testid="now-speaking" className="now-reading">
+            {s}{' '}
+          </mark>
+        ) : (
+          <span key={i} data-read={i <= k ? 'done' : 'wait'} className={i <= k ? 'text-marble-300' : 'text-marble-400'}>
+            {s}{' '}
+          </span>
+        ),
+      )}
     </>
+  )
+}
+
+/** One dot per sentence: read, being read, to come (Pavol picked them in lab/one-voice). */
+function Dots({ text, now }: { text: string; now: Now }) {
+  const k = sentenceAt(text, now.text)
+  if (k < 0) return null
+  return (
+    <span aria-hidden="true" data-testid="sentence-dots" className="inline-flex gap-[5px] self-center">
+      {sentencesOf(text).map((_, i) => (
+        <i key={i} className={`block h-1.5 w-1.5 rounded-full ${i < k || (i === k && now.stopped) ? 'bg-marble-500' : i === k ? 'bg-candle-400' : 'bg-ink-700'}`} />
+      ))}
+    </span>
+  )
+}
+
+/** Swipe a message right to answer it, as in a messenger. Only a touch or a pen that starts
+ *  away from the screen's left edge (iOS Safari's back swipe and Android's back gesture start
+ *  there) and moves sideways more than down; `touch-action: pan-y` keeps vertical scrolling the
+ *  browser's own. A mouse uses the Reply button. */
+const EDGE = 28
+const SWIPE = 56
+function Swipe({ onSwipe, children }: { onSwipe?: () => void; children: ReactNode }) {
+  const el = useRef<HTMLDivElement>(null)
+  const g = useRef<{ x: number; y: number; id: number; on: boolean } | null>(null)
+  const shift = (dx: number) => el.current && (el.current.style.transform = dx ? `translateX(${dx}px)` : '')
+  if (!onSwipe) return <>{children}</>
+  return (
+    <div
+      ref={el}
+      data-testid="swipe"
+      style={{ touchAction: 'pan-y' }}
+      onPointerDown={(e) => {
+        if (e.pointerType === 'mouse' || e.clientX < EDGE) return
+        g.current = { x: e.clientX, y: e.clientY, id: e.pointerId, on: false }
+      }}
+      onPointerMove={(e) => {
+        const s = g.current
+        if (!s || s.id !== e.pointerId) return
+        const dx = e.clientX - s.x
+        const dy = e.clientY - s.y
+        if (!s.on) {
+          if (Math.abs(dy) > 12 || dx < -12) return void (g.current = null)
+          if (dx > 12 && dx > 2 * Math.abs(dy)) s.on = true
+          else return
+        }
+        shift(Math.max(0, Math.min(dx, 96)) * 0.6)
+      }}
+      onPointerUp={(e) => {
+        const s = g.current
+        g.current = null
+        shift(0)
+        if (s?.on && e.clientX - s.x >= SWIPE) onSwipe()
+      }}
+      onPointerCancel={() => {
+        g.current = null
+        shift(0)
+      }}
+    >
+      {children}
+    </div>
+  )
+}
+
+function Contribution({ item, speaking, react }: { item: Extract<Item, { kind: 'contribution' }>; speaking?: Now; react?: Reactions }) {
+  const [menu, setMenu] = useState(false)
+  const name = personaName(item.speaker)
+  const pick = (f: () => void) => () => {
+    setMenu(false)
+    f()
+  }
+  return (
+    <Swipe onSwipe={react?.onReply}>
+      <div className={`flex gap-4 ${react?.replying ? 'replying' : ''}`} data-testid="contribution" data-streaming={item.streaming || undefined}>
+        <Monogram id={item.speaker} />
+        <div className="min-w-0 flex-1">
+          <p className="flex items-baseline gap-3">
+            <span className="sc text-[20px] font-semibold text-marble-50" data-testid="speaker">
+              {name}
+            </span>
+            {speaking && <Dots text={item.text} now={speaking} />}
+            {item.confidence !== undefined && <span className="t-ref">confidence {item.confidence}</span>}
+            {react && (
+              <button
+                type="button"
+                aria-expanded={menu}
+                aria-label={`Answer or mark ${name}`}
+                onClick={() => setMenu((m) => !m)}
+                className="text-btn -my-3 ml-auto shrink-0 px-2 text-[17px] text-marble-400"
+              >
+                Reply
+              </button>
+            )}
+          </p>
+          <p className="t-body">
+            <Spoken text={item.text} now={speaking} />
+          </p>
+          {react && menu && (
+            <div role="group" aria-label={`Your answer to ${name}`} className="-ml-2 mt-1 flex flex-wrap">
+              <button type="button" className="text-btn px-2 text-marble-200" onClick={pick(react.onReply)}>
+                Answer {name}
+              </button>
+              <button type="button" aria-pressed={react.mark === 'agree'} className="text-btn px-2 text-marble-300" onClick={pick(() => react.onMark('agree'))}>
+                Agree
+              </button>
+              <button type="button" aria-pressed={react.mark === 'push'} className="text-btn px-2 text-marble-300" onClick={pick(() => react.onMark('push'))}>
+                Push back
+              </button>
+            </div>
+          )}
+          {react?.mark && MARK[react.mark] && (
+            <div className="mt-2 flex items-center justify-between gap-2 border-l-2 border-clay-400 pl-3" data-testid="margin-note">
+              <p className="rubric">{MARK[react.mark]}</p>
+              <button type="button" className="text-btn px-3 text-marble-400" aria-label={`Remove your mark on ${name}`} onClick={() => react.onMark(null)}>
+                Remove
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </Swipe>
   )
 }
 

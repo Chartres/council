@@ -22,8 +22,20 @@ type Item = {
   onEnd?: () => void
   onStart?: (via: 'gateway' | 'browser') => void
   onMiss?: () => void
+  speaker?: string
+  /** The message this line belongs to: one message is read in one voice. */
+  group?: string
   audio: Promise<Blob | null>
   abort: AbortController
+}
+
+// The voice the latest message began in. Messages are read one after another, so the latest is
+// enough: a line of it goes the same way (Pavol, 20 Nov: one sentence in the phone's own voice
+// between two of Franklin's).
+let began: { group: string; via: 'gateway' | 'browser' } | null = null
+const beganIn = (item: Item) => (item.group && began?.group === item.group ? began.via : null)
+const begin = (item: Item, via: 'gateway' | 'browser') => {
+  if (item.group && !beganIn(item)) began = { group: item.group, via }
 }
 
 const queue: Item[] = []
@@ -95,9 +107,10 @@ export function speak(
   speaker?: string,
   onStart?: (via: 'gateway' | 'browser') => void,
   onMiss?: () => void,
+  group?: string,
 ): void {
   const abort = new AbortController()
-  queue.push({ text, voice, onEnd, onStart, onMiss, abort, audio: fetchAudio(text, speaker, abort.signal) })
+  queue.push({ text, voice, onEnd, onStart, onMiss, speaker, group, abort, audio: fetchAudio(text, speaker, abort.signal) })
   if (!busy) void next()
 }
 
@@ -144,9 +157,16 @@ async function next(): Promise<void> {
     return
   }
   busy = true
-  const blob = await item.audio
+  let blob = await item.audio
   // Cancelled while downloading: cancel() already reset the queue; a later speak() runs its own loop.
   if (item.abort.signal.aborted) return
+  // The message began in the browser voice: it ends in it.
+  if (beganIn(item) === 'browser') return viaFallback(item)
+  // Mid-message in the adviser's voice: once more before giving up on this line.
+  if (!blob && beganIn(item) === 'gateway') {
+    blob = await fetchAudio(item.text, item.speaker, item.abort.signal)
+    if (item.abort.signal.aborted) return
+  }
   if (!blob) return miss(item)
   const url = URL.createObjectURL(blob)
   const audio = element()
@@ -173,6 +193,7 @@ async function next(): Promise<void> {
   audio.onerror = done
   try {
     await audio.play()
+    begin(item, 'gateway')
     if (!item.abort.signal.aborted) item.onStart?.('gateway')
   } catch {
     // A cancelled line stays silent; otherwise autoplay was refused: let the browser engine try.
@@ -187,9 +208,12 @@ async function next(): Promise<void> {
 /** The gateway could not speak this line. iPhone/iPad with `onMiss`: it stays as text and the queue moves on
  *  (onEnd keeps Talk's hands-free loop going); elsewhere the browser voice reads it. */
 function miss(item: Item): void {
-  // Only a caller that can offer the line again (Talk's Tap to hear) gives up the browser voice.
-  if (!isAppleMobile() || !item.onMiss) return viaFallback(item)
-  item.onMiss?.()
+  // Only a caller that can offer the line again (Talk's Tap to hear) gives up the browser voice:
+  // on iPhone and iPad always, elsewhere in a message the adviser's voice began.
+  if (!item.onMiss || (!isAppleMobile() && beganIn(item) !== 'gateway')) return viaFallback(item)
+  item.onMiss()
+  // The owner stopped the room at the missed line (Talk holds it there): the queue stays put.
+  if (item.abort.signal.aborted) return
   item.onEnd?.()
   void next()
 }
@@ -209,6 +233,7 @@ function viaFallback(item: Item): void {
     void next()
   }
   const guard = setTimeout(finish, Math.max(3_000, (item.text.length * 70) / (item.voice.rate || 1)))
+  begin(item, 'browser')
   item.onStart?.('browser')
   fallback(item.text, item.voice, finish)
 }

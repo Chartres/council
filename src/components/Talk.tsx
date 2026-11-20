@@ -1,28 +1,42 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { addWords, CapturePanel, micAvailable, micProblem, MicIcon, useCapture } from '@/components/Capture'
+import { useEffect, useId, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { addWords, FloorLamp, micAvailable, micProblem, MicIcon, useCapture } from '@/components/Capture'
 import { cancel, speak } from '@/components/Listen'
 import { personaName } from '@/content/personas'
 import { primeMic } from '@/domain/capture'
+import { floorStatus } from '@/domain/floor'
+import { MAX_MESSAGE } from '@/domain/notes'
 import { unlock } from '@/domain/tts'
 import type { Item } from '@/domain/mastermind'
-import { sentenceChunker } from '@/domain/sentences'
-import { recognitionCtor, VOICE } from '@/domain/speech'
+import { mayQuote, rest, sentenceAt, sentenceChunker, sentencesOf } from '@/domain/sentences'
+import { recognitionCtor, synthesisAvailable, VOICE } from '@/domain/speech'
 import { serverEars } from '@/domain/stt'
 import { keyAction } from '@/analytics'
 import { describeTurn, turnClock } from '@/domain/voiceTiming'
 
-// Talk mode (council-v4.3.md "Talk mode"): a room driven from a player bar at the bottom of the
-// screen (Pavol, 8 Nov: "something more live, podcast-like, audio-player-like"). The room and he
-// take turns. His turn (Pavol, 20 Nov): the mic opens, the thread and the candle show that sound
-// is coming in, his words are set in a field as they are written down, and the turn ends when he
-// taps Finish, not when he pauses. The text is his to correct; it goes when he taps Send. The
-// adviser's answer is spoken sentence by sentence as it streams, and the line being spoken is
-// marked on screen; pause holds the room and resumes where it stopped; previous and next move
-// between the facilitator's questions; "Cut in" stops an adviser and opens the mic.
-// The mic is closed while an adviser speaks, so a phone plays through its speaker and the
-// room's own voice is not written down as his.
+// The floor (Pavol, 20 Nov 2026, option A of lab/one-voice): the one place to speak in a
+// conversation. One bar at the bottom holds the candle and its thread, one status line and the
+// main button; his words appear as a dashed message in the conversation while he speaks, and a
+// tap on it corrects them (the only text field, and only while he edits). Typing uses the same
+// draft. Nothing is sent until he taps Send.
+// Read aloud (the `council:talk` switch, "Talk" before 21 Nov) makes it a room: each adviser's
+// answer is read sentence by sentence as it streams, the sentence being read is marked on
+// screen, the mic opens when the room goes quiet, and Cut in stops an adviser and opens it.
+// The mic is shut while an adviser speaks, so a phone plays through its speaker and the room's
+// own voice is not written down as his.
 
 export const TALK_STORAGE = 'council:talk'
+
+/** The facilitator has no persona of its own. */
+const nameOf = (id: string) => (id === 'facilitator' ? 'The facilitator' : personaName(id))
+/** Smooth scrolling, unless he asked the system for less motion. */
+export const smooth = (): ScrollBehavior =>
+  typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+
+/** The sentence being read: its item and text; `stopped` once he cut in there. */
+export type Now = { index: number; text: string; stopped?: boolean }
+
+type Line = { text: string; speaker: string; index: number; group: string }
 
 export function Talk({
   on,
@@ -31,199 +45,249 @@ export function Talk({
   streaming,
   onSay,
   onQuiet,
-  children,
   timing = false,
   onNow,
-  onLeft,
+  slot,
+  replyTo = null,
+  onReplyClear,
+  notes,
+  lengthOf = (w) => w.trim().length,
 }: {
+  /** Read aloud. */
   on: boolean
   onChange: (on: boolean) => void
   items: Item[]
   streaming: boolean
-  /** Send a voice turn. */
-  onSay: (text: string) => void
-  /** Switched off mid-answer: read-aloud should not repeat the answer Talk was speaking. */
+  /** Send his words; `voice` when read aloud is on (one adviser answers, briefly); `plain` for
+   *  Back / Next / the question list, which go without his marks or his reply. */
+  onSay: (text: string, voice: boolean, plain?: boolean) => void
+  /** Read aloud switched off mid-answer. */
   onQuiet?: () => void
-  /** Sits beside the control (the Listen chip). */
-  children?: ReactNode
   /** Admins see each turn's wait to the first word under the status line. */
   timing?: boolean
-  /** The line being spoken (its item's index and text), for the screen to mark; null when quiet. */
-  onNow?: (now: { index: number; text: string } | null) => void
-  /** Talk ended with words he had not sent: they go to the reply box, not away. */
-  onLeft?: (text: string) => void
+  /** The line being read, for the screen to mark; null when quiet. */
+  onNow?: (now: Now | null) => void
+  /** Where in the conversation his draft is set (the end of the list). */
+  slot?: HTMLElement | null
+  /** The adviser his next words answer, by name. */
+  replyTo?: string | null
+  onReplyClear?: () => void
+  /** Marks (Agree, Push back) waiting to go with his next message. */
+  notes?: { count: number; onClear: () => void }
+  /** How long his message would be with these words, marks and reply: over the gateway's
+   *  limit, Send waits (it was cut silently at 2000 characters before). */
+  lengthOf?: (words: string) => number
 }) {
   const [hasMic] = useState(micAvailable)
-  // Whose words: the browser's recogniser or the gateway's (for the turn report only).
+  const [synthesisOk] = useState(() => synthesisAvailable() || !!import.meta.env.VITE_GATEWAY_URL)
+  // Names this floor's messages for the speaker queue, which outlives a conversation.
+  const room = useId()
   const [ears] = useState<'browser' | 'server'>(() => (serverEars(!!recognitionCtor()) ? 'server' : 'browser'))
-  const [problem, setProblem] = useState<string | null>(null)
+  const [problem, setProblemState] = useState<string | null>(null)
+  const problemRef = useRef<string | null>(null)
+  const setProblem = (p: string | null) => {
+    problemRef.current = p
+    setProblemState(p)
+  }
   // Remembered as on is not enough: the mic and the speaker wait for a tap on this page.
   const [armed, setArmed] = useState(false)
   const active = on && armed
   const [talker, setTalker] = useState<string | null>(null)
+  const [now, setNowState] = useState<Now | null>(null)
   const queued = useRef(0) // lines handed to the speaker and not yet finished
-  const muted = useRef(false) // cut in on: the rest of this turn stays on screen, unspoken
-  const handled = useRef(items.length) // what was on screen before Talk is not read
-  const chunk = useRef<{ index: number; text: string; next: ReturnType<typeof sentenceChunker> } | null>(null)
+  const muted = useRef(false) // cut in: the rest of this answer stays on screen, unspoken
+  const handled = useRef(items.length) // what was on screen before read aloud is not read
+  // The contribution being read as it streams: what came in, what was said, and whether a
+  // sentence that may quote is waiting for the checked text.
+  const chunk = useRef<{ index: number; seen: string; next: ReturnType<typeof sentenceChunker>; said: string[]; hold: boolean } | null>(null)
   const held = useRef('') // words sent while the group was still answering
-  // The wait from his Send to the first adviser audio, once per turn (key_action voice_turn).
+  const heldPlain = useRef(true) // and all of them were Back / Next (no marks, no reply)
+  const [isHeld, setHeld] = useState(false)
   const clock = useRef(turnClock()).current
   const [lastTurn, setLastTurn] = useState<string | null>(null)
   // Paused: the room holds. Lines that were queued or arrive meanwhile wait in `pending` and are
-  // spoken from the first unfinished one on resume; the mic stays shut.
+  // read from the first unfinished one on resume; the mic stays shut. A line that did not load
+  // pauses the room there (`missed`), rather than reading on or switching voice mid-message.
   const [paused, setPaused] = useState(false)
   const pausedRef = useRef(false)
-  const pending = useRef<{ text: string; speaker: string; index: number }[]>([])
-  const skipping = useRef(false) // after previous/next: the old answer's tail is not spoken
-  // A ticking clock for the "Thinking… n s" line, only while it shows.
-  const [tick, setTick] = useState(() => Date.now())
-  const thinkingSince = useRef<number | null>(null)
-  // iPhone/iPad: the last line the gateway could not speak (no robot voice there, Eyal 30 Oct).
-  const [missed, setMissed] = useState<{ text: string; speaker: string; index: number } | null>(null)
+  const [missed, setMissed] = useState<string | null>(null)
+  const pending = useRef<Line[]>([])
+  const skipping = useRef(false) // after Back or Next: the old answer's tail is not read
   const mounted = useRef(true)
-  const live = useRef({ active, streaming, onSay, onChange, onNow, onLeft })
-  live.current = { active, streaming, onSay, onChange, onNow, onLeft }
+  const live = useRef({ active, streaming, onSay, onChange, onNow })
+  live.current = { active, streaming, onSay, onChange, onNow }
+  const setNow = (n: Now | null) => {
+    setNowState(n)
+    live.current.onNow?.(n)
+  }
 
-  // His turn, as text: what the mic wrote down and what he typed or fixed. Nothing goes until Send.
+  // His turn, as text. Nothing goes until Send.
   const [draft, setDraft] = useState('')
   const draftRef = useRef('')
   const setText = (t: string) => {
     draftRef.current = t
     setDraft(t)
   }
-  /** A mic that cannot open is said in words (and logged by the hook); Talk switches off. */
+  const [editing, setEditingState] = useState(false)
+  const editingRef = useRef(false)
+  const setEditing = (e: boolean) => {
+    editingRef.current = e
+    setEditingState(e)
+  }
   const cap = useCapture({
     talk: true,
-    onFail: (reason) => {
-      setProblem(micProblem(reason))
-      live.current.onChange(false)
-    },
+    // A mic that cannot open is said in words; read aloud stays on (it does not need the mic).
+    onFail: (reason) => setProblem(micProblem(reason)),
   })
   const capRef = useRef(cap)
   capRef.current = cap
+  // From Finish to the last part landing: how long the gateway took to write it down (stt_ms).
+  const finishedAt = useRef<number | null>(null)
+  const wroteMs = useRef<number | undefined>(undefined)
+  useEffect(() => {
+    if (cap.phase !== 'idle' || finishedAt.current === null) return
+    wroteMs.current = Date.now() - finishedAt.current
+    finishedAt.current = null
+  }, [cap.phase])
 
-  /** His turn may open: Talk on, nobody speaking, and the group not answering (unless he cut in). */
+  /** His turn may open by itself: read aloud on, nobody speaking, the group not answering. */
   const herTurn = () => {
     const { active, streaming } = live.current
     return mounted.current && active && !pausedRef.current && !queued.current && (!streaming || muted.current)
   }
-  /** Open the mic for his turn. With words waiting to be sent, it waits for him. */
+  /** The room went quiet: the mic opens, unless words or an open editor wait for him. */
   const openMic = () => {
-    if (!herTurn() || draftRef.current.trim()) return
+    if (!hasMic || problemRef.current || !herTurn() || draftRef.current.trim() || editingRef.current) return
     record()
   }
-  /** Every piece is added to what is there: a correction he made is not overwritten. */
-  const record = () => capRef.current.start((piece) => setText(addWords(draftRef.current, piece)))
-  /** The room speaks, or he sent by hand: the mic closes. What he said so far stays as text. */
+  /** Every piece is added to what is there: a correction he made is not overwritten. Not while
+   *  the room speaks (the mic would write its voice down as his). */
+  const record = () => {
+    if (!hasMic || queued.current) return
+    setEditing(false)
+    finishedAt.current = null
+    capRef.current.start((piece) => setText(addWords(draftRef.current, piece)))
+  }
   const shutMic = () => {
     if (capRef.current.busy()) void capRef.current.finish()
   }
 
-  const voice = (text: string, speaker: string, index = -1, again = false) => {
+  /** A voice turn's question is its adviser's own (one adviser, no facilitator line). */
+  const floorVoice = (i: number): { speaker: string; group: string } => {
+    let one: { speaker: string; index: number } | null = null
+    for (let j = i - 1; j >= 0 && items[j]?.kind !== 'user'; j--) {
+      const it = items[j]!
+      if (it.kind === 'facilitator') return { speaker: 'facilitator', group: `${room}f${i}` }
+      if (it.kind === 'contribution') {
+        if (one) return { speaker: 'facilitator', group: `${room}f${i}` }
+        one = { speaker: it.speaker, index: j }
+      }
+    }
+    return one ? { speaker: one.speaker, group: `${room}m${one.index}` } : { speaker: 'facilitator', group: `${room}f${i}` }
+  }
+
+  /** Hold the room at a line: the voice stops, the mic shuts, that line and the rest wait. */
+  const hold = (why: string | null) => {
+    pausedRef.current = true
+    setPaused(true)
+    setMissed(why)
+    clock.reset() // a held turn is not timed: the wait would be his
+    cancel()
+    queued.current = 0
+    setTalker(null)
+    setNow(null)
+    shutMic()
+  }
+
+  const voice = (line: Line, again = false) => {
     if (muted.current && !again) return
-    const entry = { text, speaker, index }
-    pending.current.push(entry)
+    pending.current.push(line)
     if (pausedRef.current) return
-    // The room speaks: the mic closes so the phone plays through its speaker and the advisers'
-    // words are never written down as his.
     shutMic()
     queued.current += 1
-    if (speaker !== 'facilitator') setTalker(speaker)
+    setTalker(line.speaker)
     clock.firstLine()
     const done = () => {
-      pending.current = pending.current.filter((p) => p !== entry)
+      pending.current = pending.current.filter((p) => p !== line)
       queued.current = Math.max(0, queued.current - 1)
       if (queued.current) return
       setTalker(null)
-      live.current.onNow?.(null)
-      // The room went quiet: his turn.
+      setNow(null)
       openMic()
     }
-    speak(text, VOICE, done, speaker, (via) => {
-      // A line is playing on the one shared player: a retry now would queue behind it, so the
-      // offer of an earlier missed line goes (only the last missed line is kept anyway).
-      if (mounted.current) setMissed(null)
-      if (mounted.current) live.current.onNow?.(index >= 0 ? { index, text } : null)
-      const t = clock.audioStarted(via, ears)
-      if (!t) return
-      keyAction('voice_turn', t)
-      if (mounted.current) setLastTurn(describeTurn(t))
-    }, () => mounted.current && setMissed(entry))
+    speak(
+      line.text,
+      VOICE,
+      done,
+      line.speaker,
+      (via) => {
+        if (!mounted.current) return
+        setNow(line.index >= 0 ? { index: line.index, text: line.text } : null)
+        const t = clock.audioStarted(via, ears)
+        if (!t) return
+        keyAction('voice_turn', t)
+        setLastTurn(describeTurn(t))
+      },
+      // The line did not load twice over: the room holds there, in this voice, until he taps.
+      () => mounted.current && hold(nameOf(line.speaker)),
+      line.group,
+    )
   }
 
-  /** Tap to hear: the missed line once more through the gateway (the tap lets it play on iOS). */
-  const hearAgain = () => {
-    if (!missed) return
-    // He is already speaking into the open mic, or his words are being written down: they come first.
-    if (cap.phase === 'writing' || cap.heard()) return
-    setMissed(null)
-    clock.reset() // the wait before the tap is his, not the voice's
-    unlock()
-    voice(missed.text, missed.speaker, missed.index, true)
-  }
-
-  const hush = () => {
+  const hush = (stopped = false) => {
     clock.reset()
     cancel()
     queued.current = 0
     pending.current = []
     setTalker(null)
-    live.current.onNow?.(null)
+    setNow(stopped && now ? { ...now, stopped: true } : null)
   }
 
-  /** Hold the room: the voice stops mid-line, the mic shuts, what was left waits. */
-  const pause = () => {
-    pausedRef.current = true
-    setPaused(true)
-    clock.reset() // a paused turn is not timed: the wait would be his
-    cancel()
-    queued.current = 0
-    setTalker(null)
-    live.current.onNow?.(null)
-    shutMic()
-  }
   /** Carry on from the first line that had not finished; with none left, it is his turn. */
   const resume = () => {
     pausedRef.current = false
     setPaused(false)
-    unlock() // inside the tap (iOS)
+    setMissed(null)
     const left = pending.current
     pending.current = []
-    for (const p of left) voice(p.text, p.speaker, p.index)
+    if (left.length) unlock() // inside the tap (iOS); the mic does not open in this tap
+    for (const p of left) voice(p, true)
     openMic()
   }
 
-  /** Previous / next question and the question list: his words to the facilitator, plainly. */
+  /** Back / Next / the question list: his words to the facilitator, plainly. */
   const steer = (text: string) => {
-    if (pausedRef.current) {
-      pausedRef.current = false
-      setPaused(false)
-    }
+    pausedRef.current = false
+    setPaused(false)
+    setMissed(null)
     hush()
     shutMic()
-    muted.current = true // what was still coming of this answer stays on screen, unspoken
-    skipping.current = true // and stays unspoken until his message is on screen
-    send(text, true)
+    muted.current = true
+    skipping.current = true
+    send(text, true, true)
   }
 
-  const send = (text: string, wasHeld = false) => {
+  const send = (text: string, wasHeld = false, plain = false) => {
     if (live.current.streaming) {
+      heldPlain.current = (held.current ? heldPlain.current : true) && plain
       held.current = `${held.current} ${text}`.trim()
+      setHeld(true)
       return
     }
     muted.current = false
-    setMissed(null)
-    // A turn that waited for the group to finish is not timed: its wait is the group's, not ours.
-    if (!wasHeld) clock.sent(Date.now())
+    setNow(null)
+    if (!wasHeld) clock.sent(Date.now(), null, ears === 'server' ? wroteMs.current : undefined)
     else clock.reset()
-    live.current.onSay(text)
+    wroteMs.current = undefined
+    live.current.onSay(text, live.current.active, plain)
   }
 
-  /** Send: his words, as he left them, go to the group. The only way a voice turn is sent. */
+  /** Send: his words, as he left them. The only way a turn is sent from the floor. */
   const sendDraft = () => {
     const text = draftRef.current.trim()
-    if (!text || capRef.current.phase !== 'idle') return
+    if ((!text && !notes?.count) || capRef.current.phase !== 'idle' || lengthOf(text) > MAX_MESSAGE) return
     setText('')
+    setEditing(false)
     send(text)
   }
 
@@ -231,39 +295,45 @@ export function Talk({
    *  read "Send": a second press of the space bar must not send words he has not looked at. */
   const finishTurn = () => {
     ;(document.activeElement as HTMLElement | null)?.blur?.()
+    finishedAt.current = Date.now()
     void capRef.current.finish()
   }
 
-  /** Stop the room and open the mic now, even mid-answer (what he then sends waits for the
-   *  answer to finish, like any message sent while it streams). */
+  /** Stop the room and open the mic now, even mid-answer. What he then sends waits for the
+   *  answer to finish. The sentences not yet read stay grey on screen. */
   const cutIn = () => {
     muted.current = true
-    hush()
-    // With words already waiting he is still cutting in to say more: the mic opens and adds to them.
-    if (herTurn()) record()
+    hush(true)
+    if (pausedRef.current) {
+      pausedRef.current = false
+      setPaused(false)
+      setMissed(null)
+    }
+    record()
   }
 
-  // On: his turn opens (already started inside the tap). Off: mic and audio stop, the turn is let go.
+  /** Tap the draft: correct it. Mid-recording that finishes the recording first. */
+  const edit = () => {
+    if (capRef.current.recording) finishTurn()
+    setEditing(true)
+  }
+
+  // Read aloud on: his turn opens (already started inside the tap). Off: the room stops; his
+  // draft stays on the floor.
   useEffect(() => {
     if (active) return openMic()
     clock.reset()
     pausedRef.current = false
     setPaused(false)
+    setMissed(null)
     pending.current = []
     skipping.current = false
-    // The recording in progress is finished, not dropped: the reply box gets his words once the
-    // last part has been written down.
-    const ending = capRef.current.finish()
-    const hand = () => {
-      if (live.current.active) return // back on before the last part landed: the words stay here
-      if (draftRef.current.trim()) live.current.onLeft?.(draftRef.current.trim())
-      setText('')
-    }
-    void ending.then(hand, hand)
-    if (queued.current) hush() // only what Talk queued: Listen's narration is not ours to stop
+    if (queued.current) hush()
+    // Words he sent while the group answered are not lost: they come back to the floor.
+    if (held.current && !heldPlain.current) setText(addWords(held.current, draftRef.current))
     held.current = ''
+    setHeld(false)
     muted.current = false
-    setMissed(null)
     if (chunk.current) onQuiet?.()
   }, [active])
   useEffect(() => {
@@ -274,7 +344,10 @@ export function Talk({
     }
   }, [])
 
-  // Voice out: each completed sentence of the growing contribution, then the floor question.
+  // Voice out. While a contribution streams, each finished sentence is read, until one that may
+  // quote: the gateway checks those when the turn is in, and may cut them. From there the checked
+  // text, the one on screen, is read in order (Pavol, 20 Nov: "read one sentence, skipped, then
+  // read something else").
   useEffect(() => {
     if (!active) {
       handled.current = items.length
@@ -282,7 +355,7 @@ export function Talk({
       return
     }
     for (let i = handled.current; i < items.length; i++) {
-      const it = items[i]
+      const it = items[i]!
       if (skipping.current) {
         if (it.kind === 'user') skipping.current = false
         handled.current = i + 1
@@ -290,112 +363,136 @@ export function Talk({
         continue
       }
       if (it.kind === 'contribution') {
-        if (chunk.current?.index !== i) chunk.current = { index: i, text: '', next: sentenceChunker() }
+        if (chunk.current?.index !== i) chunk.current = { index: i, seen: '', next: sentenceChunker(), said: [], hold: false }
         const c = chunk.current
-        if (it.text.startsWith(c.text)) {
-          const out = c.next.push(it.text.slice(c.text.length))
-          c.text = it.text
-          if (!it.streaming) out.push(...c.next.flush())
-          for (const s of out) voice(s, it.speaker, i)
-          if (it.streaming) return
+        const line = (text: string) => ({ text, speaker: it.speaker, index: i, group: `${room}m${i}` })
+        if (it.streaming) {
+          if (!c.hold && it.text.startsWith(c.seen)) {
+            const out = c.next.push(it.text.slice(c.seen.length))
+            c.seen = it.text
+            for (const s of out) {
+              if (mayQuote(s)) {
+                c.hold = true
+                break
+              }
+              c.said.push(s)
+              voice(line(s))
+            }
+          } else c.hold = true
+          return
         }
-        // Otherwise the final text rewrote what streamed: what was spoken stands, the rest is read on screen.
+        for (const s of rest(c.said, it.text)) voice(line(s))
         chunk.current = null
-      } else if (it.kind === 'floor') voice(it.question, 'facilitator', i)
-      else if (it.kind === 'facilitator') voice(it.text, 'facilitator', i)
+      } else if (it.kind === 'floor') voice({ text: it.question, index: i, ...floorVoice(i) })
+      else if (it.kind === 'facilitator') voice({ text: it.text, speaker: 'facilitator', index: i, group: `${room}f${i}` })
       handled.current = i + 1
     }
-    // The answer is in and nothing of it was spoken: that turn gets no report.
     if (!streaming) clock.unanswered()
   }, [active, items, streaming])
 
-  // Words sent while the group was answering go as soon as it is done. (After the effect
-  // above: lines that arrived with the end of the stream are queued before the turn is offered.)
+  // A new answer begins: a cut-in belonged to the last one (before 21 Nov it lasted until his
+  // next spoken Send, so an answer to a chip was never read). Words sent while the group was
+  // answering go as soon as it is done.
   useEffect(() => {
     if (streaming) {
-      // He sent by hand or tapped a chip while the mic was open: the group answers now.
-      if (!muted.current) shutMic()
+      muted.current = false
+      shutMic()
       return
     }
     if (!held.current) {
-      // An answer that left nothing to speak hands the turn straight back.
       if (active && !queued.current) openMic()
       return
     }
     const text = held.current
     held.current = ''
-    if (active) send(text, true)
+    setHeld(false)
+    send(text, true, heldPlain.current)
   }, [streaming])
 
   const tap = () => {
     if (active) return onChange(false)
     setProblem(null)
-    unlock() // inside the tap: the shared player may speak from now on (iOS)
+    // Safari plays only from an element a tap has played, so the tap unlocks it. On Android the
+    // silent clip and the silent browser line are not played in the tap that opens the mic: on
+    // Firefox there they are the suspects for the mic going muted (20 Nov, lost_muted 4 s after
+    // Talk opened). Android plays later lines without the unlock (sticky activation).
+    // ponytail: suspected cause, not reproduced on a phone; the mute log now carries the track state.
+    const android = /Android/.test(navigator.userAgent)
+    if (!android) unlock()
     setArmed(true)
     if (!on) onChange(true)
-    // The mic is asked for inside this tap: opened if it is his turn already, otherwise asked
-    // and let go, so the permission prompt does not arrive in the middle of the conversation.
-    if (!queued.current && !streaming && !draftRef.current.trim()) record()
-    else primeMic()
+    if (hasMic && !queued.current && !streaming && !draftRef.current.trim()) record()
+    else if (hasMic) {
+      primeMic()
+      if (android) unlock() // no mic is opened in this tap
+    }
   }
-
-  // "Thinking… n s" counts from the moment the group started answering.
-  if (streaming && thinkingSince.current === null) thinkingSince.current = Date.now()
-  if (!streaming) thinkingSince.current = null
-  const ticking = on && streaming
-  useEffect(() => {
-    if (!ticking) return
-    setTick(Date.now())
-    const t = setInterval(() => setTick(Date.now()), 250)
-    return () => clearInterval(t)
-  }, [ticking])
 
   const floors = items.flatMap((it) => (it.kind === 'floor' ? [it.question] : []))
   const [list, setList] = useState(false)
   const hasDraft = !!draft.trim()
+  const last = items.at(-1)
+  const answering = streaming && last?.kind === 'contribution' ? nameOf(last.speaker) : null
+  const reading = (() => {
+    if (!now || now.stopped) return null
+    const it = items[now.index]
+    const text = it?.kind === 'contribution' ? it.text : it?.kind === 'floor' ? it.question : null
+    const k = text ? sentenceAt(text, now.text) : -1
+    return text && k >= 0 ? { k: k + 1, n: sentencesOf(text).length } : null
+  })()
+  const capStatus = cap.recording ? cap.status : null
+  const status = floorStatus({
+    waiting: on && !armed,
+    paused,
+    missed,
+    talker: talker ? nameOf(talker) : null,
+    reading,
+    streaming,
+    answering,
+    recording: cap.recording,
+    mic: capStatus ? { tone: capStatus.tone, text: capStatus.text } : null,
+    pending: cap.pending,
+    draft: hasDraft,
+    held: isHeld,
+  })
 
-  const status = !armed
-    ? 'Tap to resume'
+  type Btn = { label: string; onClick?: () => void; testid: string; key?: boolean; mic?: boolean; second?: boolean }
+  const typeInstead = () => setEditing(true)
+  // One filled action per state; a second, outlined, where the sample has one.
+  const [main, other]: [Btn, Btn | null] = on && !armed
+    ? [{ label: 'Start', onClick: tap, testid: 'voice-start' }, null]
     : paused
-      ? 'Paused'
-      : talker
-        ? `${personaName(talker)} is talking…`
-        : cap.recording
-          ? (cap.status?.text ?? '')
+      ? [{ label: missed ? 'Tap to hear' : 'Resume', onClick: resume, testid: 'voice-resume' }, null]
+      : cap.recording
+        ? [{ label: 'Finish', onClick: finishTurn, testid: 'voice-finish', key: true }, null]
+        : talker || (streaming && !hasDraft && !editing)
+          ? [
+              { label: 'Cut in', onClick: cutIn, testid: 'cut-in', key: true, mic: true, second: true },
+              active && talker ? { label: 'Pause', onClick: () => hold(null), testid: 'voice-pause', second: true } : null,
+            ]
           : cap.phase === 'writing'
-            ? 'Writing it down…'
-            : hasDraft
-              ? 'Yours to correct before it goes.'
-              : streaming
-                ? `Thinking… ${Math.max(0, Math.floor((tick - (thinkingSince.current ?? tick)) / 1000))} s`
-                : 'Your turn.'
-
-  // The main button does the one thing that makes sense now.
-  const main: { label: string; onClick?: () => void; testid: string; key?: boolean; mic?: boolean } = !armed
-    ? { label: 'Start', onClick: tap, testid: 'voice-start' }
-    : paused
-      ? { label: 'Resume', onClick: resume, testid: 'voice-resume' }
-      : talker
-        ? { label: 'Cut in', onClick: cutIn, testid: 'cut-in', key: true }
-        : cap.recording
-          ? { label: 'Finish', onClick: finishTurn, testid: 'voice-finish', key: true }
-          : cap.phase === 'writing'
-            ? { label: 'Writing…', testid: 'voice-wait' }
-            : hasDraft
-              ? { label: 'Send', onClick: sendDraft, testid: 'voice-send' }
-              : streaming
-                ? { label: 'Wait', testid: 'voice-wait' }
-                : { label: 'Tap and talk', onClick: record, testid: 'voice-talk', key: true, mic: true }
+            ? [{ label: 'Send', testid: 'voice-wait' }, null]
+            : hasDraft || editing || notes?.count
+              ? [
+                  { label: 'Send', onClick: sendDraft, testid: 'voice-send' },
+                  hasMic ? { label: 'Add more', onClick: record, testid: 'voice-more', mic: true, second: true } : null,
+                ]
+              : hasMic
+                ? [{ label: 'Talk', onClick: record, testid: 'voice-talk', key: true, mic: true }, null]
+                : [{ label: 'Write', onClick: typeInstead, testid: 'voice-type' }, null]
+  const length = lengthOf(draft)
+  const over = length > MAX_MESSAGE
+  const sendable = main.testid !== 'voice-send' || ((hasDraft || !!notes?.count) && !over)
 
   // On a keyboard: the space bar is the main button while it means talk, finish or cut in;
   // Send takes ⌘ or Ctrl with Enter, so a second press of the space bar cannot send by accident.
-  const keys = useRef({ main, sendDraft })
-  keys.current = { main, sendDraft }
+  const keys = useRef({ main, sendDraft, active })
+  keys.current = { main, sendDraft, active }
   useEffect(() => {
-    if (!active) return
     const onKey = (e: KeyboardEvent) => {
-      const { main, sendDraft } = keys.current
+      const { main, sendDraft, active } = keys.current
       if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) return sendDraft()
+      if (!active) return
       const el = e.target as HTMLElement | null
       if (e.code !== 'Space' || e.repeat || !main.key || el?.closest?.('textarea, input, select, button, a, [contenteditable]')) return
       e.preventDefault()
@@ -403,46 +500,103 @@ export function Talk({
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [active])
+  }, [])
 
-  const icon = (d: string) => (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-      <path d={d} strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+  const button = (b: Btn, wide: boolean) => (
+    <button
+      type="button"
+      data-testid={b.testid}
+      disabled={!b.onClick || (b === main && !sendable)}
+      onClick={b.onClick}
+      aria-keyshortcuts={b.key ? 'Space' : b.testid === 'voice-send' ? 'Meta+Enter Control+Enter' : undefined}
+      className={`slab ${b.second ? 'slab-off' : ''} ${wide ? 'flex-[3]' : 'flex-[2]'} min-w-0 gap-2 whitespace-nowrap px-3`}
+    >
+      {b.mic && <MicIcon />}
+      {b.label}
+    </button>
   )
-  // Every control in the bar is an icon with its word (Pavol, 20 Nov: "some text, some icons").
-  const worded = 'flex min-h-11 w-11 shrink-0 flex-col items-center justify-center text-marble-200 hover:text-marble-50 disabled:text-marble-400'
-  const word = (w: string) => <span className="sc text-[17px] leading-[20px]">{w}</span>
+  const small = 'text-btn min-h-11 px-2 text-[17px] text-marble-300 hover:text-marble-50 disabled:text-marble-400'
 
-  if (!hasMic) return null
-  if (!on)
-    return (
-      <div className="mt-6">
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={tap} aria-pressed={false} data-testid="talk" className="slab slab-off flex-1 gap-2">
-            <MicIcon />
-            Talk
-          </button>
-          {children}
-        </div>
-        {problem && (
-          <p role="alert" data-testid="talk-problem" className="t-body mt-2 border-l-2 border-clay-500 pl-4">
-            {problem}
-          </p>
-        )}
-      </div>
-    )
+  const showDraft = hasDraft || editing || cap.recording || cap.pending > 0 || !!cap.interim
+  // His words stay in view above the floor while they grow.
+  const draftBox = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (showDraft) draftBox.current?.scrollIntoView?.({ block: 'nearest', behavior: smooth() })
+  }, [showDraft, draft, cap.interim, editing])
+  const draftView = showDraft && (
+    <div ref={draftBox} data-testid="draft" className="mine draft ml-auto max-w-[88%] scroll-mb-72">
+      {editing && !cap.recording ? (
+        <>
+          <label htmlFor="voice-draft" className="sr-only">
+            Your words. Correct them before they go.
+          </label>
+          <textarea
+            id="voice-draft"
+            data-testid="voice-draft"
+            autoFocus
+            rows={2}
+            value={draft}
+            onChange={(e) => setText(e.target.value)}
+            onBlur={() => !draftRef.current.trim() && setEditing(false)}
+            placeholder={replyTo ? `Your answer to ${replyTo}` : 'Your answer, or push back'}
+            className="block w-full resize-none bg-transparent text-[19px] leading-[27px] text-marble-50 [field-sizing:content] placeholder:text-marble-400 focus-visible:shadow-none"
+          />
+        </>
+      ) : (
+        <button type="button" onClick={edit} data-testid="draft-text" aria-label={hasDraft ? `Your words: ${draft}. Tap to correct.` : 'Your words will appear here'} className="block w-full text-left text-[19px] leading-[27px] text-marble-50">
+          {draft}
+          {cap.interim && <span className="italic text-marble-300"> {cap.interim}</span>}
+          {cap.recording && !cap.pending && <span className="italic text-marble-400"> …</span>}
+          {cap.pending > 0 && <span className="italic text-marble-400"> {cap.recording ? "writing it down…" : "writing the last part…"}</span>}
+        </button>
+      )}
+    </div>
+  )
 
-  const myTurn = active && !paused && !talker
+  const lampMode = cap.recording && cap.meter ? 'voice' : talker ? 'breath' : 'still'
+
+  // The bar's height, for the screen's spacer: nothing of the conversation stays under it.
+  const bar = useRef<HTMLElement>(null)
+  useEffect(() => {
+    const el = bar.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => document.documentElement.style.setProperty('--floor-h', `${el.offsetHeight}px`))
+    ro.observe(el)
+    return () => {
+      ro.disconnect()
+      document.documentElement.style.removeProperty('--floor-h')
+    }
+  }, [])
+  // After Answer, the keyboard and the screen reader land on the line that says whom he answers.
+  const replying = useRef<HTMLParagraphElement>(null)
+  useEffect(() => {
+    if (replyTo) replying.current?.focus()
+  }, [replyTo])
+  const tray = useRef<HTMLParagraphElement>(null)
+  const marks = useRef(notes?.count ?? 0)
+  useEffect(() => {
+    if ((notes?.count ?? 0) > marks.current) tray.current?.focus()
+    marks.current = notes?.count ?? 0
+  }, [notes?.count])
+
+  const [more, setMore] = useState(false)
+  const pick = (f: () => void) => () => {
+    setMore(false)
+    f()
+  }
+  const menu = 'flex min-h-11 w-full items-center text-left text-[18px] italic text-marble-200 hover:text-marble-50 disabled:text-marble-400'
+
   return (
     <>
+      {slot && draftView ? createPortal(draftView, slot) : null}
       <section
-        aria-label="Voice"
+        ref={bar}
+        aria-label="The floor"
         data-testid="voice-bar"
-        className="fixed inset-x-0 bottom-0 z-30 border-t border-ink-700 bg-ink-900"
+        className="floor fixed inset-x-0 bottom-0 z-30 bg-ink-900"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
-        <div className="mx-auto max-w-xl px-4 pt-2 pb-3">
+        <div className="mx-auto max-w-xl px-4 pt-2 pb-1">
           {list && (
             <ol data-testid="voice-questions" className="mb-2 max-h-56 overflow-y-auto border-b border-ink-700 pb-2">
               {floors.map((q, i) => (
@@ -462,116 +616,100 @@ export function Talk({
               ))}
             </ol>
           )}
-          <button
-            type="button"
-            aria-expanded={list}
-            disabled={!floors.length}
-            onClick={() => setList((v) => !v)}
-            data-testid="voice-where"
-            className="flex min-h-11 w-full items-center gap-2 text-left"
-          >
-            <span className="t-label shrink-0 text-candle-300">{floors.length ? `Question ${floors.length}` : 'Opening'}</span>
-            <span
-              role="status"
-              data-testid="talk-status"
-              className={`text-[18px] italic leading-[23px] ${cap.recording ? '' : 'truncate'} ${cap.recording && cap.status?.tone === 'bad' ? 'text-clay-400' : 'text-marble-200'}`}
+          {more && (
+            <div data-testid="floor-menu" role="group" aria-label="More" className="mb-2 border-b border-ink-700 pb-1">
+              {hasMic || synthesisOk ? (
+                <button type="button" data-testid="talk" aria-pressed={on} onClick={pick(on ? () => onChange(false) : tap)} className={menu}>
+                  {on ? 'Stop reading aloud' : 'Read aloud'}
+                </button>
+              ) : null}
+              <button type="button" disabled={!floors.length} onClick={pick(() => setList(true))} className={menu}>
+                Questions so far
+              </button>
+              <button
+                type="button"
+                aria-label="Back to the previous question"
+                disabled={floors.length < 2}
+                onClick={pick(() => steer(`Let's go back to the previous question: "${floors[floors.length - 2]}"`))}
+                className={menu}
+              >
+                Back to the previous question
+              </button>
+              <button type="button" aria-label="Next question" disabled={!floors.length} onClick={pick(() => steer("Let's move on to the next question."))} className={menu}>
+                Next question
+              </button>
+            </div>
+          )}
+          {replyTo && (
+            <p ref={replying} tabIndex={-1} data-testid="replying" className="flex items-center justify-between gap-2 text-[17px] leading-[23px] text-marble-200 focus-visible:outline-none">
+              <span className="min-w-0 truncate">
+                <span className="rubric">Answering</span> {replyTo}
+              </span>
+              <button type="button" onClick={onReplyClear} aria-label={`Stop answering ${replyTo}`} className={`${small} shrink-0`}>
+                ×
+              </button>
+            </p>
+          )}
+          <FloorLamp cap={cap} mode={lampMode}>
+            <button
+              type="button"
+              aria-expanded={list}
+              disabled={!floors.length || !active}
+              onClick={() => setList((v) => !v)}
+              data-testid="voice-where"
+              className="-my-2.5 flex min-h-11 w-full flex-wrap items-baseline gap-x-2 py-2.5 text-left disabled:cursor-default"
             >
-              {status}
-            </span>
-          </button>
+              {active && <span className="t-label shrink-0 text-candle-300">{floors.length ? `Question ${floors.length}` : 'Opening'}</span>}
+              <span
+                role="status"
+                data-testid="talk-status"
+                className={`min-w-0 text-[18px] italic leading-[23px] ${status.tone === 'bad' ? 'text-clay-400' : 'text-marble-200'}`}
+              >
+                {status.text}
+              </span>
+            </button>
+          </FloorLamp>
           {timing && lastTurn && (
             <p data-testid="voice-timing" className="t-fine">
               {lastTurn}
             </p>
           )}
-          {missed && active && !paused && (
-            <p data-testid="voice-missed" className="flex items-center gap-2 text-[17px] leading-[23px] text-marble-400">
-              Voice did not load. The text is above.
-              <button type="button" onClick={hearAgain} className="text-btn min-h-11 shrink-0 whitespace-nowrap px-3 text-marble-200">
-                Tap to hear
+          {(problem || cap.problem) && (
+            <p role="alert" data-testid="talk-problem" className="t-body mt-1 border-l-2 border-clay-500 pl-4">
+              {problem ?? cap.problem}
+            </p>
+          )}
+          {over && (
+            <p role="alert" data-testid="too-long" className="text-[17px] leading-[23px] text-clay-400">
+              Too long for one message ({length} of {MAX_MESSAGE} characters). Shorten your words.
+            </p>
+          )}
+          {!!notes?.count && (
+            <p ref={tray} tabIndex={-1} data-testid="notes-tray" className="flex items-center justify-between gap-2 text-[17px] leading-[23px] text-marble-300 focus-visible:outline-none">
+              {`${notes.count === 1 ? 'Your mark goes' : `Your ${notes.count} marks go`} with your next message.`}
+              <button type="button" className={`${small} shrink-0`} onClick={notes.onClear}>
+                Clear
               </button>
             </p>
           )}
-          {problem && (
-            <p role="alert" data-testid="talk-problem" className="t-body mt-1 border-l-2 border-clay-500 pl-4">
-              {problem}
-            </p>
-          )}
-          {/* His turn: his words as text, his to correct; under them the candle and the thread while it records. */}
-          {myTurn && (cap.phase !== 'idle' || hasDraft || !streaming) && (
-            <>
-              <label htmlFor="voice-draft" className="sr-only">
-                Your turn, as text. Correct it before it goes.
-              </label>
-              <textarea
-                id="voice-draft"
-                data-testid="voice-draft"
-                rows={1}
-                value={draft}
-                onChange={(e) => setText(e.target.value)}
-                // The phone's keyboard opens over a tall fixed bar: keep the field in view.
-                onFocus={(e) => e.currentTarget.scrollIntoView?.({ block: 'nearest' })}
-                placeholder="Your words are set here as you speak. You can also type."
-                className="field mt-1 max-h-32 resize-none overflow-y-auto [field-sizing:content]"
-              />
-              <CapturePanel cap={cap} compact sentence={false} className="mt-1" />
-              {hasDraft && cap.phase === 'idle' && (
-                <button type="button" onClick={record} data-testid="voice-more" className="text-btn flex items-center gap-2">
-                  <MicIcon />
-                  Add more by voice
+          <div className="mt-2 flex gap-2">
+            {other && button(other, false)}
+            {button(main, !!other)}
+          </div>
+          {/* At most two quiet words under the buttons; the rest is under More. */}
+          <div className="flex items-center justify-between">
+            <span className="flex">
+              {!hasDraft && !editing && !cap.recording && hasMic && (
+                <button type="button" onClick={typeInstead} data-testid="type-instead" className={small}>
+                  Type instead
                 </button>
               )}
-            </>
-          )}
-          <div className="mt-1 flex items-center justify-between gap-2">
-            <button
-              type="button"
-              aria-label="Back to the previous question"
-              disabled={!active || floors.length < 2}
-              onClick={() => steer(`Let's go back to the previous question: "${floors[floors.length - 2]}"`)}
-              className={worded}
-            >
-              {icon('M7 6v12M18 6l-8 6 8 6z')}
-              {word('Back')}
-            </button>
-            <button
-              type="button"
-              aria-pressed={paused}
-              data-testid="voice-pause"
-              disabled={!active}
-              onClick={paused ? resume : pause}
-              className={worded}
-            >
-              {paused ? icon('M8 5l11 7-11 7z') : icon('M9 5v14M15 5v14')}
-              {word('Pause')}
-            </button>
-            <button
-              type="button"
-              data-testid={main.testid}
-              disabled={!main.onClick}
-              onClick={main.onClick}
-              aria-keyshortcuts={main.key ? 'Space' : main.testid === 'voice-send' ? 'Meta+Enter Control+Enter' : undefined}
-              className="slab min-w-20 flex-1 gap-2 px-2"
-            >
-              {main.mic && <MicIcon />}
-              {main.label}
-            </button>
-            <button
-              type="button"
-              aria-label="Next question"
-              disabled={!active || !floors.length}
-              onClick={() => steer("Let's move on to the next question.")}
-              className={worded}
-            >
-              {icon('M17 6v12M6 6l8 6-8 6z')}
-              {word('Next')}
-            </button>
-            <button type="button" aria-label="End voice" data-testid="talk" aria-pressed={true} onClick={() => onChange(false)} className={worded}>
-              {icon('M6 6l12 12M18 6L6 18')}
-              {word('End')}
+            </span>
+            <button type="button" data-testid="floor-more" aria-expanded={more} onClick={() => setMore((m) => !m)} className={small}>
+              {more ? 'Less' : 'More ⋯'}
             </button>
           </div>
-          <p className="t-fine mt-1 hidden text-center md:block">Space bar: talk, finish, cut in. ⌘ or Ctrl with Enter: send.</p>
+          <p className="t-fine hidden text-center md:block">{active ? 'Space bar: talk, finish, cut in. ' : ''}⌘ or Ctrl with Enter: send.</p>
         </div>
       </section>
     </>

@@ -57,24 +57,26 @@ describe('Voice bar', () => {
     expect(list).toHaveTextContent('What is the goal?')
     expect(list).toHaveTextContent('Who pays for it?')
     fireEvent.click(screen.getByRole('button', { name: /What is the goal\?/ }))
-    expect(onSay).toHaveBeenCalledWith(`Let's go back to this question: "What is the goal?"`)
+    expect(onSay).toHaveBeenCalledWith(`Let's go back to this question: "What is the goal?"`, true, true)
   })
 
   it('previous and next ask the facilitator in plain words', () => {
     const { onSay } = setup()
+    fireEvent.click(screen.getByTestId('floor-more'))
     fireEvent.click(screen.getByRole('button', { name: 'Back to the previous question' }))
-    expect(onSay).toHaveBeenLastCalledWith(`Let's go back to the previous question: "What is the goal?"`)
+    expect(onSay).toHaveBeenLastCalledWith(`Let's go back to the previous question: "What is the goal?"`, true, true)
+    fireEvent.click(screen.getByTestId('floor-more'))
     fireEvent.click(screen.getByRole('button', { name: 'Next question' }))
-    expect(onSay).toHaveBeenLastCalledWith("Let's move on to the next question.")
+    expect(onSay).toHaveBeenLastCalledWith("Let's move on to the next question.", true, true)
   })
 
-  it('every control is an icon with its word, or a word button: no bare icons', () => {
+  it('every control is a word: no bare icons', () => {
     setup()
     const bar = screen.getByTestId('voice-bar')
     const words = within(bar)
       .getAllByRole('button')
       .map((b) => b.textContent?.trim())
-    expect(words.slice(1)).toEqual(['Back', 'Pause', 'Finish', 'Next', 'End'])
+    expect(words.slice(1)).toEqual(['Finish', 'More ⋯'])
     for (const w of words) expect(w).toBeTruthy()
   })
 
@@ -94,13 +96,13 @@ describe('Voice bar', () => {
     set({ items: [{ kind: 'contribution', speaker: 'seneca', text: 'First point. Second', streaming: true }] })
     expect(vi.mocked(tts.speak).mock.calls.map((c) => c[0])).toEqual(['First point.'])
 
-    fireEvent.click(screen.getByRole('button', { name: 'Pause' }))
+    fireEvent.click(screen.getByTestId('voice-pause'))
     expect(tts.cancel).toHaveBeenCalled()
-    expect(screen.getByRole('status')).toHaveTextContent('Paused')
+    expect(screen.getByRole('status')).toHaveTextContent('Paused.')
     set({ items: [{ kind: 'contribution', speaker: 'seneca', text: 'First point. Second point.' }], streaming: false })
     expect(tts.speak).toHaveBeenCalledTimes(1) // nothing spoken while paused
 
-    expect(screen.getByRole('button', { name: 'Pause' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByTestId('voice-resume')).toHaveTextContent('Resume')
     fireEvent.click(screen.getByTestId('voice-resume'))
     expect(vi.mocked(tts.speak).mock.calls.slice(1).map((c) => c[0])).toEqual(['First point.', 'Second point.'])
   })
@@ -111,6 +113,7 @@ describe('Voice bar', () => {
     const [, , done, , started] = vi.mocked(tts.speak).mock.calls[0]!
     act(() => started!('gateway'))
     expect(onNow).toHaveBeenLastCalledWith({ index: 0, text: 'First point.' })
+    expect(screen.getByRole('status')).toHaveTextContent('Seneca, sentence 1 of 2')
     act(() => done!())
     expect(onNow).toHaveBeenLastCalledWith(null)
   })
@@ -118,29 +121,15 @@ describe('Voice bar', () => {
   it('while an adviser speaks, the main button cuts in', () => {
     const { set } = setup([], { streaming: true })
     set({ items: [{ kind: 'contribution', speaker: 'seneca', text: 'First point. Then', streaming: true }] })
-    expect(screen.getByRole('status')).toHaveTextContent('Seneca is talking…')
+    expect(screen.getByRole('status')).toHaveTextContent('Seneca is answering. Tap to speak instead.')
     fireEvent.click(screen.getByTestId('cut-in'))
     expect(tts.cancel).toHaveBeenCalled()
   })
 
-  it('while the group thinks it counts the seconds, so silence never means nothing is happening', () => {
+  it('while the group thinks, the status says so: silence never means nothing is happening', () => {
     setup(floors, { streaming: true })
-    expect(screen.getByRole('status')).toHaveTextContent('Thinking… 0 s')
-    act(() => vi.advanceTimersByTime(3_100))
-    expect(screen.getByRole('status')).toHaveTextContent('Thinking… 3 s')
-  })
-
-  // Review fixes.
-  it('pause shuts the mic and keeps what he said; resume with nothing left to speak opens it again', async () => {
-    setup()
-    await act(async () => {})
-    act(() => fake.last().say('half a thought'))
-    fireEvent.click(screen.getByRole('button', { name: 'Pause' }))
-    expect(fake.last().finish).toHaveBeenCalled()
-    expect(screen.getByRole('status')).toHaveTextContent('Paused')
-    fireEvent.click(screen.getByTestId('voice-resume'))
-    expect(screen.getByTestId('voice-draft')).toHaveValue('half a thought')
-    expect(screen.getByTestId('voice-send')).toBeEnabled() // his words wait for him, the mic does not reopen over them
+    expect(screen.getByRole('status')).toHaveTextContent('The council is answering. Tap to speak instead.')
+    expect(screen.getByTestId('cut-in')).toBeEnabled()
   })
 
   it('Talk off while paused lets the pause go: back on, it listens and old lines are not spoken', () => {
@@ -152,7 +141,7 @@ describe('Voice bar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Start' }))
     items = [{ kind: 'contribution', speaker: 'seneca', text: 'First point. Then', streaming: true }]
     r.rerender(view())
-    fireEvent.click(screen.getByRole('button', { name: 'Pause' }))
+    fireEvent.click(screen.getByTestId('voice-pause'))
     on = false
     r.rerender(view())
     on = true
@@ -164,6 +153,7 @@ describe('Voice bar', () => {
   it('after next question, the rest of the old answer is not spoken; the new one is', () => {
     const { onSay, set } = setup([], { streaming: true })
     set({ items: [{ kind: 'floor', question: 'Q1?' }, { kind: 'contribution', speaker: 'seneca', text: 'First point. Then', streaming: true }] })
+    fireEvent.click(screen.getByTestId('floor-more'))
     fireEvent.click(screen.getByRole('button', { name: 'Next question' }))
     vi.mocked(tts.speak).mockClear()
     set({
@@ -174,7 +164,7 @@ describe('Voice bar', () => {
       ],
       streaming: false,
     })
-    expect(onSay).toHaveBeenCalledWith("Let's move on to the next question.")
+    expect(onSay).toHaveBeenCalledWith("Let's move on to the next question.", true, true)
     expect(tts.speak).not.toHaveBeenCalled()
     set({
       items: [

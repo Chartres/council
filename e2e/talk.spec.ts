@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { FAKE_VOICE, hear } from './fakeVoice'
+import { FAKE_VOICE, hear, readAloud, readingAloud } from './fakeVoice'
 
 // Talk mode (flywheel/docs/expansion/council-v4.3.md). Lenka talks with the group: she speaks,
 // her words are set as text she can correct, she sends them, the adviser answers aloud sentence
@@ -25,19 +25,17 @@ test('she talks with the group, turn by turn, and cuts in', async ({ page }) => 
   await page.getByRole('button', { name: 'Bring it to the group' }).click()
   await expect(page.getByTestId('floor')).toHaveCount(1, { timeout: 20_000 })
 
-  // Listen and Talk are both off until she taps one; Listen is a chip beside Talk.
-  const talk = page.getByTestId('talk')
-  await expect(page.getByTestId('listen')).toHaveAttribute('aria-pressed', 'false')
-  await expect(talk).toHaveAttribute('aria-pressed', 'false')
-  await talk.click()
-  await expect(talk).toHaveAttribute('aria-pressed', 'true')
+  // Read aloud is off until she taps it in the floor.
+  expect(await readingAloud(page)).toBe(false)
+  await readAloud(page)
+  expect(await readingAloud(page)).toBe(true)
   await expect(page.getByTestId('talk-status')).toContainText('Recording.')
   expect(await page.evaluate(() => (window as unknown as { __mics: number }).__mics)).toBe(1)
 
   // She speaks: her words are on screen at once. A pause sends nothing; Finish, then Send does.
   const before = (await synth(page)).spoken.length
   await hear(page, 'the constraint is engineering time')
-  await expect(page.getByTestId('voice-draft')).toHaveValue('the constraint is engineering time')
+  await expect(page.getByTestId('draft')).toContainText('the constraint is engineering time')
   await page.waitForTimeout(4500) // longer than the old 4 s pause that used to send it
   await expect(page.getByTestId('user')).toHaveCount(0)
   await page.getByTestId('voice-finish').click()
@@ -46,11 +44,11 @@ test('she talks with the group, turn by turn, and cuts in', async ({ page }) => 
   const growing = page.locator('[data-testid="contribution"][data-streaming]')
   await expect(growing).toBeVisible({ timeout: 10_000 })
   await expect(growing.locator('.t-body')).not.toBeEmpty()
-  await expect(page.getByTestId('talk-status')).toHaveText(/is talking…$/)
+  await expect(page.getByTestId('talk-status')).toHaveText(/(is answering\. Tap to speak instead\.|, sentence \d of \d)$/)
   await growing.scrollIntoViewIfNeeded()
   await page.screenshot({ path: 'e2e/shots/talk-mode.png' })
 
-  // Sentence by sentence in the adviser's voice, then the question in the facilitator's.
+  // Sentence by sentence in the adviser's voice, then the question, which is the adviser's own.
   await expect(page.getByTestId('floor')).toHaveCount(2, { timeout: 20_000 })
   await expect(growing).toHaveCount(0)
   const floor = await page.getByTestId('floor').last().textContent()
@@ -73,7 +71,7 @@ test('she talks with the group, turn by turn, and cuts in', async ({ page }) => 
 
   // Off: remembered on this device.
   await expect(page.getByTestId('floor')).toHaveCount(3, { timeout: 20_000 })
-  await talk.click()
-  await expect(page.getByTestId('talk-status')).toHaveCount(0)
+  await readAloud(page)
+  expect(await readingAloud(page)).toBe(false)
   expect(await page.evaluate(() => localStorage.getItem('council:talk'))).toBe('0')
 })
