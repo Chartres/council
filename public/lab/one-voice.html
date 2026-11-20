@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="robots" content="noindex" />
+<title>One voice surface</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet" />
+<style>
+  :root { --ink-950: #100e0b; --ink-900: #16130f; --ink-850: #1e1a15; --ink-700: #342d23; --m-50: #f8f5ee; --m-100: #ece7db; --m-200: #d8d1c2; --m-300: #b9b1a0; --m-400: #968d7c; --m-500: #776f61; --candle-300: #efce8d; --candle-400: #e0b263; --clay-400: #cf9179; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--ink-950); color: var(--m-100); font: 400 18px/26px 'EB Garamond', 'Iowan Old Style', Georgia, serif; min-height: 100dvh; }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; touch-action: manipulation; }
+  button:focus-visible, textarea:focus-visible { outline: 2px solid var(--candle-400); outline-offset: 3px; }
+  .sc { font-variant-caps: all-small-caps; letter-spacing: .08em; font-size: 16px; line-height: 20px; }
+  .wrap { max-width: 64rem; margin: 0 auto; padding: 14px 16px 40px; }
+  header { display: flex; justify-content: space-between; color: var(--m-400); padding-bottom: 6px; border-bottom: 2px solid var(--m-500); filter: url(#rough-s); }
+  h1 { font: 500 30px/34px 'EB Garamond', Georgia, serif; margin: 18px 0 6px; text-wrap: balance; }
+  h2 { font: 500 23px/28px 'EB Garamond', Georgia, serif; margin: 0 0 4px; }
+  .lede { color: var(--m-300); max-width: 40rem; margin: 0 0 14px; }
+  nav.opts { display: flex; gap: 4px; margin: 10px 0 16px; flex-wrap: wrap; }
+  nav.opts button { flex: 1 1 8rem; min-height: 48px; color: var(--m-400); border-bottom: 2px solid transparent; text-align: center; }
+  nav.opts button[aria-selected="true"] { color: var(--m-50); border-color: var(--candle-400); }
+  .stage { display: grid; grid-template-columns: minmax(0, 22rem) minmax(0, 1fr); gap: 28px; align-items: start; }
+  @media (max-width: 760px) { .stage { grid-template-columns: minmax(0, 1fr); } }
+  .side p { margin: 0 0 10px; color: var(--m-200); max-width: 36rem; }
+  .side .gain { color: var(--m-300); }
+  .side .tag { color: var(--clay-400); }
+
+  /* phone */
+  .phone { position: relative; border: 1.5px solid var(--ink-700); border-radius: 30px; height: 640px; max-height: 82dvh; overflow: hidden; background: var(--ink-950); display: flex; flex-direction: column; }
+  .bar { display: flex; justify-content: space-between; padding: 12px 18px 6px; color: var(--m-400); }
+  .scroll { flex: 1; overflow: auto; padding: 4px 18px 10px; display: flex; flex-direction: column; gap: 12px; }
+  .who { color: var(--clay-400); display: block; }
+  .msg { margin: 0; color: var(--m-200); }
+  .msg.dim { color: var(--m-400); }
+  .mine { align-self: flex-end; max-width: 88%; text-align: left; color: var(--m-50); position: relative; padding: 8px 12px; }
+  .mine::before { content: ''; position: absolute; inset: 0; z-index: -1; border: 1.5px solid var(--m-500); border-radius: 12px 7px 13px 8px / 7px 13px 8px 12px; filter: url(#rough); }
+  .mine { isolation: isolate; }
+  .mine.draft::before { border-style: dashed; border-color: var(--candle-400); }
+  .live { color: var(--m-400); font-style: italic; }
+  .s { transition: color .3s; }
+  .s.now { color: var(--m-50); background: linear-gradient(transparent 62%, rgba(224,178,99,.22) 62%); }
+  .s.done { color: var(--m-300); }
+  .s.wait { color: var(--m-500); }
+  .dots { display: inline-flex; gap: 5px; vertical-align: middle; margin-left: 6px; }
+  .dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-700); }
+  .dots i.on { background: var(--candle-400); }
+  .dots i.past { background: var(--m-500); }
+
+  /* dock */
+  .dock { border-top: 1.5px solid var(--ink-700); padding: 10px 16px 16px; display: flex; flex-direction: column; gap: 8px; background: var(--ink-900); }
+  .status { display: flex; align-items: center; gap: 10px; color: var(--m-200); min-height: 24px; }
+  .status .lamp { width: 9px; height: 9px; border-radius: 50%; background: var(--m-500); flex: none; }
+  .status .lamp.rec { background: var(--clay-400); animation: pulse 1.2s ease-in-out infinite; }
+  .status .lamp.work { background: var(--candle-400); animation: pulse 1.8s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .35; } }
+  .thread { height: 34px; width: 100%; display: block; }
+  .row { display: flex; gap: 10px; }
+  .row > * { flex: 1; }
+  .small { color: var(--m-400); font-size: 16px; line-height: 20px; }
+  textarea.edit { width: 100%; background: transparent; color: var(--m-50); border: 0; font: inherit; resize: none; padding: 0; display: block; }
+
+  /* painted buttons (chosen volume 2) */
+  .btn { position: relative; isolation: isolate; min-height: 52px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 0 14px; text-align: center; }
+  .btn::before { content: ''; position: absolute; inset: 0; z-index: -1; filter: url(#rough); }
+  .primary { color: #1a1206; text-shadow: 0 1px 0 rgba(255,220,160,.25); }
+  .primary::before { background: linear-gradient(rgba(224,178,99,.28), rgba(224,178,99,.28)), url(img/paint-ochre.jpg) center / cover; border-radius: 8px 13px 7px 14px / 14px 7px 13px 8px; box-shadow: inset 0 0 14px rgba(40,18,4,.45); }
+  /* reworked right-hand button: ink line at full strength, no paint inside */
+  .second { color: var(--m-100); }
+  .second::before { border: 1.6px solid var(--m-300); border-radius: 12px 7px 13px 8px / 7px 13px 8px 12px; }
+  .second:active::before { background: rgba(236,231,219,.06); }
+  /* alternatives for the right-hand button */
+  .second.v-word { min-height: 52px; }
+  .second.v-word::before { border: 0; top: auto; bottom: 10px; left: 22%; right: 22%; height: 3px; border-radius: 2px; background: url(img/paint-ochre.jpg) center / 100% 100%; opacity: .75; filter: url(#rough-s); }
+  .second.v-dark::before { border: 1.6px solid var(--m-300); background: linear-gradient(rgba(16,14,11,.55), rgba(16,14,11,.55)), url(img/paint-wood.jpg) left center / 220% 220%; }
+  .ghost { color: var(--m-300); min-height: 44px; padding: 0 8px; }
+  svg.ic { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+
+  /* candle stage for B */
+  .candlestage { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px 22px; text-align: center; gap: 14px; }
+  .candlestage img { width: 70px; aspect-ratio: 280 / 860; -webkit-mask-image: radial-gradient(ellipse 50% 50% at 52% 46%, #000 35%, transparent 96%); mask-image: radial-gradient(ellipse 50% 50% at 52% 46%, #000 35%, transparent 96%); }
+  .caption { font-size: 22px; line-height: 30px; color: var(--m-50); min-height: 90px; text-wrap: balance; }
+  .caption.you { color: var(--m-200); font-style: italic; }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; top: 18%; background: var(--ink-850); border-top: 1.5px solid var(--m-500); border-radius: 18px 18px 0 0; padding: 14px 18px; display: flex; flex-direction: column; gap: 10px; }
+  .grab { width: 40px; height: 4px; border-radius: 2px; background: var(--m-500); align-self: center; }
+
+  /* state stepper */
+  .steps { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 0; }
+  .steps button { min-height: 40px; padding: 0 12px; color: var(--m-400); position: relative; isolation: isolate; }
+  .steps button::before { content: ''; position: absolute; inset: 0; z-index: -1; border: 1.2px solid var(--ink-700); border-radius: 10px 6px 11px 7px / 6px 11px 7px 10px; }
+  .steps button[aria-pressed="true"] { color: var(--m-50); }
+  .steps button[aria-pressed="true"]::before { border-color: var(--candle-400); }
+  .stepnote { color: var(--m-300); margin: 8px 0 0; min-height: 52px; }
+
+  section.btns { margin-top: 40px; padding-top: 18px; border-top: 1.5px solid var(--ink-700); }
+  .btngrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 22px; margin-top: 12px; }
+  .btngrid figure { margin: 0; }
+  .btngrid figcaption { color: var(--m-300); margin-top: 8px; font-size: 16px; line-height: 21px; }
+  .fix { margin-top: 40px; padding-top: 18px; border-top: 1.5px solid var(--ink-700); }
+  .fix ol { padding-left: 1.2em; margin: 8px 0 0; color: var(--m-200); max-width: 42rem; }
+  .fix li { margin-bottom: 8px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <filter id="rough" x="-3%" y="-12%" width="106%" height="124%"><feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="7"/><feDisplacementMap in="SourceGraphic" scale="4.500"/></filter>
+  <filter id="rough-s" x="-2%" y="-300%" width="104%" height="700%"><feTurbulence type="fractalNoise" baseFrequency="0.02 0.4" numOctaves="2" seed="11"/><feDisplacementMap in="SourceGraphic" scale="3"/></filter>
+</svg>
+
+<div class="wrap">
+  <header class="sc"><span>Mastermind Council</span><span>Sample · not the app</span></header>
+  <h1>One place to speak, from the first question to the last word</h1>
+  <p class="lede">Tonight's session had three surfaces: the question box, a reply box under each adviser, and a player bar at the bottom. Each option below has one. Tap the steps under the phone to walk a turn.</p>
+
+  <nav class="opts sc" role="tablist" aria-label="Options">
+    <button role="tab" data-o="A">A · The floor (default)</button>
+    <button role="tab" data-o="B">B · Candle and captions</button>
+    <button role="tab" data-o="C">C · Letter on the desk</button>
+  </nav>
+
+  <div class="stage">
+    <div>
+      <div class="phone" id="phone"></div>
+      <div class="steps" id="steps"></div>
+      <p class="stepnote" id="stepnote"></p>
+    </div>
+    <div class="side" id="side"></div>
+  </div>
+
+  <section class="btns">
+    <h2>The right-hand button</h2>
+    <p class="lede">In the Painted sample the second button had a faint patch of table top, and its outline faded with it. The fix keeps paint for the one main action and draws the second in ink at full strength.</p>
+    <div class="btngrid">
+      <figure><div class="row"><button class="btn primary">Finish</button><button class="btn second">Next question</button></div><figcaption><b>i · Ink outline</b> (default, used in the phones above). Same hand-drawn edge as the main button, nothing inside.</figcaption></figure>
+      <figure><div class="row"><button class="btn primary">Finish</button><button class="btn second v-word">Next question</button></div><figcaption><b>ii · Word with a stroke</b>. No box; a short dry stroke of the same ochre under the word. Quietest.</figcaption></figure>
+      <figure><div class="row"><button class="btn primary">Finish</button><button class="btn second v-dark">Next question</button></div><figcaption><b>iii · Dark paint</b>. The shadowed part of the table, dimmed, with the ink edge on top. Two painted buttons on one row.</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="fix" id="fix">
+    <h2>What went wrong tonight, and what each option fixes either way</h2>
+    <p class="lede">Your session ran signed out, so its transcript stayed on your phone. These causes come from reading the code and tonight's event log. They are likely causes; none has been reproduced on a phone yet.</p>
+    <ol>
+      <li><b>Only Franklin.</b> In voice mode one adviser answers per turn, and the model alone picks who. The server does not tell it who spoke last. If the model writes "Benjamin Franklin" instead of the short name, the code does not recognise it and falls back to the first seat. Fix: the server picks the speaker (who has spoken least, or the one you named) and tells the model.</li>
+      <li><b>One sentence, a skip, then something else.</b> Sentences are read aloud as they stream in. The finished reply is then checked: unverified quotes are cut, which hits Franklin's sayings. When the checked text no longer matches what was being read, the rest is dropped and the next question is read in another voice. Separately, a sentence that takes over 6 s to fetch is read by the phone's own voice. Fix: read only the checked reply, in order, one voice.</li>
+      <li><b>Microphone dropped 4 s after you started.</b> The log shows the phone muted the microphone for over 2 s right after Talk opened. A likely trigger is the silent sound the app plays to unlock audio in that same tap. Fix: open the microphone first, and reopen it once on its own if it comes back.</li>
+      <li><b>Slow writing with no status.</b> Firefox on Android has no live dictation, so your words go to the server in parts. While that happens the main status still said "Recording". Fix: the status counts the parts still being written (step 3 above).</li>
+      <li><b>Two text boxes.</b> The screen had a reply box, a draft box in the bar, and a note box under each adviser. Every option above keeps one.</li>
+    </ol>
+  </section>
+</div>
+
+<script>
+const ADV = 'Benjamin Franklin'
+const SENT = [
+  'You have told me what you fear losing.',
+  'You have not told me what Sunday costs you in hours.',
+  'Write both numbers on one page tonight.',
+  'Then decide with the page in front of you, not the worry.',
+]
+const MINE_LIVE = 'I think the Sunday opening is what keeps the regulars, but'
+const MINE = 'I think the Sunday opening is what keeps the regulars, but I am tired and the numbers are thin.'
+
+const thread = (amp) => {
+  let d = 'M0 17'
+  for (let x = 4; x <= 300; x += 4) d += ` L${x} ${(17 + Math.sin(x / 9) * amp * Math.sin(x / 41 + 1)).toFixed(1)}`
+  return `<svg class="thread" viewBox="0 0 300 34" preserveAspectRatio="none"><path d="${d}" fill="none" stroke="${amp ? 'var(--candle-400)' : 'var(--ink-700)'}" stroke-width="1.6"/></svg>`
+}
+const speech = (k) => SENT.map((s, i) => `<span class="s ${i < k ? 'done' : i === k ? 'now' : 'wait'}">${s}</span>`).join(' ')
+const dots = (k, n = SENT.length) => `<span class="dots">${Array.from({ length: n }, (_, i) => `<i class="${i < k ? 'past' : i === k ? 'on' : ''}"></i>`).join('')}</span>`
+const mic = '<svg class="ic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>'
+const status = (lamp, text) => `<div class="status"><span class="lamp ${lamp}"></span><span>${text}</span></div>`
+
+const earlier = `<p class="msg dim"><span class="who sc">Socrates</span>What would be left of the shop if Sunday were gone?</p>
+  <div class="mine">The regulars, mostly. Some tourists.</div>`
+
+const STEPS = [
+  ['floor', 'Your turn'],
+  ['rec', 'Speaking'],
+  ['writing', 'Writing it down'],
+  ['correct', 'Correcting'],
+  ['thinking', 'Thinking'],
+  ['speaking', 'Franklin speaks'],
+  ['cut', 'You cut in'],
+]
+
+const OPTS = {
+  A: {
+    side: `<h2>A · The floor</h2>
+      <p class="tag sc">One conversation, one bar at the bottom</p>
+      <p>The conversation scrolls above; one bar at the bottom holds the candle's thread, one status line and one main button. Your words appear as a dashed note in the conversation while you speak. Tap the note to correct it; that is the only text field on the screen, and only while you edit.</p>
+      <p>The first question at the start is the first turn of this same screen, so nothing switches layout. To answer one adviser, tap their message: the bar says "Answering Socrates" and the next thing you say goes to them.</p>
+      <p>While an adviser speaks, the sentence being read is underlined and the dots show how many are left, so a skipped sentence would be visible.</p>
+      <p class="gain">Keeps: the text you can see and correct, the conversation history, typing for those who want it (a small "Type" link in the bar). Costs: the bar takes about a fifth of the screen.</p>`,
+    render(st) {
+      let body = earlier, dock = ''
+      if (st === 'floor') {
+        body += `<p class="msg"><span class="who sc">${ADV}</span>${SENT.join(' ')}</p>`
+        dock = status('', 'Your turn. Take your time.') + thread(0) + `<div class="row"><button class="btn primary">${mic}Talk</button></div><div class="row"><button class="ghost small">Type instead</button><button class="ghost small">Answer one adviser…</button></div>`
+      } else if (st === 'rec') {
+        body += `<div class="mine draft">${MINE_LIVE} <span class="live">…</span></div>`
+        dock = status('rec', 'Recording. I can hear you.') + thread(9) + `<div class="row"><button class="btn primary">Finish</button></div>`
+      } else if (st === 'writing') {
+        body += `<div class="mine draft">${MINE_LIVE} <span class="live">writing the last part…</span></div>`
+        dock = status('work', 'Writing it down: 1 part left, about 3 s') + thread(0) + `<div class="row"><button class="btn primary" disabled style="opacity:.6">Send</button></div>`
+      } else if (st === 'correct') {
+        body += `<div class="mine draft"><textarea class="edit" rows="3">${MINE}</textarea></div>`
+        dock = status('', 'Read it over. Tap the note to correct a word.') + `<div class="row"><button class="btn second">${mic}Add more</button><button class="btn primary">Send</button></div>`
+      } else if (st === 'thinking') {
+        body += `<div class="mine">${MINE}</div><p class="msg dim"><span class="who sc">${ADV}</span>…</p>`
+        dock = status('work', 'Franklin is answering. Tap to speak instead.') + thread(0) + `<div class="row"><button class="btn second">${mic}Cut in</button></div>`
+      } else if (st === 'speaking') {
+        body += `<div class="mine">${MINE}</div><p class="msg"><span class="who sc">${ADV}${dots(1)}</span>${speech(1)}</p>`
+        dock = status('work', 'Franklin, sentence 2 of 4') + thread(4) + `<div class="row"><button class="btn second">${mic}Cut in</button><button class="btn second">Pause</button></div>`
+      } else {
+        body += `<div class="mine">${MINE}</div><p class="msg"><span class="who sc">${ADV}</span>${speech(2).replace(/wait/g, 'wait')}</p><div class="mine draft">Wait, the numbers <span class="live">…</span></div>`
+        dock = status('rec', 'Franklin stopped. Recording you.') + thread(8) + `<div class="row"><button class="btn primary">Finish</button></div>`
+      }
+      return `<div class="bar sc"><span>The classics</span><span>Sunday opening</span></div><div class="scroll">${body}</div><div class="dock">${dock}</div>`
+    },
+  },
+  B: {
+    side: `<h2>B · Candle and captions</h2>
+      <p class="tag sc">Voice only on screen; text in a drawer</p>
+      <p>During the session the screen is the candle and one line of captions. The adviser's words appear one sentence at a time as they are spoken; yours appear under the candle as you speak. There is no chat list and no text box on the main screen.</p>
+      <p>To read back or correct, pull up the drawer: the whole transcript, with your last turn as one editable field. Close it and the candle is back.</p>
+      <p class="gain">Keeps: the calmest screen, nothing to look at but the flame and the words being said. Costs: correcting is one pull away, and earlier turns are out of sight. Typing is only in the drawer.</p>`,
+    render(st) {
+      const name = `<span class="who sc">${ADV}</span>`
+      let cap = '', stat = '', btns = '', sheet = ''
+      if (st === 'floor') { cap = `<span class="who sc">Your turn</span><span class="caption">Write both numbers on one page tonight.</span>`; stat = status('', 'Take your time.'); btns = `<button class="btn primary">${mic}Talk</button>` }
+      if (st === 'rec') { cap = `<span class="caption you">…${MINE_LIVE}</span>`; stat = status('rec', 'Recording. I can hear you.'); btns = `<button class="btn primary">Finish</button>` }
+      if (st === 'writing') { cap = `<span class="caption you">…${MINE_LIVE} <span class="live">writing…</span></span>`; stat = status('work', 'Writing it down: about 3 s'); btns = `<button class="btn primary" disabled style="opacity:.6">Send</button>` }
+      if (st === 'correct') {
+        cap = `<span class="caption you">${MINE}</span>`; stat = status('', 'Sends in your words. Pull up to correct.'); btns = `<button class="btn second">Correct</button><button class="btn primary">Send</button>`
+        sheet = `<div class="sheet"><span class="grab"></span><span class="small sc">Transcript</span><p class="msg dim">${name}${SENT.slice(0, 2).join(' ')}</p><div class="mine draft"><textarea class="edit" rows="4">${MINE}</textarea></div><div class="row"><button class="btn second">${mic}Add more</button><button class="btn primary">Send</button></div></div>`
+      }
+      if (st === 'thinking') { cap = `${name}<span class="caption" style="color:var(--m-400)">…</span>`; stat = status('work', 'Franklin is answering.'); btns = `<button class="btn second">${mic}Cut in</button>` }
+      if (st === 'speaking') { cap = `${name}${dots(1)}<span class="caption">${SENT[1]}</span>`; stat = status('work', 'Sentence 2 of 4'); btns = `<button class="btn second">${mic}Cut in</button><button class="btn second">Pause</button>` }
+      if (st === 'cut') { cap = `<span class="caption you">Wait, the numbers…</span>`; stat = status('rec', 'Franklin stopped. Recording you.'); btns = `<button class="btn primary">Finish</button>` }
+      const amp = st === 'rec' || st === 'cut' ? 9 : st === 'speaking' ? 4 : 0
+      return `<div class="bar sc"><span>The classics</span><span>☰ Transcript</span></div><div class="candlestage"><img src="img/candle.jpg" alt="">${cap}</div><div class="dock">${stat}${thread(amp)}<div class="row">${btns}</div></div>${sheet}`
+    },
+  },
+  C: {
+    side: `<h2>C · Letter on the desk</h2>
+      <p class="tag sc">One page you write on by voice</p>
+      <p>Your turn is a sheet of paper at the bottom of the conversation, always the same one. Speaking writes on it; the keyboard writes on it too. It is a text field from the start, so correcting needs no mode: tap a word and change it, then speak again to carry on from the cursor.</p>
+      <p>Advisers' replies come in above as letters; tap one to make your sheet "To Socrates". Playback follows the sentence as in A.</p>
+      <p class="gain">Keeps: the most direct correction, voice and typing on one surface. Costs: it looks like a text box, which pulls toward typing; the keyboard can open by accident while you mean to speak.</p>`,
+    render(st) {
+      let body = earlier, sheet = '', stat = '', btns = ''
+      const paper = (inner, dashed) => `<div class="mine ${dashed ? 'draft' : ''}" style="align-self:stretch;max-width:none">${inner}</div>`
+      if (st === 'floor') { body += `<p class="msg"><span class="who sc">${ADV}</span>${SENT.join(' ')}</p>`; sheet = paper('<span class="live">Speak or type here.</span>'); stat = status('', 'Your turn.'); btns = `<button class="btn primary">${mic}Talk</button>` }
+      if (st === 'rec') { body += `<p class="msg dim"><span class="who sc">${ADV}</span>${SENT[3]}</p>`; sheet = paper(`${MINE_LIVE} <span class="live">…</span>`, 1); stat = status('rec', 'Recording. I can hear you.'); btns = `<button class="btn primary">Finish</button>` }
+      if (st === 'writing') { body += `<p class="msg dim"><span class="who sc">${ADV}</span>${SENT[3]}</p>`; sheet = paper(`${MINE_LIVE} <span class="live">writing…</span>`, 1); stat = status('work', 'Writing it down: about 3 s'); btns = `<button class="btn primary" disabled style="opacity:.6">Send</button>` }
+      if (st === 'correct') { body += `<p class="msg dim"><span class="who sc">${ADV}</span>${SENT[3]}</p>`; sheet = paper(`<textarea class="edit" rows="3">${MINE}</textarea>`, 1); stat = status('', 'Tap any word to change it.'); btns = `<button class="btn second">${mic}Go on</button><button class="btn primary">Send</button>` }
+      if (st === 'thinking') { body += `<div class="mine">${MINE}</div><p class="msg dim"><span class="who sc">${ADV}</span>…</p>`; sheet = paper('<span class="live">Speak or type here.</span>'); stat = status('work', 'Franklin is answering.'); btns = `<button class="btn second">${mic}Cut in</button>` }
+      if (st === 'speaking') { body += `<div class="mine">${MINE}</div><p class="msg"><span class="who sc">${ADV}${dots(1)}</span>${speech(1)}</p>`; sheet = paper('<span class="live">Speak or type here.</span>'); stat = status('work', 'Franklin, sentence 2 of 4'); btns = `<button class="btn second">${mic}Cut in</button><button class="btn second">Pause</button>` }
+      if (st === 'cut') { body += `<div class="mine">${MINE}</div><p class="msg"><span class="who sc">${ADV}</span>${speech(2)}</p>`; sheet = paper('Wait, the numbers <span class="live">…</span>', 1); stat = status('rec', 'Franklin stopped. Recording you.'); btns = `<button class="btn primary">Finish</button>` }
+      return `<div class="bar sc"><span>The classics</span><span>Sunday opening</span></div><div class="scroll">${body}</div><div class="dock">${sheet}${stat}<div class="row">${btns}</div></div>`
+    },
+  },
+}
+
+const NOTES = {
+  floor: 'The floor is yours. One button. Nothing records until you tap it.',
+  rec: 'The thread moves with your voice and the status says it hears you. Your words appear as you speak, in the place they will stay.',
+  writing: 'After Finish, the status counts the parts still being written down, so a delay is visible instead of silent.',
+  correct: 'Nothing is sent until you tap Send. Correct, add more by voice, or send.',
+  thinking: 'The status names who is answering and that you can speak over them.',
+  speaking: 'The sentence being read is marked, the dots count the rest. Each sentence is read once, in order.',
+  cut: 'Speaking stops the adviser where they were; the sentences not yet read stay greyed in the text.',
+}
+
+let opt = 'A', st = 'floor'
+function draw() {
+  document.querySelectorAll('nav.opts button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.o === opt)))
+  document.getElementById('phone').innerHTML = OPTS[opt].render(st)
+  document.getElementById('side').innerHTML = OPTS[opt].side
+  document.getElementById('steps').innerHTML = STEPS.map(([k, l], i) => `<button class="sc" data-s="${k}" aria-pressed="${k === st}">${i + 1} · ${l}</button>`).join('')
+  document.getElementById('stepnote').textContent = NOTES[st]
+  document.querySelectorAll('#steps button').forEach((b) => (b.onclick = () => { st = b.dataset.s; draw() }))
+  const sc = document.querySelector('#phone .scroll'); if (sc) sc.scrollTop = sc.scrollHeight
+}
+document.querySelectorAll('nav.opts button').forEach((b) => (b.onclick = () => { opt = b.dataset.o; draw() }))
+const h = location.hash.replace('#', '').toUpperCase(); if (h in OPTS) opt = h
+draw()
+</script>
+</body>
+</html>
