@@ -417,6 +417,7 @@ body {
     background: none;
     box-shadow: none;
     border: 1.6px solid var(--color-marble-300);
+    filter: url(#rough-line); /* wavers, stays whole */
     border-radius: 12px 7px 13px 8px / 7px 13px 8px 12px;
   }
   .slab-off:active::before {
@@ -454,8 +455,8 @@ body {
     inset: 0;
     z-index: -1;
     border: 1.5px solid var(--color-marble-500);
+    filter: url(#rough-line);
     border-radius: 12px 7px 13px 8px / 7px 13px 8px 12px;
-    filter: url(#rough);
   }
   .mine.draft::before {
     border-style: dashed;

@@ -51,5 +51,7 @@ function compose(notes: Note[], message: string, name: (id: string) => string, r
   const words = said && reply ? `To ${name(reply.speaker)} ("${reply.quote}"): ${said}` : said
   if (!notes.length) return words
   const lines = notes.map((n) => line(n, name(n.speaker)))
+  // A reply goes first: the gateway gives the turn to the first adviser addressed.
+  if (reply && words) return [words, '', ...lines].join('\n')
   return (words ? [...lines, '', words] : lines).join('\n')
 }

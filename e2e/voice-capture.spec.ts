@@ -1,6 +1,6 @@
 import { mkdirSync } from 'node:fs'
 import { expect, test, type Page } from '@playwright/test'
-import { FAKE_EARS, FAKE_VOICE, hear, speakInto, tone } from './fakeVoice'
+import { FAKE_EARS, FAKE_VOICE, hear, speakInto, tone, readAloud, readingAloud } from './fakeVoice'
 
 // Pavol, 20 Nov 2026: "the microphone lit up, but nothing happened. And I also don't have a
 // sense that actually something is being recorded. So I need a really live feedback where I
@@ -160,7 +160,7 @@ for (const [label, viewport] of VIEWPORTS) {
     await page.getByRole('button', { name: 'Bring it to the group' }).click()
     await expect(page.getByTestId('floor')).toHaveCount(1, { timeout: 20_000 })
 
-    await page.getByTestId('talk').click()
+    await readAloud(page)
     const bar = page.getByTestId('voice-bar')
     await expect(page.getByTestId('talk-status')).toContainText('Recording.')
     await tone(page, true)

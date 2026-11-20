@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { FAKE_EARS, FAKE_VOICE, hear, speakInto, tone } from './fakeVoice'
+import { FAKE_EARS, FAKE_VOICE, hear, speakInto, tone, readAloud, readingAloud } from './fakeVoice'
 
 // The floor (Pavol, 20 Nov 2026, option A of lab/one-voice): one bar at the bottom of the
 // conversation with the candle, one status line and one main button. His words are a dashed
@@ -40,6 +40,11 @@ test('one place to speak: talk, correct, send, hear it read, cut in', async ({ p
   await expect(status(page)).toHaveText('Your turn. Take your time.')
   await expect(bar.getByTestId('voice-talk')).toHaveText('Talk')
   await expect(page.locator('textarea')).toHaveCount(0)
+  // The candle is the bar's centre (about 100 px tall); the bar stays under 35 % of the screen.
+  expect((await bar.getByTestId('candle').boundingBox())!.height).toBeGreaterThanOrEqual(90)
+  expect((await bar.boundingBox())!.height).toBeLessThanOrEqual(844 * 0.35)
+  // At most two quiet words under the buttons.
+  await expect(bar.locator('.text-btn:visible')).toHaveCount(2)
   await shot(page, '01-your-turn')
 
   // He talks: the words are a dashed message in the conversation, the candle follows his voice.
@@ -67,8 +72,8 @@ test('one place to speak: talk, correct, send, hear it read, cut in', async ({ p
   await expect(page.getByTestId('floor')).toHaveCount(2, { timeout: 20_000 })
 
   // Read aloud: the room reads each answer sentence by sentence, marked, with dots.
-  await bar.getByTestId('talk').click() // Read aloud on: the mic opens at once, his turn
-  await expect(bar.getByTestId('talk')).toHaveAttribute('aria-pressed', 'true')
+  await readAloud(page) // Read aloud on (under More): the mic opens at once, his turn
+  expect(await readingAloud(page)).toBe(true)
   await hear(page, 'what about the numbers')
   await bar.getByTestId('voice-finish').click()
   await bar.getByTestId('voice-send').click()
@@ -94,7 +99,7 @@ test('one place to speak: talk, correct, send, hear it read, cut in', async ({ p
   await hear(page, 'wait')
   await shot(page, '07-cut-in')
   await bar.getByTestId('voice-finish').click()
-  await bar.getByTestId('talk').click() // Read aloud off; his words stay on the floor
+  await readAloud(page) // Read aloud off; his words stay on the floor
   await expect(page.getByTestId('draft')).toContainText('wait')
 })
 
@@ -105,6 +110,13 @@ test('answering one adviser: Reply (or a swipe) addresses the next words to that
   await first.getByRole('button', { name: `Answer or mark ${name}` }).click()
   await first.getByRole('button', { name: 'Agree' }).click()
   await expect(page.getByTestId('notes-tray')).toHaveText(/Your mark goes with your next message/)
+  // Review of #41: Next question goes as it is; the mark waits for his own words.
+  await page.getByTestId('floor-more').click()
+  await page.getByRole('button', { name: 'Next question' }).click()
+  await expect(page.getByTestId('user').last()).toContainText("Let's move on to the next question.")
+  await expect(page.getByTestId('user').last()).not.toContainText('Agree')
+  await expect(page.getByTestId('notes-tray')).toBeVisible()
+  await expect(page.getByTestId('floor')).toHaveCount(2, { timeout: 20_000 })
   await first.getByRole('button', { name: `Answer or mark ${name}` }).click()
   await first.getByRole('button', { name: `Answer ${name}` }).click()
   await expect(page.getByTestId('replying')).toContainText(name)
@@ -164,3 +176,17 @@ test('typing uses the same draft', async ({ page }) => {
   await page.getByTestId('voice-send').click()
   await expect(page.getByTestId('user').last()).toContainText('Typed, not said.')
 })
+
+// Review of #41: the rough edge tore the 1.6 px outlines. Shot at DPR 2 and 3 to look at.
+for (const dpr of [2, 3]) {
+  test(`outlines stay whole at DPR ${dpr}`, async ({ browser }) => {
+    test.skip(!process.env.FLOOR_REVIEW, 'a picture to look at, not a check')
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: dpr, storageState: test.info().project.use.storageState as never })
+    const page = await ctx.newPage()
+    await open(page, FAKE_VOICE)
+    await page.getByTestId('type-instead').click()
+    await page.getByTestId('voice-draft').fill('An outline to look at.')
+    await page.getByTestId('voice-bar').screenshot({ path: `${DIR}/10-outlines-dpr${dpr}.png` })
+    await ctx.close()
+  })
+}

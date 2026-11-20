@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { FAKE_VOICE, hear } from './fakeVoice'
+import { FAKE_VOICE, hear, readAloud, readingAloud } from './fakeVoice'
 
 // Talk mode through the gateway's voices (flywheel/docs/expansion/council-v4.3.md), the
 // parts a phone depends on: the tap unlocks one shared audio element, each adviser's lines
@@ -63,7 +63,7 @@ test('Talk speaks through the gateway: one element unlocked in the tap, adviser 
 
   // The tap: the shared element plays the silent clip while the tap's activation is live.
   const before = (await audio(page)).plays.length
-  await page.getByTestId('talk').click()
+  await readAloud(page)
   await expect(page.getByTestId('talk-status')).toContainText('Recording.')
   const unlock = (await audio(page)).plays.slice(before)
   expect(unlock.map((p) => p.kind)).toEqual(['unlock'])

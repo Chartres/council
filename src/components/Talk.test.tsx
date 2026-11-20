@@ -125,7 +125,7 @@ describe('The floor: his turn is record → text → correct → send', () => {
     correct('We have two engineers and no money.')
     fireEvent.click(screen.getByTestId('voice-send'))
     expect(onSay).toHaveBeenCalledTimes(1)
-    expect(onSay).toHaveBeenCalledWith('We have two engineers and no money.', true)
+    expect(onSay).toHaveBeenCalledWith('We have two engineers and no money.', true, false)
     expect(screen.queryByTestId('draft')).toBeNull()
   })
 
@@ -154,7 +154,7 @@ describe('The floor: his turn is record → text → correct → send', () => {
     act(() => fake.all[0]!.say('the last part'))
     act(() => fake.all[0]!.ev.onPending(0))
     fireEvent.click(screen.getByTestId('voice-send'))
-    expect(onSay).toHaveBeenCalledWith('the last part', true)
+    expect(onSay).toHaveBeenCalledWith('the last part', true, false)
   })
 
   it('he can type his turn instead: the same draft, the same Send', async () => {
@@ -164,7 +164,7 @@ describe('The floor: his turn is record → text → correct → send', () => {
     expect(screen.getByTestId('voice-draft')).toHaveFocus()
     fireEvent.change(screen.getByTestId('voice-draft'), { target: { value: 'typed instead' } })
     fireEvent.click(screen.getByTestId('voice-send'))
-    expect(onSay).toHaveBeenCalledWith('typed instead', false)
+    expect(onSay).toHaveBeenCalledWith('typed instead', false, false)
   })
 
   it('without read aloud, Talk records and nothing is read', async () => {
@@ -174,7 +174,7 @@ describe('The floor: his turn is record → text → correct → send', () => {
     act(() => fake.last().say('just this'))
     await act(async () => fireEvent.click(screen.getByTestId('voice-finish')))
     fireEvent.click(screen.getByTestId('voice-send'))
-    expect(onSay).toHaveBeenCalledWith('just this', false)
+    expect(onSay).toHaveBeenCalledWith('just this', false, false)
     await set({ items: [{ kind: 'user', text: 'just this' }, { kind: 'contribution', speaker: 'drucker', text: 'Fine.' }] })
     expect(tts.speak).not.toHaveBeenCalled()
   })
@@ -191,13 +191,14 @@ describe('The floor: his turn is record → text → correct → send', () => {
     fireEvent.keyDown(screen.getByTestId('voice-draft'), { code: 'Space' })
     expect(fake.all).toHaveLength(1)
     fireEvent.keyDown(document.body, { key: 'Enter', metaKey: true })
-    expect(onSay).toHaveBeenCalledWith('one thing', true)
+    expect(onSay).toHaveBeenCalledWith('one thing', true, false)
   })
 })
 
 describe('The floor: the room and he take turns', () => {
   it('sends, the mic stays shut while an adviser speaks, and opens again when the room is quiet', async () => {
     const { onSay, onChange, set } = setup([{ kind: 'floor', question: 'Where do you start?' }], { on: false })
+    fireEvent.click(screen.getByTestId('floor-more'))
     fireEvent.click(screen.getByRole('button', { name: 'Read aloud' }))
     expect(onChange).toHaveBeenCalledWith(true)
     await set({ on: true })
@@ -207,7 +208,7 @@ describe('The floor: the room and he take turns', () => {
     act(() => fake.last().say('we have no engineers'))
     await act(async () => fireEvent.click(screen.getByTestId('voice-finish')))
     fireEvent.click(screen.getByTestId('voice-send'))
-    expect(onSay).toHaveBeenCalledWith('we have no engineers', true)
+    expect(onSay).toHaveBeenCalledWith('we have no engineers', true, false)
 
     const said: Item[] = [{ kind: 'floor', question: 'Where do you start?' }, { kind: 'user', text: 'we have no engineers' }]
     await set({ items: said, streaming: true })
@@ -238,6 +239,7 @@ describe('The floor: the room and he take turns', () => {
     expect(status()).toHaveTextContent('Recording.')
 
     // Off: the room stops; the floor stays.
+    fireEvent.click(screen.getByTestId('floor-more'))
     fireEvent.click(screen.getByRole('button', { name: 'Stop reading aloud' }))
     expect(onChange).toHaveBeenLastCalledWith(false)
     await set({ on: false })
@@ -287,7 +289,7 @@ describe('The floor: the room and he take turns', () => {
     vi.mocked(tts.speak).mockClear()
     await set({ items: [{ ...growing, text: 'First, cut the scope. Then hire.', streaming: false } as Item], streaming: false })
     expect(tts.speak).not.toHaveBeenCalled()
-    expect(onSay).toHaveBeenCalledWith('wait, no', true)
+    expect(onSay).toHaveBeenCalledWith('wait, no', true, false)
   })
 
   // Before 21 Nov a cut-in lasted until his next spoken Send: the answer to a chip was never read.
@@ -325,6 +327,7 @@ describe('The floor: the room and he take turns', () => {
 
   it('remembered as on, it waits for a tap: no mic, no audio until then', async () => {
     const { onChange, set } = setup()
+    fireEvent.click(screen.getByTestId('floor-more'))
     expect(screen.getByTestId('talk')).toHaveAttribute('aria-pressed', 'true')
     expect(status()).toHaveTextContent('Read aloud is on. Tap Start to carry on.')
     await set({ items: [{ kind: 'floor', question: 'Still there?' }] })
@@ -333,6 +336,62 @@ describe('The floor: the room and he take turns', () => {
     await start()
     expect(onChange).not.toHaveBeenCalled()
     expect(fake.all).toHaveLength(1)
+  })
+})
+
+// Review of #41.
+describe('The floor: review fixes', () => {
+  it('while the facilitator is read, it is the facilitator’s turn: status, Pause, and no mic', async () => {
+    const { set } = setup([], { streaming: true })
+    await start()
+    await set({ items: [{ kind: 'facilitator', text: 'Let us hear from the group.' }], streaming: false })
+    await act(async () => (vi.mocked(tts.speak).mock.calls[0]![4] as (v: string) => void)('gateway'))
+    expect(status()).toHaveTextContent('The facilitator')
+    expect(screen.getByTestId('voice-pause')).toBeInTheDocument()
+    expect(fake.all).toHaveLength(0)
+  })
+
+  it('words sent while the group answered come back to the floor when read aloud stops', async () => {
+    const { onSay, set } = setup([], { streaming: true })
+    await start()
+    fireEvent.click(screen.getByTestId('cut-in'))
+    await settle()
+    act(() => fake.last().say('hold this thought'))
+    await act(async () => fireEvent.click(screen.getByTestId('voice-finish')))
+    fireEvent.click(screen.getByTestId('voice-send'))
+    expect(status()).toHaveTextContent('Your words go when the answer is done.')
+    await set({ on: false })
+    expect(words()).toBe('hold this thought')
+    await set({ streaming: false })
+    expect(onSay).not.toHaveBeenCalled()
+  })
+
+  it('too long for one message: it says so and Send waits (it used to be cut at 2000 silently)', async () => {
+    const onSay = vi.fn()
+    function Host() {
+      const [slot, setSlot] = useState<HTMLDivElement | null>(null)
+      return (
+        <>
+          <div ref={setSlot} />
+          <Talk on={false} onChange={vi.fn()} items={[]} streaming={false} onSay={onSay} slot={slot} lengthOf={(w) => w.length + 1990} />
+        </>
+      )
+    }
+    render(<Host />)
+    fireEvent.click(screen.getByTestId('type-instead'))
+    fireEvent.change(screen.getByTestId('voice-draft'), { target: { value: 'twenty characters!!!' } })
+    expect(screen.getByTestId('too-long')).toHaveTextContent('2010 of 2000')
+    expect(screen.getByTestId('voice-send')).toBeDisabled()
+    fireEvent.keyDown(document.body, { key: 'Enter', metaKey: true })
+    expect(onSay).not.toHaveBeenCalled()
+  })
+
+  it('⌘ Enter sends without read aloud too', async () => {
+    const { onSay } = setup([], { on: false })
+    fireEvent.click(screen.getByTestId('type-instead'))
+    fireEvent.change(screen.getByTestId('voice-draft'), { target: { value: 'typed' } })
+    fireEvent.keyDown(document.body, { key: 'Enter', ctrlKey: true })
+    expect(onSay).toHaveBeenCalledWith('typed', false, false)
   })
 })
 
@@ -358,14 +417,17 @@ describe('The floor: a line that did not load', () => {
 })
 
 describe('The floor: what fails is said', () => {
-  it('a blocked mic is said in words, logged, and read aloud switches off', async () => {
+  // Review of #41: read aloud does not need the mic. A blocked mic is said; reading stays on.
+  it('a blocked mic is said in words and logged; read aloud stays on', async () => {
     fake.state.reject = new SttError('denied')
     const { onChange, set } = setup([], { on: false })
+    fireEvent.click(screen.getByTestId('floor-more'))
     fireEvent.click(screen.getByRole('button', { name: 'Read aloud' }))
     await set({ on: true })
-    expect(onChange).toHaveBeenLastCalledWith(false)
-    await set({ on: false })
+    expect(onChange).toHaveBeenLastCalledWith(true)
     expect(screen.getByTestId('talk-problem')).toHaveTextContent(/blocked/i)
+    await set({ items: [{ kind: 'contribution', speaker: 'seneca', text: 'Count the days.' }] })
+    expect(spoken()).toEqual([['Count the days.', 'seneca']])
     expect(analytics.keyAction).toHaveBeenCalledWith('mic_failed', { engine: 'mic', reason: 'denied', talk: true })
   })
 

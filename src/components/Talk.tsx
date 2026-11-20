@@ -5,10 +5,11 @@ import { cancel, speak } from '@/components/Listen'
 import { personaName } from '@/content/personas'
 import { primeMic } from '@/domain/capture'
 import { floorStatus } from '@/domain/floor'
+import { MAX_MESSAGE } from '@/domain/notes'
 import { unlock } from '@/domain/tts'
 import type { Item } from '@/domain/mastermind'
 import { mayQuote, rest, sentenceAt, sentenceChunker, sentencesOf } from '@/domain/sentences'
-import { recognitionCtor, VOICE } from '@/domain/speech'
+import { recognitionCtor, synthesisAvailable, VOICE } from '@/domain/speech'
 import { serverEars } from '@/domain/stt'
 import { keyAction } from '@/analytics'
 import { describeTurn, turnClock } from '@/domain/voiceTiming'
@@ -25,6 +26,12 @@ import { describeTurn, turnClock } from '@/domain/voiceTiming'
 // own voice is not written down as his.
 
 export const TALK_STORAGE = 'council:talk'
+
+/** The facilitator has no persona of its own. */
+const nameOf = (id: string) => (id === 'facilitator' ? 'The facilitator' : personaName(id))
+/** Smooth scrolling, unless he asked the system for less motion. */
+export const smooth = (): ScrollBehavior =>
+  typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
 
 /** The sentence being read: its item and text; `stopped` once he cut in there. */
 export type Now = { index: number; text: string; stopped?: boolean }
@@ -44,14 +51,16 @@ export function Talk({
   replyTo = null,
   onReplyClear,
   notes,
+  lengthOf = (w) => w.trim().length,
 }: {
   /** Read aloud. */
   on: boolean
   onChange: (on: boolean) => void
   items: Item[]
   streaming: boolean
-  /** Send his words; `voice` when read aloud is on (one adviser answers, briefly). */
-  onSay: (text: string, voice: boolean) => void
+  /** Send his words; `voice` when read aloud is on (one adviser answers, briefly); `plain` for
+   *  Back / Next / the question list, which go without his marks or his reply. */
+  onSay: (text: string, voice: boolean, plain?: boolean) => void
   /** Read aloud switched off mid-answer. */
   onQuiet?: () => void
   /** Admins see each turn's wait to the first word under the status line. */
@@ -64,13 +73,22 @@ export function Talk({
   replyTo?: string | null
   onReplyClear?: () => void
   /** Marks (Agree, Push back) waiting to go with his next message. */
-  notes?: { count: number; over: boolean; length: number; max: number; onClear: () => void }
+  notes?: { count: number; onClear: () => void }
+  /** How long his message would be with these words, marks and reply: over the gateway's
+   *  limit, Send waits (it was cut silently at 2000 characters before). */
+  lengthOf?: (words: string) => number
 }) {
   const [hasMic] = useState(micAvailable)
+  const [synthesisOk] = useState(() => synthesisAvailable() || !!import.meta.env.VITE_GATEWAY_URL)
   // Names this floor's messages for the speaker queue, which outlives a conversation.
   const room = useId()
   const [ears] = useState<'browser' | 'server'>(() => (serverEars(!!recognitionCtor()) ? 'server' : 'browser'))
-  const [problem, setProblem] = useState<string | null>(null)
+  const [problem, setProblemState] = useState<string | null>(null)
+  const problemRef = useRef<string | null>(null)
+  const setProblem = (p: string | null) => {
+    problemRef.current = p
+    setProblemState(p)
+  }
   // Remembered as on is not enough: the mic and the speaker wait for a tap on this page.
   const [armed, setArmed] = useState(false)
   const active = on && armed
@@ -83,6 +101,7 @@ export function Talk({
   // sentence that may quote is waiting for the checked text.
   const chunk = useRef<{ index: number; seen: string; next: ReturnType<typeof sentenceChunker>; said: string[]; hold: boolean } | null>(null)
   const held = useRef('') // words sent while the group was still answering
+  const heldPlain = useRef(true) // and all of them were Back / Next (no marks, no reply)
   const [isHeld, setHeld] = useState(false)
   const clock = useRef(turnClock()).current
   const [lastTurn, setLastTurn] = useState<string | null>(null)
@@ -117,10 +136,8 @@ export function Talk({
   }
   const cap = useCapture({
     talk: true,
-    onFail: (reason) => {
-      setProblem(micProblem(reason))
-      live.current.onChange(false)
-    },
+    // A mic that cannot open is said in words; read aloud stays on (it does not need the mic).
+    onFail: (reason) => setProblem(micProblem(reason)),
   })
   const capRef = useRef(cap)
   capRef.current = cap
@@ -140,11 +157,13 @@ export function Talk({
   }
   /** The room went quiet: the mic opens, unless words or an open editor wait for him. */
   const openMic = () => {
-    if (!herTurn() || draftRef.current.trim() || editingRef.current) return
+    if (!hasMic || problemRef.current || !herTurn() || draftRef.current.trim() || editingRef.current) return
     record()
   }
-  /** Every piece is added to what is there: a correction he made is not overwritten. */
+  /** Every piece is added to what is there: a correction he made is not overwritten. Not while
+   *  the room speaks (the mic would write its voice down as his). */
   const record = () => {
+    if (!hasMic || queued.current) return
     setEditing(false)
     finishedAt.current = null
     capRef.current.start((piece) => setText(addWords(draftRef.current, piece)))
@@ -186,7 +205,7 @@ export function Talk({
     if (pausedRef.current) return
     shutMic()
     queued.current += 1
-    if (line.speaker !== 'facilitator') setTalker(line.speaker)
+    setTalker(line.speaker)
     clock.firstLine()
     const done = () => {
       pending.current = pending.current.filter((p) => p !== line)
@@ -210,7 +229,7 @@ export function Talk({
         setLastTurn(describeTurn(t))
       },
       // The line did not load twice over: the room holds there, in this voice, until he taps.
-      () => mounted.current && hold(personaName(line.speaker)),
+      () => mounted.current && hold(nameOf(line.speaker)),
       line.group,
     )
   }
@@ -245,11 +264,12 @@ export function Talk({
     shutMic()
     muted.current = true
     skipping.current = true
-    send(text, true)
+    send(text, true, true)
   }
 
-  const send = (text: string, wasHeld = false) => {
+  const send = (text: string, wasHeld = false, plain = false) => {
     if (live.current.streaming) {
+      heldPlain.current = (held.current ? heldPlain.current : true) && plain
       held.current = `${held.current} ${text}`.trim()
       setHeld(true)
       return
@@ -259,13 +279,13 @@ export function Talk({
     if (!wasHeld) clock.sent(Date.now(), null, ears === 'server' ? wroteMs.current : undefined)
     else clock.reset()
     wroteMs.current = undefined
-    live.current.onSay(text, live.current.active)
+    live.current.onSay(text, live.current.active, plain)
   }
 
   /** Send: his words, as he left them. The only way a turn is sent from the floor. */
   const sendDraft = () => {
     const text = draftRef.current.trim()
-    if ((!text && !notes?.count) || capRef.current.phase !== 'idle' || notes?.over) return
+    if ((!text && !notes?.count) || capRef.current.phase !== 'idle' || lengthOf(text) > MAX_MESSAGE) return
     setText('')
     setEditing(false)
     send(text)
@@ -309,6 +329,8 @@ export function Talk({
     pending.current = []
     skipping.current = false
     if (queued.current) hush()
+    // Words he sent while the group answered are not lost: they come back to the floor.
+    if (held.current && !heldPlain.current) setText(addWords(held.current, draftRef.current))
     held.current = ''
     setHeld(false)
     muted.current = false
@@ -384,7 +406,7 @@ export function Talk({
     const text = held.current
     held.current = ''
     setHeld(false)
-    send(text, true)
+    send(text, true, heldPlain.current)
   }, [streaming])
 
   const tap = () => {
@@ -399,8 +421,8 @@ export function Talk({
     if (!android) unlock()
     setArmed(true)
     if (!on) onChange(true)
-    if (!queued.current && !streaming && !draftRef.current.trim()) record()
-    else {
+    if (hasMic && !queued.current && !streaming && !draftRef.current.trim()) record()
+    else if (hasMic) {
       primeMic()
       if (android) unlock() // no mic is opened in this tap
     }
@@ -410,7 +432,7 @@ export function Talk({
   const [list, setList] = useState(false)
   const hasDraft = !!draft.trim()
   const last = items.at(-1)
-  const answering = streaming && last?.kind === 'contribution' ? personaName(last.speaker) : null
+  const answering = streaming && last?.kind === 'contribution' ? nameOf(last.speaker) : null
   const reading = (() => {
     if (!now || now.stopped) return null
     const it = items[now.index]
@@ -423,7 +445,7 @@ export function Talk({
     waiting: on && !armed,
     paused,
     missed,
-    talker: talker ? personaName(talker) : null,
+    talker: talker ? nameOf(talker) : null,
     reading,
     streaming,
     answering,
@@ -458,17 +480,19 @@ export function Talk({
               : hasMic
                 ? [{ label: 'Talk', onClick: record, testid: 'voice-talk', key: true, mic: true }, null]
                 : [{ label: 'Write', onClick: typeInstead, testid: 'voice-type' }, null]
-  const sendable = main.testid !== 'voice-send' || ((hasDraft || !!notes?.count) && !notes?.over)
+  const length = lengthOf(draft)
+  const over = length > MAX_MESSAGE
+  const sendable = main.testid !== 'voice-send' || ((hasDraft || !!notes?.count) && !over)
 
   // On a keyboard: the space bar is the main button while it means talk, finish or cut in;
   // Send takes ⌘ or Ctrl with Enter, so a second press of the space bar cannot send by accident.
-  const keys = useRef({ main, sendDraft })
-  keys.current = { main, sendDraft }
+  const keys = useRef({ main, sendDraft, active })
+  keys.current = { main, sendDraft, active }
   useEffect(() => {
-    if (!active) return
     const onKey = (e: KeyboardEvent) => {
-      const { main, sendDraft } = keys.current
+      const { main, sendDraft, active } = keys.current
       if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) return sendDraft()
+      if (!active) return
       const el = e.target as HTMLElement | null
       if (e.code !== 'Space' || e.repeat || !main.key || el?.closest?.('textarea, input, select, button, a, [contenteditable]')) return
       e.preventDefault()
@@ -476,7 +500,7 @@ export function Talk({
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [active])
+  }, [])
 
   const button = (b: Btn, wide: boolean) => (
     <button
@@ -497,7 +521,7 @@ export function Talk({
   // His words stay in view above the floor while they grow.
   const draftBox = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    if (showDraft) draftBox.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
+    if (showDraft) draftBox.current?.scrollIntoView?.({ block: 'nearest', behavior: smooth() })
   }, [showDraft, draft, cap.interim, editing])
   const draftView = showDraft && (
     <div ref={draftBox} data-testid="draft" className="mine draft ml-auto max-w-[88%] scroll-mb-72">
@@ -531,16 +555,48 @@ export function Talk({
 
   const lampMode = cap.recording && cap.meter ? 'voice' : talker ? 'breath' : 'still'
 
+  // The bar's height, for the screen's spacer: nothing of the conversation stays under it.
+  const bar = useRef<HTMLElement>(null)
+  useEffect(() => {
+    const el = bar.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => document.documentElement.style.setProperty('--floor-h', `${el.offsetHeight}px`))
+    ro.observe(el)
+    return () => {
+      ro.disconnect()
+      document.documentElement.style.removeProperty('--floor-h')
+    }
+  }, [])
+  // After Answer, the keyboard and the screen reader land on the line that says whom he answers.
+  const replying = useRef<HTMLParagraphElement>(null)
+  useEffect(() => {
+    if (replyTo) replying.current?.focus()
+  }, [replyTo])
+  const tray = useRef<HTMLParagraphElement>(null)
+  const marks = useRef(notes?.count ?? 0)
+  useEffect(() => {
+    if ((notes?.count ?? 0) > marks.current) tray.current?.focus()
+    marks.current = notes?.count ?? 0
+  }, [notes?.count])
+
+  const [more, setMore] = useState(false)
+  const pick = (f: () => void) => () => {
+    setMore(false)
+    f()
+  }
+  const menu = 'flex min-h-11 w-full items-center text-left text-[18px] italic text-marble-200 hover:text-marble-50 disabled:text-marble-400'
+
   return (
     <>
       {slot && draftView ? createPortal(draftView, slot) : null}
       <section
+        ref={bar}
         aria-label="The floor"
         data-testid="voice-bar"
         className="floor fixed inset-x-0 bottom-0 z-30 bg-ink-900"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
-        <div className="mx-auto max-w-xl px-4 pt-2 pb-2">
+        <div className="mx-auto max-w-xl px-4 pt-2 pb-1">
           {list && (
             <ol data-testid="voice-questions" className="mb-2 max-h-56 overflow-y-auto border-b border-ink-700 pb-2">
               {floors.map((q, i) => (
@@ -560,8 +616,32 @@ export function Talk({
               ))}
             </ol>
           )}
+          {more && (
+            <div data-testid="floor-menu" role="group" aria-label="More" className="mb-2 border-b border-ink-700 pb-1">
+              {hasMic || synthesisOk ? (
+                <button type="button" data-testid="talk" aria-pressed={on} onClick={pick(on ? () => onChange(false) : tap)} className={menu}>
+                  {on ? 'Stop reading aloud' : 'Read aloud'}
+                </button>
+              ) : null}
+              <button type="button" disabled={!floors.length} onClick={pick(() => setList(true))} className={menu}>
+                Questions so far
+              </button>
+              <button
+                type="button"
+                aria-label="Back to the previous question"
+                disabled={floors.length < 2}
+                onClick={pick(() => steer(`Let's go back to the previous question: "${floors[floors.length - 2]}"`))}
+                className={menu}
+              >
+                Back to the previous question
+              </button>
+              <button type="button" aria-label="Next question" disabled={!floors.length} onClick={pick(() => steer("Let's move on to the next question."))} className={menu}>
+                Next question
+              </button>
+            </div>
+          )}
           {replyTo && (
-            <p data-testid="replying" className="flex items-center justify-between gap-2 text-[17px] leading-[23px] text-marble-200">
+            <p ref={replying} tabIndex={-1} data-testid="replying" className="flex items-center justify-between gap-2 text-[17px] leading-[23px] text-marble-200 focus-visible:outline-none">
               <span className="min-w-0 truncate">
                 <span className="rubric">Answering</span> {replyTo}
               </span>
@@ -577,7 +657,7 @@ export function Talk({
               disabled={!floors.length || !active}
               onClick={() => setList((v) => !v)}
               data-testid="voice-where"
-              className="-my-2.5 flex min-h-11 w-full items-center gap-2 py-2.5 text-left disabled:cursor-default"
+              className="-my-2.5 flex min-h-11 w-full flex-wrap items-baseline gap-x-2 py-2.5 text-left disabled:cursor-default"
             >
               {active && <span className="t-label shrink-0 text-candle-300">{floors.length ? `Question ${floors.length}` : 'Opening'}</span>}
               <span
@@ -599,21 +679,25 @@ export function Talk({
               {problem ?? cap.problem}
             </p>
           )}
+          {over && (
+            <p role="alert" data-testid="too-long" className="text-[17px] leading-[23px] text-clay-400">
+              Too long for one message ({length} of {MAX_MESSAGE} characters). Shorten your words.
+            </p>
+          )}
           {!!notes?.count && (
-            <p data-testid="notes-tray" role={notes.over ? 'alert' : undefined} className={`flex items-center justify-between gap-2 text-[17px] leading-[23px] ${notes.over ? 'text-clay-400' : 'text-marble-300'}`}>
-              {notes.over
-                ? `Too long for one message (${notes.length} of ${notes.max} characters). Shorten your words.`
-                : `${notes.count === 1 ? 'Your mark goes' : `Your ${notes.count} marks go`} with your next message.`}
+            <p ref={tray} tabIndex={-1} data-testid="notes-tray" className="flex items-center justify-between gap-2 text-[17px] leading-[23px] text-marble-300 focus-visible:outline-none">
+              {`${notes.count === 1 ? 'Your mark goes' : `Your ${notes.count} marks go`} with your next message.`}
               <button type="button" className={`${small} shrink-0`} onClick={notes.onClear}>
                 Clear
               </button>
             </p>
           )}
-          <div className="mt-1 flex gap-2">
+          <div className="mt-2 flex gap-2">
             {other && button(other, false)}
             {button(main, !!other)}
           </div>
-          <div className="mt-1 flex flex-wrap items-center justify-between">
+          {/* At most two quiet words under the buttons; the rest is under More. */}
+          <div className="flex items-center justify-between">
             <span className="flex">
               {!hasDraft && !editing && !cap.recording && hasMic && (
                 <button type="button" onClick={typeInstead} data-testid="type-instead" className={small}>
@@ -621,31 +705,11 @@ export function Talk({
                 </button>
               )}
             </span>
-            <span className="flex">
-              {active && (
-                <>
-                  <button
-                    type="button"
-                    aria-label="Back to the previous question"
-                    disabled={floors.length < 2}
-                    onClick={() => steer(`Let's go back to the previous question: "${floors[floors.length - 2]}"`)}
-                    className={small}
-                  >
-                    Back
-                  </button>
-                  <button type="button" aria-label="Next question" disabled={!floors.length} onClick={() => steer("Let's move on to the next question.")} className={small}>
-                    Next
-                  </button>
-                </>
-              )}
-              {hasMic && (
-                <button type="button" data-testid="talk" aria-pressed={on} onClick={on ? () => onChange(false) : tap} className={small}>
-                  {on ? 'Stop reading aloud' : 'Read aloud'}
-                </button>
-              )}
-            </span>
+            <button type="button" data-testid="floor-more" aria-expanded={more} onClick={() => setMore((m) => !m)} className={small}>
+              {more ? 'Less' : 'More ⋯'}
+            </button>
           </div>
-          <p className="t-fine hidden text-center md:block">Space bar: talk, finish, cut in. ⌘ or Ctrl with Enter: send.</p>
+          <p className="t-fine hidden text-center md:block">{active ? 'Space bar: talk, finish, cut in. ' : ''}⌘ or Ctrl with Enter: send.</p>
         </div>
       </section>
     </>

@@ -57,15 +57,17 @@ describe('Voice bar', () => {
     expect(list).toHaveTextContent('What is the goal?')
     expect(list).toHaveTextContent('Who pays for it?')
     fireEvent.click(screen.getByRole('button', { name: /What is the goal\?/ }))
-    expect(onSay).toHaveBeenCalledWith(`Let's go back to this question: "What is the goal?"`, true)
+    expect(onSay).toHaveBeenCalledWith(`Let's go back to this question: "What is the goal?"`, true, true)
   })
 
   it('previous and next ask the facilitator in plain words', () => {
     const { onSay } = setup()
+    fireEvent.click(screen.getByTestId('floor-more'))
     fireEvent.click(screen.getByRole('button', { name: 'Back to the previous question' }))
-    expect(onSay).toHaveBeenLastCalledWith(`Let's go back to the previous question: "What is the goal?"`, true)
+    expect(onSay).toHaveBeenLastCalledWith(`Let's go back to the previous question: "What is the goal?"`, true, true)
+    fireEvent.click(screen.getByTestId('floor-more'))
     fireEvent.click(screen.getByRole('button', { name: 'Next question' }))
-    expect(onSay).toHaveBeenLastCalledWith("Let's move on to the next question.", true)
+    expect(onSay).toHaveBeenLastCalledWith("Let's move on to the next question.", true, true)
   })
 
   it('every control is a word: no bare icons', () => {
@@ -74,7 +76,7 @@ describe('Voice bar', () => {
     const words = within(bar)
       .getAllByRole('button')
       .map((b) => b.textContent?.trim())
-    expect(words.slice(1)).toEqual(['Finish', 'Back', 'Next', 'Stop reading aloud'])
+    expect(words.slice(1)).toEqual(['Finish', 'More ⋯'])
     for (const w of words) expect(w).toBeTruthy()
   })
 
@@ -151,6 +153,7 @@ describe('Voice bar', () => {
   it('after next question, the rest of the old answer is not spoken; the new one is', () => {
     const { onSay, set } = setup([], { streaming: true })
     set({ items: [{ kind: 'floor', question: 'Q1?' }, { kind: 'contribution', speaker: 'seneca', text: 'First point. Then', streaming: true }] })
+    fireEvent.click(screen.getByTestId('floor-more'))
     fireEvent.click(screen.getByRole('button', { name: 'Next question' }))
     vi.mocked(tts.speak).mockClear()
     set({
@@ -161,7 +164,7 @@ describe('Voice bar', () => {
       ],
       streaming: false,
     })
-    expect(onSay).toHaveBeenCalledWith("Let's move on to the next question.", true)
+    expect(onSay).toHaveBeenCalledWith("Let's move on to the next question.", true, true)
     expect(tts.speak).not.toHaveBeenCalled()
     set({
       items: [

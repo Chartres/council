@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { FAKE_VOICE, hear } from './fakeVoice'
+import { FAKE_VOICE, hear, readAloud, readingAloud } from './fakeVoice'
 
 // The voice player bar (Pavol, 8 Nov): a fixed bar at the bottom, like a podcast's "now playing"
 // bar. It says which question the room is on and what is happening; the line being spoken is
@@ -24,7 +24,7 @@ for (const [label, viewport] of [
     await page.getByRole('button', { name: 'Bring it to the group' }).click()
     await expect(page.getByTestId('floor')).toHaveCount(1, { timeout: 20_000 })
 
-    await page.getByTestId('talk').click()
+    await readAloud(page)
     const bar = page.getByTestId('voice-bar')
     await expect(bar).toBeVisible()
     await expect(page.getByTestId('voice-where')).toContainText('Question 1')

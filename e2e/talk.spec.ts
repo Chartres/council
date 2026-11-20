@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { FAKE_VOICE, hear } from './fakeVoice'
+import { FAKE_VOICE, hear, readAloud, readingAloud } from './fakeVoice'
 
 // Talk mode (flywheel/docs/expansion/council-v4.3.md). Lenka talks with the group: she speaks,
 // her words are set as text she can correct, she sends them, the adviser answers aloud sentence
@@ -26,10 +26,9 @@ test('she talks with the group, turn by turn, and cuts in', async ({ page }) => 
   await expect(page.getByTestId('floor')).toHaveCount(1, { timeout: 20_000 })
 
   // Read aloud is off until she taps it in the floor.
-  const talk = page.getByTestId('talk')
-  await expect(talk).toHaveAttribute('aria-pressed', 'false')
-  await talk.click()
-  await expect(talk).toHaveAttribute('aria-pressed', 'true')
+  expect(await readingAloud(page)).toBe(false)
+  await readAloud(page)
+  expect(await readingAloud(page)).toBe(true)
   await expect(page.getByTestId('talk-status')).toContainText('Recording.')
   expect(await page.evaluate(() => (window as unknown as { __mics: number }).__mics)).toBe(1)
 
@@ -72,7 +71,7 @@ test('she talks with the group, turn by turn, and cuts in', async ({ page }) => 
 
   // Off: remembered on this device.
   await expect(page.getByTestId('floor')).toHaveCount(3, { timeout: 20_000 })
-  await talk.click()
-  await expect(talk).toHaveAttribute('aria-pressed', 'false')
+  await readAloud(page)
+  expect(await readingAloud(page)).toBe(false)
   expect(await page.evaluate(() => localStorage.getItem('council:talk'))).toBe('0')
 })

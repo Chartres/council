@@ -127,9 +127,15 @@ adviser is read, still otherwise), one status line (`src/domain/floor.ts`: "Reco
 you." / "Writing it down: N parts left" (also mid-recording) / "<Adviser> is answering. Tap to
 speak instead." / "<Adviser>, sentence k of n" / "Read it over. Tap your words to correct them."
 / "Your turn. Take your time." / "Paused." / "<Adviser>’s voice did not load. Tap to hear it, or
-read it above."), one main button (Talk / Finish / Send with Add more / Cut in with Pause / Tap to
-hear / Resume / Start) and a small row (Type instead; Back, Next and "Stop reading aloud" in read
-aloud; "Read aloud" otherwise). His words are a dashed message at the end of the conversation
+read it above."; the facilitator counts as a speaker), one main button (Talk / Finish / Send with
+Add more / Cut in with Pause / Tap to hear / Resume / Start) and at most two quiet words under it:
+Type instead and More. More holds Read aloud, Questions so far, Back to the previous question and
+Next question. Back, Next and a question from the list go as his plain words, without his marks or
+his reply, which wait. Read aloud does not need the mic: a blocked mic or none still reads. Words
+sent while the group answered come back to the floor if read aloud stops first. A message over the
+gateway's 2000 characters (words, marks and reply together) says so and Send waits. ⌘ or Ctrl with
+Enter sends with or without read aloud. The spacer under the conversation is the floor's measured
+height (`--floor-h`). His words are a dashed message at the end of the conversation
 (`draft`, a portal into the screen's slot); a tap on it corrects them in the only text field,
 which exists only while he edits. Typing uses the same draft. Finish ends a recording (the space
 bar, read aloud only), Send sends (⌘ or Ctrl with Enter). Nothing is sent by a pause. Read aloud
@@ -147,8 +153,9 @@ suspect for the mute on Firefox, 20 Nov); elsewhere it does, since Safari needs 
 Answering one adviser (Eyal, feedback 533a9ad9): swipe a message right (touch or pen, starting
 28 px or more from the left edge, sideways more than down; `touch-action: pan-y`), or tap Reply by
 the name for Answer / Agree / Push back. Answer puts "Answering <Adviser> ×" in the floor and
-sends his next words at once as `To <Adviser> ("…"): …` (the gateway picks that adviser to
-answer). Agree and Push back are marks that go with his next message, as margin notes did.
+sends his next words at once as `To <Adviser> ("…"): …`, before any marks, so the gateway gives
+that adviser the turn, voice or typed. Agree and Push back are marks that go with his next message,
+as margin notes did. His sent messages are ink-outlined notes on the right.
 `e2e/floor.spec.ts` walks it; `FLOOR_REVIEW=1` re-shoots `docs/review/2026-11-21-floor/`.
 Reminder emails link to `/c/:commitmentId?outcome=done|later|drop`.
 v3 journeys (`/quick`): password → home → type (or dictate) an idea → convene → turns stream in →

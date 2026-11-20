@@ -419,8 +419,8 @@ export function FloorLamp({ cap, mode, children }: { cap: CaptureHandle; mode: '
   }, [moving, mode, meter])
 
   return (
-    <div data-testid="lamp" data-mode={mode} className="flex items-end gap-3 overflow-clip">
-      <Candle ref={candle} size={34} crop={0.56} />
+    <div data-testid="lamp" data-mode={mode} className="flex items-center gap-3 overflow-clip">
+      <Candle ref={candle} size={58} crop={0.56} />
       <div className="min-w-0 flex-1">
         {children}
         <canvas ref={canvas} height={28} data-testid="thread" aria-hidden="true" className="block h-7 w-full" />

@@ -51,10 +51,11 @@ describe('composeMessage: margin notes go with her next message (Eyal, 29 Oct)',
 // addressed the way a note is, so the gateway hands the turn to that adviser.
 describe('a reply to one adviser', () => {
   const reply = { speaker: 'jobs', quote: 'Make it something they can hold…' }
-  it('his words go addressed to the adviser and the point, after any marks', () => {
+  it('his words go addressed to the adviser and the point, before any marks', () => {
     expect(composeMessage([], 'The price is the product.', name, reply)).toBe('To Jobs ("Make it something they can hold…"): The price is the product.')
     const agree: Note = { speaker: 'drucker', quote: 'Who pays?', stance: 'agree', text: '' }
-    expect(composeMessage([agree], 'Not yet.', name, reply)).toBe(['To Drucker ("Who pays?"): Agree.', '', 'To Jobs ("Make it something they can hold…"): Not yet.'].join('\n'))
+    // Review of #41: a mark before the reply gave the turn to the marked adviser.
+    expect(composeMessage([agree], 'Not yet.', name, reply)).toBe(['To Jobs ("Make it something they can hold…"): Not yet.', '', 'To Drucker ("Who pays?"): Agree.'].join('\n'))
     expect(composedLength([], 'abc', name, reply)).toBe('To Jobs ("Make it something they can hold…"): abc'.length)
   })
   it('a long reply is not cut to a note’s length', () => {

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { FAKE_EARS, FAKE_VOICE, speakInto } from './fakeVoice'
+import { FAKE_EARS, FAKE_VOICE, speakInto, readAloud, readingAloud } from './fakeVoice'
 
 // Talk on an iPhone (Eyal, 11 and 29 Oct: "it doesn't catch my voice"): Safari's recogniser
 // hears nothing there, so the mic records and the gateway writes it down. The room and she take
@@ -32,8 +32,7 @@ test('she talks with the group through the gateway, turn by turn', async ({ page
   await page.getByRole('button', { name: 'Bring it to the group' }).click()
   await expect(page.getByTestId('floor')).toHaveCount(1, { timeout: 20_000 })
 
-  const talk = page.getByTestId('talk')
-  await talk.click()
+  await readAloud(page)
   await expect(page.getByTestId('talk-status')).toContainText('Recording.')
   await expect.poll(() => mics(page)).toBe(1)
 
@@ -74,7 +73,7 @@ test('a line the gateway cannot voice is not read by the browser voice; Tap to h
   await page.getByRole('button', { name: 'Bring it to the group' }).click()
   await expect(page.getByTestId('floor')).toHaveCount(1, { timeout: 20_000 })
 
-  await page.getByTestId('talk').click()
+  await readAloud(page)
   await expect.poll(() => mics(page)).toBe(1)
   await say(page, 'the constraint is engineering time')
 

@@ -1,6 +1,6 @@
 import { mkdirSync } from 'node:fs'
 import { expect, test, type Page } from '@playwright/test'
-import { FAKE_VOICE } from './fakeVoice'
+import { FAKE_VOICE, readAloud, readingAloud } from './fakeVoice'
 
 // Night edition (Pavol, 17 Nov 2026: "Option 2 is good, with a bit more graphics, i love the
 // logo"). Every screen is set as a book page; the catalogue note is held on the boring
@@ -254,14 +254,14 @@ for (const [label, viewport] of [
     await second.getByRole('button', { name: 'Push back' }).click()
 
     // Talk mode: the voice bar, an adviser speaking, the gloss in the margin.
-    await page.getByTestId('talk').click()
+    await readAloud(page)
     await page.evaluate(() => (window as unknown as { __hear: (t: string) => void }).__hear('the constraint is engineering time'))
     await page.getByTestId('voice-finish').click()
     await page.getByTestId('voice-send').click()
     await expect(page.getByTestId('now-speaking')).toBeVisible({ timeout: 10_000 })
     await shot(page, '10-talk-voice-bar')
     await expect(page.getByTestId('floor')).toHaveCount(2, { timeout: 30_000 })
-    await page.getByTestId('talk').click()
+    await readAloud(page)
     await page.getByTestId('contribution').nth(2).scrollIntoViewIfNeeded()
     await shot(page, '11-conversation-turn-2')
 

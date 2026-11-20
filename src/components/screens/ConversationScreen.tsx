@@ -4,9 +4,9 @@ import { useMastermind, type Item } from '@/app/MastermindContext'
 import { useAuth } from '@/auth/AuthContext'
 import { keyAction } from '@/analytics'
 import { ListenToggle, useListen, useNarration, usePref } from '@/components/Listen'
-import { Talk, TALK_STORAGE, type Now } from '@/components/Talk'
+import { smooth, Talk, TALK_STORAGE, type Now } from '@/components/Talk'
 import { Monogram } from '@/components/Monogram'
-import { composedLength, composeMessage, MAX_MESSAGE, quoteOf, type Note } from '@/domain/notes'
+import { composedLength, composeMessage, quoteOf, type Note } from '@/domain/notes'
 import { sentenceAt, sentencesOf } from '@/domain/sentences'
 import { CouncilMap } from '@/components/CouncilMap'
 import { SignInPanel } from '@/components/SignInPanel'
@@ -44,7 +44,7 @@ function ConversationView() {
   // The line being read aloud: marked in its message, and kept in view (Pavol, 8 Nov).
   const [now, setNow] = useState<Now | null>(null)
   useEffect(() => {
-    if (now && !now.stopped) list.current?.children[now.index]?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    if (now && !now.stopped) list.current?.children[now.index]?.scrollIntoView({ block: 'center', behavior: smooth() })
   }, [now?.index])
   // Where read-aloud starts when it comes on: the turn on screen; after Talk, nothing already heard.
   const readFrom = useRef<number | null>(null)
@@ -104,7 +104,7 @@ function ConversationView() {
   useEffect(() => {
     const i = turnStart.current
     if (i > 0 && (items?.length ?? 0) === i + 1)
-      list.current?.children[i]?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+      list.current?.children[i]?.scrollIntoView({ block: 'start', behavior: smooth() })
   }, [items?.length])
 
   if (!conversation) return null
@@ -128,9 +128,6 @@ function ConversationView() {
   })
   const answered = replyTo !== null ? conversation.items[replyTo] : undefined
   const reply = answered?.kind === 'contribution' ? { speaker: answered.speaker, quote: quoteOf(answered.text) } : undefined
-  // ponytail: the draft lives in the floor, so the length is checked on the marks alone; a voice
-  // turn's words are cut at the gateway's limit by composeMessage.
-  const length = composedLength(noted, '', personaName, reply)
   /** His words with his marks in front, addressed to the adviser he answers; marks and reply are spent. */
   const compose = (text: string) => {
     if (noted.length) keyAction('noted', { count: noted.length, push: noted.filter((n) => n.stance === 'push').length })
@@ -246,19 +243,21 @@ function ConversationView() {
               onChange={onTalk}
               items={conversation.items}
               streaming={!!busy}
-              onSay={(text, voice) => say(compose(text), voice ? { voice: true } : undefined)}
+              // Back / Next / the question list go as they are: his marks and his reply wait.
+              onSay={(text, voice, plain) => say(plain ? text : compose(text), voice ? { voice: true } : undefined)}
               onQuiet={() => setQuiet(true)}
               timing={isAdmin}
               onNow={setNow}
               slot={slot}
               replyTo={reply ? personaName(reply.speaker) : null}
               onReplyClear={() => setReplyTo(null)}
-              notes={{ count: noted.length, length, over: length > MAX_MESSAGE, max: MAX_MESSAGE, onClear: () => setNotes({}) }}
+              notes={{ count: noted.length, onClear: () => setNotes({}) }}
+              lengthOf={(words) => composedLength(noted, words, personaName, reply)}
             />
           )}
 
           <div role="group" aria-label="Steer the group" className="mt-6">
-            <div className="-mx-4 flex gap-2 overflow-x-auto px-4 py-1 [scrollbar-width:none]">
+            <div className="flex flex-wrap gap-2 py-1">
               <button type="button" disabled={busy} className="chip" onClick={() => run({ kind: 'disagree' })}>
                 I disagree
               </button>
@@ -312,7 +311,7 @@ function ConversationView() {
         {roster === 'business' ? BUSINESS_DISCLOSURE : DISCLOSURE}
       </p>
       {/* Room for the floor, so the last line is never under it. */}
-      {floorOn && <div aria-hidden="true" className="h-72" />}
+      {floorOn && <div aria-hidden="true" style={{ height: 'calc(var(--floor-h, 18rem) + 1.5rem)' }} />}
     </div>
   )
 }
@@ -391,9 +390,10 @@ function ItemView({
       )
     case 'user':
       return (
-        <div data-testid="user">
-          <p className="sc text-[20px] font-semibold text-marble-300">You</p>
-          <p className="t-body mt-1 whitespace-pre-line text-marble-100">{item.text}</p>
+        // His words: the ink-outlined note on the right, as his draft was before it went.
+        <div data-testid="user" className="mine ml-auto max-w-[88%]">
+          <p className="sr-only">You</p>
+          <p className="t-body whitespace-pre-line text-marble-50">{item.text}</p>
         </div>
       )
     case 'proposal':

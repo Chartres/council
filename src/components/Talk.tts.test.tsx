@@ -177,7 +177,7 @@ describe('Talk on iPhone, review 15 Nov', () => {
     act(() => fake.last().say('we have no engineers'))
     await act(async () => fireEvent.click(screen.getByTestId('voice-finish')))
     fireEvent.click(screen.getByTestId('voice-send'))
-    expect(onSay).toHaveBeenCalledWith('we have no engineers', true)
+    expect(onSay).toHaveBeenCalledWith('we have no engineers', true, false)
     r.rerender(view([{ kind: 'user', text: 'we have no engineers' }, { kind: 'floor', question: 'Who pays for it?' }]))
     await flush()
     await flush()

@@ -154,10 +154,13 @@ of the buttons and I also like option A for the flow. However I am missing the c
 the idea of this being something like the messaging interface." Earlier: "make the buttons and
 other elements a little less straight, it should all play nicely with the painted candle style."
 
-- **The floor** replaces the reply box, its mic and the voice bar: one fixed bar, about 190 px at
-  390 px wide. Left, the candle cropped to its flame and shoulder (34 px wide); beside it the status
-  line over the thread. Under them the main button, painted, and at most one outlined second
-  button; under those a row of small italic words. His words are a dashed box at the end of the
+- **The floor** replaces the reply box, its mic and the voice bar: one fixed bar, about 215 px at
+  390 px wide (under 35 % of an 844 px screen). Left, the candle cropped to its flame and shoulder,
+  58 px wide and 100 px tall, the bar's centre; beside it the status line over the thread. Under
+  them the main button, painted, and at most one outlined second button; under those two small
+  italic words at most (Type instead, More), the rest under More. The chips under the
+  conversation wrap instead of scrolling sideways. His sent messages are ink-outlined notes on the
+  right, the same box as his draft, solid. His words are a dashed box at the end of the
   conversation, right-aligned like a sent message in a messenger; tapping it closes the dashes
   into a 2 px line and it becomes the field. Shots: `docs/review/2026-11-21-floor/`.
 - **The candle in every state**: it follows his voice while the mic is open, breathes slowly
@@ -173,7 +176,9 @@ other elements a little less straight, it should all play nicely with the painte
   `#rough` SVG filter on `::before` only, so the word stays sharp. Measured: ink text #1a1206 on the
   darkest pixel of the washed paint 4.9:1, on the median 7.6:1 (the lab's 28 % wash measured 1.7:1 at
   its darkest, so the wash went up). The second button and an unlit primary are an ink outline at
-  full strength: 1.6 px marble-300 (8.7:1 on ink-900), marble-500 when disabled. Chips keep their
+  full strength: 1.6 px marble-300 (8.7:1 on ink-900), marble-500 when disabled. Outlines take the
+  gentler `#rough-line` (frequency 0.012, scale 1.8) so the stroke wavers but stays whole at DPR 2
+  and 3 (`10-outlines-dpr*.png`); `#rough` tore it. Chips keep their
   1 px edge with uneven corners (a filter there would blur the italic). Rules drawn by hand: `.dbl`
   and the floor's top edge carry `#rough-s`. Both filters are inline in `index.html`.
 - **Answering one adviser**: the message being answered carries a 3 px candle bar on its left
