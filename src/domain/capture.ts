@@ -36,6 +36,10 @@ export interface CaptureEvents {
   onPending(n: number): void
   /** Something failed. `recovered`: the gateway took over and no words were lost. */
   onProblem(engine: 'browser' | 'server', reason: string, recovered: boolean): void
+  /** The mic was taken away mid-recording (the page went to the background, the input was
+   *  unplugged). The owner calls finish(): what was recorded so far is still written down.
+   *  `away`: the page had been left. */
+  onLost(why: 'ended' | 'muted' | 'pagehide', away: boolean): void
 }
 
 export interface Capture {
@@ -91,7 +95,7 @@ async function writeDown(clip: Blob): Promise<string> {
 
 /** Open the mic. Call inside the tap: the permission prompt and the audio unlock both need it. */
 export async function openCapture(first: CaptureSink, ev: CaptureEvents): Promise<Capture> {
-  const ctx = unlockAudioInput()
+  let ctx = unlockAudioInput()
   const stream = await askMic()
   const release = () => stream.getTracks().forEach((t) => t.stop())
 
@@ -107,17 +111,22 @@ export async function openCapture(first: CaptureSink, ev: CaptureEvents): Promis
   let analyser: AnalyserNode | null = null
   let source: MediaStreamAudioSourceNode | null = null
   let buf = new Uint8Array(0)
-  try {
-    if (ctx) {
-      analyser = ctx.createAnalyser()
-      analyser.fftSize = 1024
+  const buildMeter = () => {
+    try {
+      source?.disconnect()
+      analyser = null
+      if (!ctx) return
+      const a = ctx.createAnalyser()
+      a.fftSize = 1024
       source = ctx.createMediaStreamSource(stream)
-      source.connect(analyser)
-      buf = new Uint8Array(analyser.fftSize)
+      source.connect(a)
+      buf = new Uint8Array(a.fftSize)
+      analyser = a
+    } catch {
+      analyser = null // no meter: the screen says the audio is paused, the recording still runs
     }
-  } catch {
-    analyser = null // no meter: the screen says the audio is paused, the recording still runs
   }
+  buildMeter()
   const audioRunning = () => !!analyser && ctx?.state === 'running'
   const level = () => {
     if (!analyser) return 0
@@ -318,10 +327,12 @@ export async function openCapture(first: CaptureSink, ev: CaptureEvents): Promis
     else if (now - partBegan >= MAX_PART_MS || partBytes >= MAX_PART_BYTES) cut(worthKeeping())
   }, 100)
 
+  let unwatch = () => {}
   const close = () => {
     open = false
     clearInterval(tick)
     source?.disconnect()
+    unwatch()
   }
 
   try {
@@ -332,16 +343,50 @@ export async function openCapture(first: CaptureSink, ev: CaptureEvents): Promis
     throw new SttError('unavailable')
   }
   if (mode === 'browser') listen()
+  // --- losing the mic ------------------------------------------------------------------------
+  // A phone takes the mic away when the page goes to the background; a headset gets unplugged.
+  // The recording so far is kept: the owner is told once and finishes it.
   const track = stream.getAudioTracks?.()[0]
-  // Unplugged, or taken by another app.
-  if (track) track.onended = () => open && ev.onProblem('server', 'mic_ended', false)
+  let away = false
+  let lost = false
+  const lose = (why: 'ended' | 'muted' | 'pagehide') => {
+    if (!open || lost) return
+    lost = true
+    ev.onLost(why, away)
+  }
+  const gone = () => (track?.readyState === 'ended' ? lose('ended') : track?.muted ? lose('muted') : undefined)
+  const onEnded = () => lose('ended')
+  // ponytail: a mute while the page is in view may be a blip (a call, a hardware key): 2 s of grace.
+  const onMute = () => (document.hidden ? lose('muted') : void setTimeout(() => track?.muted && lose('muted'), 2000))
+  const onVisibility = () => {
+    if (document.hidden) return void (away = true)
+    gone()
+    void ctx?.resume?.()?.catch?.(() => {})
+  }
+  const onPageHide = () => lose('pagehide')
+  track?.addEventListener?.('ended', onEnded)
+  track?.addEventListener?.('mute', onMute)
+  document.addEventListener('visibilitychange', onVisibility)
+  window.addEventListener('pagehide', onPageHide)
+  unwatch = () => {
+    track?.removeEventListener?.('ended', onEnded)
+    track?.removeEventListener?.('mute', onMute)
+    document.removeEventListener('visibilitychange', onVisibility)
+    window.removeEventListener('pagehide', onPageHide)
+  }
 
   return {
     label: track?.label || 'this microphone',
     level,
     heard: () => everHeard,
     audioRunning,
-    wake: () => void ctx?.resume?.(),
+    wake() {
+      // Inside a tap: a context that is not running is replaced, and the meter moves to it.
+      const next = unlockAudioInput()
+      if (next === ctx) return
+      ctx = next
+      buildMeter()
+    },
     retarget(next) {
       if (!open) return
       sink = next

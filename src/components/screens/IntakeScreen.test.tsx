@@ -182,6 +182,21 @@ describe('IntakeScreen: tap and talk', () => {
     expect(screen.getByTestId('voice-bar')).toHaveTextContent('What is happening today?')
   })
 
+  it('the mic taken away at a later question: the next tap carries on at that question', async () => {
+    render(<IntakeScreen />)
+    fireEvent.click(mic())
+    await act(async () => {})
+    fireEvent.click(screen.getByRole('button', { name: 'Next question' }))
+    await act(async () => fake.last().lose())
+    expect(screen.getByRole('alert')).toHaveTextContent('The microphone stopped when you left the page. Tap to carry on.')
+    expect(screen.getByTestId('voice-bar')).toHaveTextContent('What is happening today?')
+    fireEvent.click(mic())
+    await act(async () => {})
+    act(() => fake.last().say('Churn is four percent'))
+    expect((screen.getByLabelText('What is happening today?') as HTMLTextAreaElement).value).toBe('Churn is four percent')
+    expect(goal().value).toBe('')
+  })
+
   it('recording again adds to a goal he already wrote', async () => {
     render(<IntakeScreen />)
     fireEvent.change(goal(), { target: { value: 'Cut churn.' } })

@@ -28,7 +28,19 @@ let loud = false
 let ctxState = 'running'
 let stopped = 0
 let recorders: FakeRecorder[] = []
-const track = { label: 'Desk microphone', stop: () => void stopped++, onended: null as null | (() => void) }
+const listeners = new Map<string, () => void>()
+const track = {
+  label: 'Desk microphone',
+  readyState: 'live',
+  muted: false,
+  stop: () => void stopped++,
+  addEventListener: (type: string, f: () => void) => void listeners.set(type, f),
+  removeEventListener: (type: string) => void listeners.delete(type),
+}
+const setHidden = (hidden: boolean) => {
+  Object.defineProperty(document, 'hidden', { value: hidden, configurable: true })
+  document.dispatchEvent(new Event('visibilitychange'))
+}
 const stream = { getTracks: () => [track], getAudioTracks: () => [track] }
 const getUserMedia = vi.fn(async () => stream)
 
@@ -93,7 +105,7 @@ const sink = () => {
   const interim: string[] = []
   return { heard, interim, onText: (t: string) => void heard.push(t), onInterim: (t: string) => void interim.push(t) }
 }
-const events = () => ({ onPending: vi.fn(), onProblem: vi.fn() })
+const events = () => ({ onPending: vi.fn(), onProblem: vi.fn(), onLost: vi.fn() })
 const clipText = (b: Blob) => b.text()
 const settle = async () => {
   for (let i = 0; i < 20; i++) await Promise.resolve()
@@ -104,6 +116,10 @@ beforeEach(() => {
   loud = false
   ctxState = 'running'
   stopped = 0
+  track.readyState = 'live'
+  track.muted = false
+  listeners.clear()
+  Object.defineProperty(document, 'hidden', { value: false, configurable: true })
   recorders = []
   Rec.all = []
   stt.transcribe.mockReset()
@@ -292,6 +308,78 @@ describe('openCapture: parts', () => {
     await settle()
     expect(stt.transcribe).not.toHaveBeenCalled()
     expect(stopped).toBe(1)
+  })
+})
+
+// Pavol, 20 Nov, Firefox on his phone: "when I switch to another window or another app on the
+// phone and then switch back … I try to speak again and it doesn't work anymore. I then have
+// to refresh the page."
+describe('openCapture: the mic is taken away', () => {
+  it('the track ending mid-recording is reported once, and what was recorded so far is still written down', async () => {
+    stt.transcribe.mockResolvedValue('said before I left')
+    const s = sink()
+    const ev = events()
+    const c = await openCapture(s, ev)
+    loud = true
+    vi.advanceTimersByTime(1000)
+    setHidden(true)
+    track.readyState = 'ended'
+    listeners.get('ended')!()
+    listeners.get('ended')?.()
+    expect(ev.onLost).toHaveBeenCalledTimes(1)
+    expect(ev.onLost).toHaveBeenCalledWith('ended', true) // he had left the page
+    await c.finish() // what the owner does when told
+    expect(s.heard).toEqual(['said before I left'])
+    expect(stopped).toBe(1) // the stream is released
+    expect(listeners.size).toBe(0)
+  })
+
+  it('coming back to a track that ended or stayed muted while the page was away is a loss too', async () => {
+    const ev = events()
+    const c = await openCapture(sink(), ev)
+    setHidden(true)
+    expect(ev.onLost).not.toHaveBeenCalled() // leaving the page is not a loss by itself
+    track.muted = true
+    setHidden(false)
+    expect(ev.onLost).toHaveBeenCalledWith('muted', true)
+    c.cancel()
+  })
+
+  it('leaving and coming back with the mic still live loses nothing; the audio is asked to resume', async () => {
+    const ev = events()
+    const c = await openCapture(sink(), ev)
+    ctx.resume.mockClear()
+    setHidden(true)
+    setHidden(false)
+    expect(ev.onLost).not.toHaveBeenCalled()
+    expect(ctx.resume).toHaveBeenCalled()
+    c.cancel()
+  })
+
+  it('a mute while the page is in view gets two seconds before it counts', async () => {
+    const ev = events()
+    const c = await openCapture(sink(), ev)
+    track.muted = true
+    listeners.get('mute')!()
+    vi.advanceTimersByTime(1900)
+    expect(ev.onLost).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(200)
+    expect(ev.onLost).toHaveBeenCalledWith('muted', false)
+    c.cancel()
+  })
+
+  it('a tap that finds the audio not running moves the meter to a new context', async () => {
+    const c = await openCapture(sink(), events())
+    const fresh = { ...ctx, state: 'running', createAnalyser: vi.fn(ctx.createAnalyser), createMediaStreamSource: vi.fn(ctx.createMediaStreamSource) }
+    ctxState = 'interrupted'
+    expect(c.audioRunning()).toBe(false)
+    stt.unlockAudioInput.mockReturnValue(fresh)
+    c.wake()
+    expect(fresh.createMediaStreamSource).toHaveBeenCalled()
+    expect(c.audioRunning()).toBe(true)
+    loud = true
+    expect(c.level()).toBeGreaterThan(0.3)
+    c.cancel()
   })
 })
 

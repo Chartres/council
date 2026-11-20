@@ -7,7 +7,7 @@ Mastermind Council at https://council.dravec.org, in private beta behind a passw
 - You bring an idea, pick up to four historical advisers (Business or Classics), and they discuss it.
 - The result is a proposal, then a journal entry and a dated commitment with an optional reminder email.
 - The Discussions sheet lists every past discussion and can continue one.
-- Voice in (on `voice/thread-and-candle`, not merged): "Tap and talk" opens the mic inside the tap. A thin line (the thread) moves with the real input level, the candle's flame flickers with the voice, and one sentence says what the mic is doing. A recording ends on Finish, not on a pause. The words are set in the field as they are written down, and nothing is sent until you press the screen's own button.
+- Voice in (on `voice/thread-and-candle`, not merged): "Tap and talk" opens the mic inside the tap. A thin line (the thread) moves with the real input level, a painted candle's flame leans and dips with the voice, and one sentence says what the mic is doing. A recording ends on Finish, not on a pause. The words are set in the field as they are written down, and nothing is sent until you press the screen's own button.
 - Words come from the browser's recogniser on desktop Chrome and Edge, and from Whisper through the gateway everywhere else, in parts joined in order.
 - Voice out: the gateway's adviser voices, with the browser voice as fallback. In Talk the room and you take turns: record, text, correct, send; Cut in stops an adviser.
 - 20 public reading pages of verified classical quotes (`/on/`, `/advisers/`, `/how-it-works/`).
@@ -15,7 +15,7 @@ Mastermind Council at https://council.dravec.org, in private beta behind a passw
 - The look: every screen set as a book page under the printer's device (Night edition, merged as #38). What's new is 1.2.0 on main and 1.3.0 on the voice branch.
 
 ## Pavol's rules in force
-- 2026-11-20: recording shows the thread and the candle; the flame flickers, it does not grow. No waiting for silence. His words are text he can correct before anything is sent. Logged in `docs/SIGNATURE.md`.
+- 2026-11-20: recording shows the thread and the painted candle (Therbusch, about 1755, CC0); the flame moves like a breath, it does not grow, no halo. No waiting for silence. His words are text he can correct before anything is sent. The mic works again after he leaves the page and comes back, without a reload. Logged in `docs/SIGNATURE.md`.
 - 2026-11-17: look option 2, Night edition: "Option 2 is good, with a bit more graphics, i love the logo."
 - 2026-11-07: follow the orchestrator's packages unless a step is risky (the list is in AGENTS.md).
 - 2026-11-07: long-lived session, with this file rewritten at every hand-back.
@@ -30,11 +30,14 @@ Mastermind Council at https://council.dravec.org, in private beta behind a passw
    - One capture path for the quick idea, the intake, the reply box, feedback and Talk (`src/domain/capture.ts`, `src/components/Capture.tsx`).
    - Removed: the silence endpoint, the idle cancel, the intake's auto-advance and read-aloud questions, Talk's auto-send and its countdown, cutting in by speaking over an adviser (the Cut in button stays).
    - Controls are labelled buttons; the voice bar's icons carry words.
+   - Leaving the page: each tap gets a new stream and running audio; a mic taken away mid-recording keeps the words and says "The microphone stopped when you left the page. Tap to carry on."
+   - The candle is one file (`src/components/Candle.tsx`); its motion constants are in `FLAME`.
    - Ended: PR open on `voice/thread-and-candle`, not merged. Shots in `docs/review/2026-11-20-voice/`. No real microphone was used in any test; Pavol's own try on the preview is the check that counts.
 
 ## Open threads
 - The voice PR waits for a separate review and for Pavol's try with a real microphone on a Mac and an iPhone.
-- Not verified on a device: Safari's level meter after the tap, the earpiece/speaker switch on iPhone when the mic opens, Chrome's recogniser beside an open mic stream, and how Whisper handles a part cut at a 1.5 s breath.
+- Pavol has not seen the painted flame's second motion yet; the constants are in `FLAME` (`src/components/Candle.tsx`).
+- Not verified on a device: what Firefox on his phone does to the track and the audio when the page goes to the background (the fix is built from the code and the standard events, and tested with a simulated loss), Safari's level meter after the tap, the earpiece/speaker switch on iPhone when the mic opens, Chrome's recogniser beside an open mic stream, and how Whisper handles a part cut at a 1.5 s breath.
 - `mic_failed` with `reason: heard_nothing` fires after 3 s without sound, so a long think before the first word logs one too. Read it with that in mind.
 - A Talk turn is now two taps (Finish, Send). If that is one too many, "Finish and send" as a second button is the smaller change.
 - The intake has one "Tap and talk", at the goal; later fields are reached with Next question, not with a button of their own.

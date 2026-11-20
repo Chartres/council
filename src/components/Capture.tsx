@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { keyAction } from '@/analytics'
-import { Device } from '@/components/Furniture'
+import { Candle, type CandleHandle } from '@/components/Candle'
 import { openCapture, SPEECH_RMS, type Capture } from '@/domain/capture'
 import { recognitionCtor } from '@/domain/speech'
 import { recordingSupported, SttError } from '@/domain/stt'
@@ -31,9 +31,12 @@ export function micProblem(reason: string): string {
       return 'The beta password changed. Reload the page and enter the new one.'
     case 'nothing':
       return 'I heard sound but no words. Tap and talk again, a little closer.'
-    case 'mic_ended':
     case 'recorder':
       return 'The microphone stopped. Tap Finish; what you said so far is kept.'
+    case 'left':
+      return 'The microphone stopped when you left the page. Tap to carry on.'
+    case 'lost':
+      return 'The microphone stopped. Tap to carry on.'
     case 'part':
     case 'too_large':
       return 'Part of what you said could not be written down. The rest is kept. Say that part again, or type it.'
@@ -73,6 +76,8 @@ export function useCapture(opts: { talk?: boolean; onFail?: (reason: string) => 
   const [pending, setPending] = useState(0)
   const [interim, setInterim] = useState('')
   const [problem, setProblem] = useState<string | null>(null)
+  // The mic was taken away mid-recording; the next tap carries on where it stopped.
+  const [lost, setLost] = useState(false)
   const [meter, setMeter] = useState<Capture | null>(null)
   const [status, setStatus] = useState<ReturnType<typeof captureStatus> | null>(null)
   const cap = useRef<Capture | null>(null)
@@ -135,6 +140,7 @@ export function useCapture(opts: { talk?: boolean; onFail?: (reason: string) => 
     if (busy.current) return
     busy.current = true
     setProblem(null)
+    setLost(false)
     setState('asking')
     const mine = (run.current = { got: 0 })
     const g = ++gen.current
@@ -152,6 +158,17 @@ export function useCapture(opts: { talk?: boolean; onFail?: (reason: string) => 
           keyAction('mic_failed', { engine, reason, ...(recovered ? { recovered: true } : {}), ...extra })
           if (recovered || !mounted.current) return
           setProblem(micProblem(['network', 'unavailable', 'cap'].includes(reason) ? 'part' : reason))
+        },
+        onLost: (why, away) => {
+          if (g !== gen.current) return
+          keyAction('mic_failed', { engine: 'mic', reason: `lost_${why}`, away, ...extra })
+          // What was recorded so far is written down; the text stays; the stream is released.
+          const c = cap.current
+          idle()
+          void c?.finish()
+          if (!mounted.current) return
+          setLost(true)
+          setProblem(micProblem(away ? 'left' : 'lost'))
         },
       },
     ).then(
@@ -208,6 +225,7 @@ export function useCapture(opts: { talk?: boolean; onFail?: (reason: string) => 
     status,
     interim,
     problem,
+    lost,
     meter,
     start,
     finish,
@@ -224,19 +242,6 @@ export function useCapture(opts: { talk?: boolean; onFail?: (reason: string) => 
 }
 
 export type CaptureHandle = ReturnType<typeof useCapture>
-
-/**
- * The flame while he speaks. It does not grow with volume: it flickers a few percent and leans
- * a few degrees, more with a louder voice, and stands still when he is quiet ("like catching
- * your breath", Pavol, 20 Nov).
- */
-export function flameTransform(level: number, now: number): string {
-  const l = Math.min(1, Math.sqrt(Math.max(0, level)) * 1.6)
-  if (l < 0.01) return ''
-  const flick = Math.sin(now / 85)
-  const sway = Math.sin(now / 190 + 1)
-  return `skewX(${(l * 5 * sway).toFixed(2)}deg) scale(${(1 - 0.03 * l * flick).toFixed(4)}, ${(1 + 0.05 * l * flick).toFixed(4)})`
-}
 
 // candle-400 and marble-500 (src/index.css): the live line and the resting one.
 const LIVE = '#e0b263'
@@ -273,37 +278,35 @@ function drawThread(c: HTMLCanvasElement | null, level: number, now: number, liv
 /** The candle and the thread, the sentence, the words still forming, and anything that failed. */
 export function CapturePanel({
   cap,
-  size = 64,
+  compact = false,
   sentence = true,
   className = '',
 }: {
   cap: CaptureHandle
-  /** The candle's width in px. */
-  size?: number
+  /** The voice bar: the candle's flame and shoulder beside the thread, not the whole candle above it. */
+  compact?: boolean
   /** Talk says the sentence in its own status line. */
   sentence?: boolean
   className?: string
 }) {
   const canvas = useRef<HTMLCanvasElement>(null)
-  const candle = useRef<HTMLDivElement>(null)
+  const candle = useRef<CandleHandle>(null)
   const { recording, meter } = cap
 
   useEffect(() => {
     if (!recording) return
-    // Reduced motion: the flame stands still. The thread still moves: it is information.
-    const still = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    const flame = candle.current?.querySelector<SVGGElement>('.device-flame')
     let level = 0
     let raf = requestAnimationFrame(function frame(now) {
       raf = requestAnimationFrame(frame)
       const rms = meter?.level() ?? 0
       level += (rms - level) * (rms > level ? 0.6 : 0.15)
       drawThread(canvas.current, level, now, !!meter)
-      if (flame && !still) flame.style.transform = flameTransform(level, now)
+      candle.current?.flicker(rms, level, now)
     })
+    const c = candle.current
     return () => {
       cancelAnimationFrame(raf)
-      if (flame) flame.style.transform = ''
+      c?.rest()
     }
   }, [recording, meter])
 
@@ -311,11 +314,16 @@ export function CapturePanel({
   return (
     <div data-testid="capture" className={className}>
       {recording && (
-        <div className="flex items-end gap-3">
-          <div ref={candle} className="capture-candle">
-            <Device size={size} />
-          </div>
-          <canvas ref={canvas} height={40} data-testid="thread" aria-hidden="true" className="mb-3 block h-10 min-w-0 flex-1" />
+        // The light is clipped to the panel, so it does not fall on the page above the voice bar.
+        <div className={`flex overflow-clip ${compact ? 'items-end gap-3' : 'flex-col items-center gap-1 pt-2'}`}>
+          {compact ? <Candle ref={candle} size={56} crop={0.56} /> : <Candle ref={candle} />}
+          <canvas
+            ref={canvas}
+            height={40}
+            data-testid="thread"
+            aria-hidden="true"
+            className={`relative block h-10 min-w-0 ${compact ? 'mb-2 flex-1' : 'w-full'}`}
+          />
         </div>
       )}
       {sentence && recording && cap.status && (

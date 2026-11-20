@@ -92,19 +92,31 @@ const audioCtor = (): Ctx | undefined =>
     : (window.AudioContext ?? (window as unknown as { webkitAudioContext?: Ctx }).webkitAudioContext)
 
 // iOS starts an AudioContext suspended unless a tap created or resumed it, and a suspended one
-// hears nothing: the level meter would stay flat. The mic's tap unlocks one shared context.
+// hears nothing: the level meter would stay flat. And a phone suspends, interrupts or closes the
+// context when the page goes to the background (Pavol, 20 Nov, Firefox on his phone: "I switch
+// to another app … then switch back … it doesn't work anymore. I then have to refresh the page").
+// So each tap gets a context that is running, or a new one made inside that tap.
 let shared: AudioContext | null = null
-/** Call inside the tap that starts listening. The one shared context, or null without Web Audio. */
+/** Call inside the tap that starts listening. A context for the meter, or null without Web Audio. */
 export function unlockAudioInput(): AudioContext | null {
   try {
     const C = audioCtor()
     if (!C) return null
+    if (shared && shared.state !== 'running') {
+      // Not trusted to come back: a new one made in this tap starts running.
+      void shared.close?.().catch(() => {})
+      shared = null
+    }
     shared ??= new C()
-    void shared.resume?.()
+    void shared.resume?.()?.catch?.(() => {})
     return shared
   } catch {
     return null // no meter; the recording itself does not need Web Audio
   }
+}
+/** For tests. */
+export function resetAudioInput(): void {
+  shared = null
 }
 
 /** Opus in WebM where the browser has it (smaller), else AAC in MP4 (older iOS Safari). */

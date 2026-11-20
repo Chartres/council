@@ -64,7 +64,9 @@ test turns it on (`tone(page, true)`): a silent stream is what a dead input look
 `FAKE_VOICE` is a desktop Chrome (live words: `hear(page, text)`), `FAKE_EARS` an iPhone (the
 gateway's words: `speakInto(page, text)`). No test uses a real microphone.
 `VOICE_REVIEW=1 CI=1 npx playwright test e2e/voice-capture.spec.ts` re-shoots
-`docs/review/2026-11-20-voice/`.
+`docs/review/2026-11-20-voice/`. Not in the gate: the same journeys in Firefox and WebKit, the
+engines behind Firefox on Android and every iPhone browser:
+`npx playwright install firefox webkit && CI=1 npx playwright test -c playwright.engines.config.ts`.
 
 `POST /__tts {mode:"on"|"fail"|"off"}` makes the stub serve `/v1/tts` (a tiny WAV; a `speaker`
 needs a live v4 session, as on the gateway) or fail it; off by default, so the other journeys
@@ -134,8 +136,8 @@ verdict card → reply box; today's question → convene → share the split; My
 past council. Voice in (`src/domain/capture.ts`, `src/components/Capture.tsx`; Pavol, 20 Nov):
 one capture path for every recording surface (quick idea, intake, reply box, feedback, Talk).
 "Tap and talk" opens the mic with `getUserMedia` inside the tap; an `AnalyserNode` gives the real
-input level for the thread (a thin line) and the candle (the flame flickers and leans a little;
-still under reduced motion). One sentence says the state: "Waiting for the microphone. Nothing is
+input level for the thread (a thin line) and the candle (`src/components/Candle.tsx`: a painted
+candle whose flame leans and dips a little with the voice; still under reduced motion). One sentence says the state: "Waiting for the microphone. Nothing is
 recorded yet." / "Recording. Say something." / "Recording. I can hear you." / "Recording. Take
 your time." / "I can’t hear anything from “<input>”. Check the input, or speak up." (after 3 s
 with no sound) / paused audio / blocked / no microphone. A recording ends on Finish (or Next
@@ -146,10 +148,16 @@ Android, Firefox, and anywhere the recogniser failed or stayed wordless for 5 s 
 recorder runs beside it, so the gateway writes down what it missed). For the gateway a recording
 is cut into parts, at a 1.5 s breath or before 50 s / 1.5 MB (the gateway takes 2 MB), each part
 written down in the background and joined in order; a part that fails is said in words. Each
-piece is added to the field after what is there, so a correction is not overwritten. A mic failure
+piece is added to the field after what is there, so a correction is not overwritten. Leaving the page (Pavol, 20 Nov,
+Firefox on his phone: after switching apps "it doesn't work anymore. I then have to refresh"):
+every tap gets a new stream and an AudioContext that is running, or a new one made in that tap
+(`unlockAudioInput`). The capture watches the track's `ended` and `mute`, `visibilitychange` and
+`pagehide`; when the mic is taken away mid-recording, what was recorded is still written down,
+the text stays, the stream is released, and it says "The microphone stopped when you left the
+page. Tap to carry on." The next tap records again and adds. No reload. A mic failure
 is logged as `key_action` `mic_failed` with `engine` (mic / meter / browser / server) and
-`reason` (`heard_nothing` for an open mic with no sound; `recovered: true` when the gateway took
-over). Voice out: the gateway's calm voices inside a v4
+`reason` (`heard_nothing` for an open mic with no sound; `lost_ended` / `lost_muted` /
+`lost_pagehide` with `away`; `recovered: true` when the gateway took over). Voice out: the gateway's calm voices inside a v4
 session, the browser engine as fallback, natural pitch and speed; read-aloud (Listen) is off
 until she turns it on. Each control is absent only where neither path exists.
 Phone first: check at 390 px. The fold gate (`e2e/fold.spec.ts`) asserts the idea field sits in

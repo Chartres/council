@@ -504,13 +504,6 @@ body {
   animation: flicker 1.8s ease-in-out infinite;
 }
 
-/* The candle beside the thread: the flame is moved from script by the voice (Capture.tsx),
-   a few percent about its foot. */
-.capture-candle .device-flame {
-  transform-box: fill-box;
-  transform-origin: 50% 100%;
-}
-
 @media (prefers-reduced-motion: reduce) {
   /* Resting pose: the flame stands still. */
   .device-flicker .device-flame {

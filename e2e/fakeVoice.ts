@@ -16,10 +16,11 @@ import type { Page } from '@playwright/test'
 // window.__speak(text, ms) makes sound for that long, then quiet: the part is written down.
 
 export const FAKE_MIC = `
+  let wantTone = false
   window.__say = ''
   window.__mics = 0
   window.__clips = 0
-  window.__tone = () => {}
+  window.__tone = (on) => { wantTone = on } // before the mic opens: it opens with the tone as asked
   window.__speak = (text, ms = 800) => { window.__say = text; window.__tone(true); setTimeout(() => window.__tone(false), ms) }
   // Every AudioContext made on the page, the app's included: __ctxs[0] is the app's (made in the tap).
   window.__ctxs = []
@@ -28,7 +29,6 @@ export const FAKE_MIC = `
   // window.__denyMic = 'NotAllowedError' refuses the mic; window.__holdMic = true keeps the
   // permission prompt "up" until window.__grantMic().
   window.__grantMic = () => {}
-  let wantTone = false
   const getUserMedia = async () => {
     window.__mics++
     if (window.__denyMic) throw Object.assign(new Error('refused'), { name: window.__denyMic })
@@ -45,6 +45,20 @@ export const FAKE_MIC = `
     window.__tone = (on) => { wantTone = on; gain.gain.value = on ? 0.5 : 0 }
     const track = out.stream.getAudioTracks()[0]
     Object.defineProperty(track, 'label', { value: 'Test microphone' })
+    // What a phone does when the page goes to the background: the page is hidden, the track
+    // ends, the page comes back. window.__leaveAndReturn() plays that.
+    window.__leaveAndReturn = () => {
+      const see = (hidden) => {
+        Object.defineProperty(document, 'hidden', { value: hidden, configurable: true })
+        Object.defineProperty(document, 'visibilityState', { value: hidden ? 'hidden' : 'visible', configurable: true })
+        document.dispatchEvent(new Event('visibilitychange'))
+      }
+      see(true)
+      track.stop()
+      track.dispatchEvent(new Event('ended'))
+      for (const c of window.__ctxs) c.suspend()
+      see(false)
+    }
     return out.stream
   }
   Object.defineProperty(navigator, 'mediaDevices', { value: { getUserMedia }, configurable: true })

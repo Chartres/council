@@ -172,9 +172,11 @@ export function IntakeScreen() {
   // Voice (Pavol, 20 Nov): he arrives at the question and starts talking with one tap. The mic
   // opens inside that tap; nothing is read aloud first, and nothing moves on by itself.
   const add = (id: IntakeId) => (piece: string) => setAnswers((a) => ({ ...a, [id]: addWords(a[id] ?? '', piece) }))
+  // After the mic was taken away (he left the page), the next tap carries on at the same field.
+  const lostAt = cap.lost ? currentField(voice) : null
   const startVoice = () => {
-    dispatch({ type: 'start', queue: walkQueue(answers) })
-    cap.start(add('goal'))
+    if (!lostAt) dispatch({ type: 'start', queue: walkQueue(answers) })
+    cap.start(add(lostAt ?? 'goal'))
   }
   const upNext = nextField(voice)
   const nextQuestion = () => {
@@ -196,7 +198,7 @@ export function IntakeScreen() {
   // The recording's controls sit under the field they fill: one filled action per state
   // ("Tap and talk", then "Finish"), and "Next question" as a second word button.
   const voiceControls = (id: IntakeId) => {
-    if (!micAvailable() || (field ?? 'goal') !== id) return null
+    if (!micAvailable() || (field ?? lostAt ?? 'goal') !== id) return null
     const { phase } = cap
     return (
       <div className="mt-2" data-testid="voice-bar">

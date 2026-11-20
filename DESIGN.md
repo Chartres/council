@@ -102,10 +102,27 @@ responses." Everything here is `src/components/Capture.tsx`.
 - **The thread**: one line, 1.5 px, candle-400 on a 40 px canvas, drawn from the real input level
   (an `AnalyserNode` on the open mic). Flat means no sound is arriving. It is the recording
   surface's live line in the accent budget.
-- **The candle**: the device (`Device`, 64 px; 60 px in the voice bar) stands left of the thread.
-  The flame does not grow with volume. With the voice it flickers by at most 5 % and leans by at
-  most 5°, about its foot, and settles when he is quiet (`flameTransform`). Under
-  `prefers-reduced-motion` the flame is still; the thread still moves, because it is information.
+- **The candle** (`src/components/Candle.tsx`, the one file that knows how the candle is shown and
+  how its flame moves; another candle replaces that file and keeps `Candle` and `CandleHandle`).
+  It is painted: a detail of Anna Dorothea Therbusch, *A Scientist Seated at a Desk by
+  Candlelight*, about 1755, Cleveland Museum of Art, open access (CC0);
+  `src/assets/candle-therbusch-1755.jpg`, 280 × 860 px, 70 kB. Pavol, 20 Nov: "I really like the
+  painted candle, although work a little bit more to make the glow and the animation a bit more
+  sophisticated. There is some kind of artificial halo that shows when I speak." So: two masked
+  layers of the one image (the painting with the flame left out; the flame alone, so it moves
+  with nothing behind it); an SVG turbulence and displacement filter makes the flame waver; a
+  damped spring driven by the onsets of his voice pushes it over and down a little and lets it
+  recover; a wide faint light follows a slowly smoothed level. No clip-path and no brightness
+  filter on the flame: those drew the halo. The flame does not grow with volume (at most about
+  6° of lean, 4 % taller, 7 % shorter). Every motion constant is in `FLAME` at the top of the
+  file; he has not seen this version of the motion yet. Under `prefers-reduced-motion` the flame
+  and the light are still and the filter is off; the thread still moves, because it is
+  information. On a field it stands whole (72 px wide) above the thread; in the voice bar only
+  the flame and the candle's shoulder show (56 px wide), beside the thread, without the light.
+  The flame layer renders in Chromium, Firefox and WebKit (`playwright.engines.config.ts`;
+  shots `03-…-firefox`, `03-…-webkit`). The credit is printed in the colophon
+  (`CANDLE_CREDIT`). The drawn device stays the mark everywhere else. This is the one painted
+  picture in the product; it is of a candle, so the no-portraits rule is untouched.
 - **The sentence**: one line under the thread says the state in words (Body size, marble-200;
   clay-400 when something is wrong). The sentences are listed in AGENTS.md, "Voice in".
 - **Controls**: in a recording journey every control is a labelled button: an icon with its word
@@ -118,7 +135,7 @@ responses." Everything here is `src/components/Capture.tsx`.
   "Writing it down…" shows while the gateway has a part. Nothing is sent until he presses the
   screen's action himself.
 - **The voice bar** (what changed on 20 Nov): the four round icons became icons with words (Back,
-  Pause, Next, End); his turn adds a text field, and under it the candle and the thread while it
+  Pause, Next, End); his turn adds a text field, and under it the painted flame and the thread while it
   records; the countdown ("Sending in n s") is gone. The bar is taller during his turn (about
   250 px at 390 px wide, was about 110).
 - **Fonts**: `index.html` asks for EB Garamond 400/500/600 and italic 400/500 with

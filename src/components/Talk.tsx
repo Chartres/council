@@ -505,7 +505,7 @@ export function Talk({
                 placeholder="Your words are set here as you speak. You can also type."
                 className="field mt-1 max-h-32 resize-none overflow-y-auto [field-sizing:content]"
               />
-              <CapturePanel cap={cap} size={60} sentence={false} className="mt-1" />
+              <CapturePanel cap={cap} compact sentence={false} className="mt-1" />
               {hasDraft && cap.phase === 'idle' && (
                 <button type="button" onClick={record} data-testid="voice-more" className="text-btn flex items-center gap-2">
                   <MicIcon />

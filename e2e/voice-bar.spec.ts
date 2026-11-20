@@ -31,7 +31,7 @@ for (const [label, viewport] of [
     await expect(page.getByTestId('talk-status')).toContainText('Recording.')
     await expect(page.getByTestId('voice-finish')).toBeEnabled()
     await expect(bar.getByTestId('thread')).toBeVisible()
-    await expect(bar.getByTestId('device')).toBeVisible()
+    await expect(bar.getByTestId('candle')).toBeVisible()
     // No bare icons: every button in the bar carries a word.
     for (const b of await bar.getByRole('button').all()) expect((await b.innerText()).trim()).not.toBe('')
 

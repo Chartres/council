@@ -27,6 +27,8 @@ export function fakeCaptures() {
         c.loud = 0.2
         c.heardYet = true
       },
+      /** The phone took the mic away. */
+      lose: (away = true) => c.ev.onLost('ended', away),
       /** A finished piece of his words lands. */
       say: (text: string) => c.sink.onText(text),
     }

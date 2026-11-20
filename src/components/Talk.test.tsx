@@ -285,6 +285,20 @@ describe('Talk: what fails is said', () => {
     vi.useRealTimers()
   })
 
+  it('the mic taken away mid-turn: his words stay, it says so, and one tap carries on', async () => {
+    const { onSay } = setup()
+    await start()
+    act(() => fake.last().say('before I left'))
+    await act(async () => fake.last().lose())
+    expect(screen.getByTestId('mic-problem')).toHaveTextContent('The microphone stopped when you left the page. Tap to carry on.')
+    expect(draft().value).toBe('before I left')
+    expect(onSay).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByTestId('voice-more'))
+    await settle()
+    act(() => fake.last().say('after I came back'))
+    expect(draft().value).toBe('before I left after I came back')
+  })
+
   it('ending Talk with words not sent hands them to the reply box', async () => {
     const { onLeft, onSay, set } = setup()
     await start()

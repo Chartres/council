@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { isAppleMobile, markBrowserEngineBroken, resetEars, serverEars, SttError, transcribe } from './stt'
+import { isAppleMobile, markBrowserEngineBroken, resetAudioInput, resetEars, serverEars, SttError, transcribe, unlockAudioInput } from './stt'
 
 const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'
 const MAC = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15'
@@ -53,6 +53,40 @@ describe('serverEars: which ears a mic tap uses', () => {
     expect(serverEars(false, { userAgent: PIXEL, maxTouchPoints: 0, platform: 'Linux' })).toBe(true)
     vi.stubGlobal('MediaRecorder', undefined)
     expect(serverEars(false, { userAgent: IPHONE, maxTouchPoints: 5, platform: 'iPhone' })).toBe(false)
+  })
+})
+
+// Pavol, 20 Nov (Firefox on his phone): after switching apps and back, the mic "doesn't work
+// anymore. I then have to refresh the page."
+describe('unlockAudioInput: every tap gets audio that is running', () => {
+  class Ctx {
+    static made: Ctx[] = []
+    state = 'running'
+    resume = vi.fn(() => Promise.resolve())
+    close = vi.fn(() => Promise.resolve())
+    constructor() {
+      Ctx.made.push(this)
+    }
+  }
+  it('keeps one context while it runs, and makes a new one in the tap when it was suspended, interrupted or closed', () => {
+    Ctx.made = []
+    resetAudioInput()
+    vi.stubGlobal('AudioContext', Ctx)
+    const first = unlockAudioInput()
+    expect(unlockAudioInput()).toBe(first)
+    expect(Ctx.made).toHaveLength(1)
+    for (const state of ['suspended', 'interrupted', 'closed']) {
+      const old = Ctx.made.at(-1)!
+      old.state = state
+      const next = unlockAudioInput() as unknown as Ctx
+      expect(next).not.toBe(old)
+      expect(next.state).toBe('running')
+      expect(old.close).toHaveBeenCalled()
+      expect(next.resume).toHaveBeenCalled()
+    }
+    expect(Ctx.made).toHaveLength(4)
+    vi.unstubAllGlobals()
+    resetAudioInput()
   })
 })
 

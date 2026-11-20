@@ -14,7 +14,8 @@ vi.mock('@/domain/capture', async (orig) => ({ ...(await orig<object>()), openCa
 vi.mock('@/domain/stt', async (orig) => ({ ...(await orig<object>()), recordingSupported: () => true }))
 
 const { MicButton } = await import('./MicButton')
-const { captureStatus, flameTransform, DEAF_MS } = await import('./Capture')
+const { captureStatus, DEAF_MS } = await import('./Capture')
+const { FLAME_REST, flameStep, flameTransform } = await import('./Candle')
 
 function Field({ start = '' }: { start?: string }) {
   const [value, setValue] = useState(start)
@@ -53,7 +54,7 @@ describe('MicButton: the state in words, at once', () => {
     await act(async () => fake.state.release[0]!())
     expect(status()).toHaveTextContent('Recording. Say something.')
     expect(screen.getByTestId('thread')).toBeInTheDocument()
-    expect(screen.getByTestId('device')).toBeInTheDocument()
+    expect(screen.getByTestId('candle')).toBeInTheDocument()
   })
 
   it('says it can hear him once sound comes in', async () => {
@@ -189,6 +190,34 @@ describe('MicButton: the words are his to correct', () => {
   })
 })
 
+describe('MicButton: the mic is taken away when he leaves the page', () => {
+  it('keeps the words, finishes what was recorded, says so, and the next tap carries on and adds', async () => {
+    render(<Field />)
+    await open()
+    act(() => fake.last().say('before I left'))
+    await act(async () => fake.last().lose())
+    expect(fake.last().finish).toHaveBeenCalledTimes(1) // the part already recorded is written down
+    expect(screen.getByRole('alert')).toHaveTextContent('The microphone stopped when you left the page. Tap to carry on.')
+    expect(analytics.keyAction).toHaveBeenCalledWith('mic_failed', { engine: 'mic', reason: 'lost_ended', away: true })
+    expect(mic()).toHaveTextContent('Tap and talk')
+    expect(field().value).toBe('before I left')
+    act(() => fake.all[0]!.say('and the part being written down'))
+
+    await open() // no reload: a tap opens a new mic
+    expect(fake.all).toHaveLength(2)
+    expect(screen.queryByRole('alert')).toBeNull()
+    act(() => fake.last().say('after I came back'))
+    expect(field().value).toBe('before I left and the part being written down after I came back')
+  })
+
+  it('lost with the page in view (unplugged) does not claim he left', async () => {
+    render(<Field />)
+    await open()
+    await act(async () => fake.last().lose(false))
+    expect(screen.getByRole('alert')).toHaveTextContent('The microphone stopped. Tap to carry on.')
+  })
+})
+
 describe('captureStatus and the flame', () => {
   const live = { state: 'live' as const, running: true, heard: true, liveMs: 9000, quietMs: 0, label: 'Desk microphone' }
   it('one sentence per state', () => {
@@ -203,13 +232,26 @@ describe('captureStatus and the flame', () => {
     expect(captureStatus({ ...live, running: false }).tone).toBe('bad')
   })
 
-  it('the flame does not grow with volume: a few percent and a few degrees at the loudest, still when quiet', () => {
-    expect(flameTransform(0, 1234)).toBe('')
-    for (let t = 0; t < 2000; t += 37) {
-      const [, skew, sx, sy] = /skewX\((-?[\d.]+)deg\) scale\((-?[\d.]+), (-?[\d.]+)\)/.exec(flameTransform(1, t))!.map(Number)
-      expect(Math.abs(skew!)).toBeLessThanOrEqual(5)
-      expect(Math.abs(sx! - 1)).toBeLessThanOrEqual(0.0301)
-      expect(Math.abs(sy! - 1)).toBeLessThanOrEqual(0.0501)
+  it('the flame does not grow with volume: a breath pushes it over and down a little, and it comes back', () => {
+    const pose = (s: typeof FLAME_REST, t: number) => /skewX\((-?[\d.]+)deg\) scaleY\(([\d.]+)\)/.exec(flameTransform(s, t))!.slice(1).map(Number) as [number, number]
+    // The loudest voice there is, held for ten seconds: a few percent, a few degrees.
+    let s = FLAME_REST
+    for (let i = 0; i < 600; i++) {
+      s = flameStep(s, 1, i < 3 ? 0 : 1, 1 / 60)
+      const [skew, tall] = pose(s, i / 60)
+      expect(Math.abs(skew)).toBeLessThanOrEqual(5.81)
+      expect(tall).toBeLessThanOrEqual(1.043)
+      expect(tall).toBeGreaterThanOrEqual(0.93)
     }
+    // An onset (a sound louder than the level before it) pushes the flame; a steady level does not.
+    const pushed = flameStep(flameStep(FLAME_REST, 0.3, 0, 1 / 60), 0.3, 0, 1 / 60)
+    expect(pushed.x).toBeGreaterThan(0)
+    expect(pose(pushed, 0)[1]).toBeLessThan(1) // over and down, not up
+    expect(flameStep(FLAME_REST, 0.3, 0.3, 1 / 60).x).toBe(0)
+    // Quiet again: the spring brings it back to rest.
+    s = pushed
+    for (let i = 0; i < 300; i++) s = flameStep(s, 0, 0, 1 / 60)
+    expect(Math.abs(s.x)).toBeLessThan(0.001)
+    expect(s.slow).toBeLessThan(0.001)
   })
 })

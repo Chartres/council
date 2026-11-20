@@ -25,8 +25,11 @@ test.beforeEach(async ({ request }) => {
 
 const shooter = (page: Page, label: string) => async (name: string) => {
   if (!process.env.VOICE_REVIEW) return
+  // Firefox and WebKit (playwright.engines.config.ts) shoot the candle only: does the flame's filter render there.
+  const engine = test.info().project.name
+  if (engine !== 'chromium' && !/^(03|10)-/.test(name)) return
   mkdirSync(DIR, { recursive: true })
-  await page.screenshot({ path: `${DIR}/${name}-${label}.png` })
+  await page.screenshot({ path: `${DIR}/${name}-${label}${engine === 'chromium' ? '' : `-${engine}`}.png` })
 }
 const openIntake = async (page: Page) => {
   await page.addInitScript(() => localStorage.setItem('council:trust-seen', '1'))
@@ -36,7 +39,9 @@ const openIntake = async (page: Page) => {
 }
 const level = (page: Page) => page.getByTestId('thread').evaluate((c) => Number((c as HTMLCanvasElement).dataset.level))
 const drawing = (page: Page) => page.getByTestId('thread').evaluate((c) => (c as HTMLCanvasElement).toDataURL())
-const flame = (page: Page) => page.locator('.capture-candle .device-flame').evaluate((g) => (g as SVGGElement).style.transform)
+const flame = (page: Page) => page.getByTestId('candle-flame').evaluate((g) => (g as HTMLElement).style.transform)
+// The flame's pose: a lean of a few degrees and a few percent of height. It does not grow with the voice.
+const POSE = /^skewX\(-?[0-5]\.\d+deg\) scaleY\((0\.9[3-9]\d*|1\.0[0-4]\d*)\)$/
 
 for (const [label, viewport] of VIEWPORTS) {
   test(`${label}: arrive at the question, tap, see it record, finish, correct the text, and that text is what goes`, async ({ page }) => {
@@ -63,9 +68,9 @@ for (const [label, viewport] of VIEWPORTS) {
 
     await page.evaluate(() => (window as unknown as { __grantMic: () => void }).__grantMic())
     await expect(status).toHaveText('Recording. Say something.')
-    await expect(page.getByTestId('device')).toBeVisible()
+    await expect(page.getByTestId('candle')).toBeVisible()
+    await expect(page.getByAltText('A painted candle burning in a brass holder')).toBeVisible()
     expect(await level(page)).toBe(0)
-    expect(await flame(page)).toBe('') // nothing to flicker at
 
     // Sound comes in: the thread moves, the flame flickers, the sentence says so.
     await tone(page, true)
@@ -74,7 +79,10 @@ for (const [label, viewport] of VIEWPORTS) {
     const one = await drawing(page)
     await page.waitForTimeout(120)
     expect(await drawing(page)).not.toBe(one)
-    expect(await flame(page)).toMatch(/skewX\(.+\) scale\((0\.9[7-9]|1\.0[0-3])\d*, (0\.9[5-9]|1\.0[0-5])\d*\)/)
+    for (let i = 0; i < 5; i++) {
+      expect(await flame(page)).toMatch(POSE)
+      await page.waitForTimeout(60)
+    }
     await shot('03-recording-i-can-hear-you')
 
     // The browser pauses audio: said in words; any tap wakes it.
@@ -175,6 +183,7 @@ for (const [label, viewport] of VIEWPORTS) {
 
     // Recording again adds to the corrected text.
     await page.getByTestId('voice-more').click()
+    await expect(page.getByTestId('talk-status')).toContainText('Recording.')
     await hear(page, 'until March')
     await expect(draft).toHaveValue('The constraint is engineering time: we have three engineers. until March')
     await page.getByTestId('voice-finish').click()
@@ -193,6 +202,49 @@ for (const [label, viewport] of VIEWPORTS) {
     }
   })
 }
+
+// Pavol, 20 Nov, Firefox on his phone: "when I switch to another window or another app on the
+// phone and then switch back … I try to speak again and it doesn't work anymore. I then have to
+// refresh the page to request the permission again."
+test('leaving the page and coming back: the words so far are kept, it says so, and one tap records again without a reload', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  const shot = shooter(page, 'phone')
+  await page.addInitScript(FAKE_EARS)
+  await openIntake(page)
+  const mic = page.getByTestId('mic')
+  const goal = page.getByLabel(GOAL)
+  await mic.click()
+  await tone(page, true)
+  await expect(page.getByTestId('capture-status')).toHaveText('Recording. I can hear you.')
+  await page.evaluate(() => ((window as unknown as { __say: string }).__say = 'said before I left'))
+
+  // He switches to another app: the page is hidden, the phone ends the track and suspends the audio.
+  const contexts = () => page.evaluate(() => (window as unknown as { __ctxs: unknown[] }).__ctxs.length)
+  const before = await contexts()
+  await page.evaluate(() => (window as unknown as { __leaveAndReturn: () => void }).__leaveAndReturn())
+  await expect(page.getByTestId('mic-problem')).toHaveText('The microphone stopped when you left the page. Tap to carry on.')
+  await expect(goal).toHaveValue('said before I left') // the part already recorded was written down
+  await expect(mic).toHaveText('Tap and talk')
+  await shot('13-microphone-stopped-when-you-left')
+
+  // One tap: a new stream, a new audio context made in the tap, and the thread moves again.
+  // (Firefox here does not suspend a context on request; where the old one still runs it is kept.)
+  const oldRuns = await page.evaluate(() => (window as unknown as { __ctxs: AudioContext[] }).__ctxs.at(-1)!.state === 'running')
+  await mic.click()
+  expect(await page.evaluate(() => (window as unknown as { __mics: number }).__mics)).toBe(2)
+  if (!oldRuns) expect(await contexts()).toBeGreaterThan(before)
+  await expect(page.getByTestId('mic-problem')).toHaveCount(0)
+  await tone(page, true)
+  await expect(page.getByTestId('capture-status')).toHaveText('Recording. I can hear you.')
+  await expect.poll(() => level(page)).toBeGreaterThan(0.05)
+  const one = await drawing(page)
+  await page.waitForTimeout(120)
+  expect(await drawing(page)).not.toBe(one)
+  await tone(page, false)
+  await speakInto(page, 'and after I came back')
+  await expect(goal).toHaveValue('said before I left and after I came back', { timeout: 10_000 })
+  await mic.click()
+})
 
 test('reduced motion: the flame stands still, the thread still moves', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })

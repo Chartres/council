@@ -38,6 +38,10 @@ describe('the catalogue note', () => {
     expect(EDITION).toBe(whatsNew.version)
     expect(COLOPHON[0]).toBe(`Mastermind Council, edition ${whatsNew.version}.`)
     expect(COLOPHON).toContain('Set in EB Garamond; the small print in Inter.')
+    // The painting's credit: maker, title, date, museum, licence.
+    expect(COLOPHON.at(-1)).toBe(
+      'The candle: a detail of Anna Dorothea Therbusch, A Scientist Seated at a Desk by Candlelight, about 1755. Cleveland Museum of Art, CC0.',
+    )
     // The errata line is its own piece: only the start screen and the missing leaf print it.
     expect(COLOPHON.join(' ')).not.toContain('Errata')
     expect(ERRATA.join(' ')).toBe('Errata: probably. Report them under Feedback.')
