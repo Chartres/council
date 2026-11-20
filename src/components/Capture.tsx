@@ -32,6 +32,7 @@ export function micProblem(reason: string): string {
     case 'nothing':
       return 'I heard sound but no words. Tap and talk again, a little closer.'
     case 'mic_ended':
+    case 'recorder':
       return 'The microphone stopped. Tap Finish; what you said so far is kept.'
     case 'part':
     case 'too_large':

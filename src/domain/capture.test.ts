@@ -272,6 +272,17 @@ describe('openCapture: parts', () => {
     expect(getUserMedia).toHaveBeenCalledTimes(1) // one mic, one permission
   })
 
+  it('a recorder that will not start the next part is said, not swallowed', async () => {
+    const ev = events()
+    const c = await openCapture(sink(), ev)
+    vi.stubGlobal('MediaRecorder', class { constructor() { throw new Error('no') } })
+    loud = true
+    vi.advanceTimersByTime(MAX_PART_MS + 5000)
+    expect(ev.onProblem).toHaveBeenCalledWith('server', 'recorder', false)
+    expect(ev.onProblem).toHaveBeenCalledTimes(1)
+    c.cancel()
+  })
+
   it('cancel throws the recording away', async () => {
     const s = sink()
     const c = await openCapture(s, events())

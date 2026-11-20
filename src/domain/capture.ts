@@ -195,13 +195,17 @@ export async function openCapture(first: CaptureSink, ev: CaptureEvents): Promis
   /** Without a meter nobody can say a part was silent: it is kept. */
   const worthKeeping = () => partHeard || !audioRunning()
   /** A new part starts before the old one stops, so nothing falls between them. */
+  let dead = false // the recorder refused to start again: said once, not retried every tick
   const cut = (keep: boolean) => {
-    if (!canRecord) return
+    if (!canRecord || dead) return
     const old = part
     try {
       startPart()
     } catch {
       part = null
+      dead = true
+      // The recorder would not start again: from here nothing is written down, and he is told.
+      if (mode === 'server' && open) ev.onProblem('server', 'recorder', false)
     }
     void endPart(old, keep)
   }
