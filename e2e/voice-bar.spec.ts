@@ -38,20 +38,20 @@ for (const [label, viewport] of [
     // She speaks, finishes and sends; the adviser's line is marked as it is spoken.
     await hear(page, 'the constraint is engineering time')
     await page.getByTestId('voice-finish').click()
-    await expect(page.getByTestId('talk-status')).toHaveText('Yours to correct before it goes.')
+    await expect(page.getByTestId('talk-status')).toHaveText('Read it over. Tap your words to correct them.')
     await page.getByTestId('voice-send').click()
     await expect(page.getByTestId('user')).toContainText('the constraint is engineering time')
     await expect(page.getByTestId('now-speaking')).toBeVisible({ timeout: 10_000 })
-    await expect(page.getByTestId('talk-status')).toHaveText(/is talking…$/)
+    await expect(page.getByTestId('talk-status')).toHaveText(/, sentence \d of \d$/)
     await page.screenshot({ path: `e2e/shots/voice-bar-speaking-${label}.png` })
 
     // Pause: the room holds and says so; resume carries on.
-    await page.getByRole('button', { name: 'Pause' }).click()
-    await expect(page.getByTestId('talk-status')).toHaveText('Paused')
+    await page.getByTestId('voice-pause').click()
+    await expect(page.getByTestId('talk-status')).toHaveText('Paused.')
     await expect(page.getByTestId('voice-resume')).toBeVisible()
     await page.screenshot({ path: `e2e/shots/voice-bar-paused-${label}.png` })
     await page.getByTestId('voice-resume').click()
-    await expect(page.getByTestId('talk-status')).not.toHaveText('Paused')
+    await expect(page.getByTestId('talk-status')).not.toHaveText('Paused.')
 
     // The second question arrives; the list shows both, and going back is one tap.
     await expect(page.getByTestId('floor')).toHaveCount(2, { timeout: 30_000 })

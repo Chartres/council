@@ -1,53 +1,37 @@
 # Council: session summary
 
-One page, rewritten at every hand-back (AGENTS.md, "Working with the orchestrator"). Last rewrite: 2026-11-20.
+One page, rewritten at every hand-back (AGENTS.md, "Working with the orchestrator"). Last rewrite: 2026-11-21.
 
 ## What the product is now
 Mastermind Council at https://council.dravec.org, in private beta behind a password.
 - You bring an idea, pick up to four historical advisers (Business or Classics), and they discuss it.
 - The result is a proposal, then a journal entry and a dated commitment with an optional reminder email.
 - The Discussions sheet lists every past discussion and can continue one.
-- Voice in (on `voice/thread-and-candle`, not merged): "Tap and talk" opens the mic inside the tap. A thin line (the thread) moves with the real input level, a painted candle's flame leans and dips with the voice, and one sentence says what the mic is doing. A recording ends on Finish, not on a pause. The words are set in the field as they are written down, and nothing is sent until you press the screen's own button.
-- Words come from the browser's recogniser on desktop Chrome and Edge, and from Whisper through the gateway everywhere else, in parts joined in order.
-- Voice out: the gateway's adviser voices, with the browser voice as fallback. In Talk the room and you take turns: record, text, correct, send; Cut in stops an adviser.
+- Voice in (merged as #40): one capture path; the thread and the painted candle; a recording ends on Finish; words from the browser's recogniser on desktop Chrome and Edge, from Whisper through the gateway elsewhere.
+- The conversation (on `feat/the-floor`, not merged): one bar at the bottom, "the floor", with the animated candle, one status line and one main button. His words are a dashed message in the conversation; a tap corrects them. Read aloud (was "Talk") reads each answer sentence by sentence, marked, with dots. Swipe a message right, or tap Reply, to answer one adviser. Painted buttons.
 - 20 public reading pages of verified classical quotes (`/on/`, `/advisers/`, `/how-it-works/`).
-- Model work happens in the gateway (`flywheel/gateway`), not here.
-- The look: every screen set as a book page under the printer's device (Night edition, merged as #38). What's new is 1.2.0 on main and 1.3.0 on the voice branch.
+- Model work happens in the gateway (`flywheel/gateway`), not here. The gateway now picks a voice turn's speaker (flywheel PR #217).
+- What's new is 1.4.0 on the floor branch.
 
 ## Pavol's rules in force
-- 2026-11-20: recording shows the thread and the painted candle (Therbusch, about 1755, CC0); the flame moves like a breath, it does not grow, no halo. No waiting for silence. His words are text he can correct before anything is sent. The mic works again after he leaves the page and comes back, without a reload. Logged in `docs/SIGNATURE.md`.
-- 2026-11-17: look option 2, Night edition: "Option 2 is good, with a bit more graphics, i love the logo."
-- 2026-11-07: follow the orchestrator's packages unless a step is risky (the list is in AGENTS.md).
-- 2026-11-07: long-lived session, with this file rewritten at every hand-back.
-- 2026-11-01: the directory submission policy in `docs/distribution/directory-entries.md` is confirmed. Nothing has been submitted.
-- 2026-11-01: the legacy password MCP path is removed in the same change that ends the beta password.
-- 2026-10-28: a signature move is built only after his pick. Decisions are logged in `docs/SIGNATURE.md`.
+- 2026-11-20 (late): buttons option i ("Ink outline", Painted volume); flow option A ("The floor"); the candle animated in the bar; messaging-like, with replies to one adviser ("don't take my word for it" on the swipe). Everything less straight, in the painted style. Seeing and correcting the text stays essential.
+- 2026-11-20: the thread and the painted candle (Therbusch, about 1755, CC0); the flame moves like a breath, no halo. No waiting for silence. The mic works again after leaving the page.
+- 2026-11-17: look option 2, Night edition.
+- 2026-11-07: follow the orchestrator's packages unless a step is risky (the list is in AGENTS.md); this file rewritten at every hand-back.
+- 2026-11-01: directory policy confirmed, nothing submitted; the legacy password MCP path goes with the beta password.
+- 2026-10-28: a signature move is built only after his pick (`docs/SIGNATURE.md`).
 
 ## Last three packages
-1. **8 Nov, voice bar and Talk fixes.** A player bar for Talk (#36), each Talk turn timed (#35), Talk starts with the goal and the signed-in skip the beta door (#37). Ended: merged.
-2. **17–18 Nov, Night edition.** Every screen as a book page, the device as the mark, the catalogue note, a 404 page, What's new 1.2.0. Ended: merged as #38.
-3. **20 Nov, voice: the thread, the candle, and no waiting for silence** (orchestrator package, from Pavol's words that day).
-   - One capture path for the quick idea, the intake, the reply box, feedback and Talk (`src/domain/capture.ts`, `src/components/Capture.tsx`).
-   - Removed: the silence endpoint, the idle cancel, the intake's auto-advance and read-aloud questions, Talk's auto-send and its countdown, cutting in by speaking over an adviser (the Cut in button stays).
-   - Controls are labelled buttons; the voice bar's icons carry words.
-   - Leaving the page: each tap gets a new stream and running audio; a mic taken away mid-recording keeps the words and says "The microphone stopped when you left the page. Tap to carry on."
-   - The candle is one file (`src/components/Candle.tsx`); its motion constants are in `FLAME`.
-   - Ended: PR open on `voice/thread-and-candle`, not merged. Shots in `docs/review/2026-11-20-voice/`. No real microphone was used in any test; Pavol's own try on the preview is the check that counts.
+1. **17–18 Nov, Night edition.** Merged as #38.
+2. **20 Nov, voice: the thread, the candle, and no waiting for silence.** Merged as #40.
+3. **21 Nov, the floor** (orchestrator package from Pavol's picks and his session's bugs). One bar replaces the reply box and the voice bar; painted buttons; reading along with dots; answering one adviser; fixes: one speaker per turn picked by the gateway (#217 in flywheel), read text equals shown text in one voice per message, no audio unlock in the mic's tap on Android plus one automatic reopen after a mute, `stt_ms` measured and the writing-down status counted. Ended: PR open, not merged. Shots in `docs/review/2026-11-21-floor/`.
 
 ## Open threads
-- The voice PR waits for a separate review and for Pavol's try with a real microphone on a Mac and an iPhone.
-- Pavol has not seen the painted flame's second motion yet; the constants are in `FLAME` (`src/components/Candle.tsx`).
-- Not verified on a device: what Firefox on his phone does to the track and the audio when the page goes to the background (the fix is built from the code and the standard events, and tested with a simulated loss), Safari's level meter after the tap, the earpiece/speaker switch on iPhone when the mic opens, Chrome's recogniser beside an open mic stream, and how Whisper handles a part cut at a 1.5 s breath.
-- "I can’t hear anything" and `mic_failed` `heard_nothing` now mean a flat signal for 3 s (a dead input), not a quiet room. Not checked: whether a browser's noise suppression ever outputs exact silence in a quiet room, which would show the warning wrongly.
-- A Talk turn is now two taps (Finish, Send). If that is one too many, "Finish and send" as a second button is the smaller change.
-- The intake has one "Tap and talk", at the goal; later fields are reached with Next question, which now visits answered fields too.
-- 20 Nov, late: an independent review asked for changes (send held while the mic is busy, Talk's end keeps pending parts, the flat-input rule, wake on click); they are in the PR.
-- Pavol closes Eyal's two feedback items with `scripts/feedback.mjs` (in flywheel).
-- Not measured yet: voice latency and transcription accuracy. Both need SQL or gateway logs, which wait for Pavol.
-- Voice bar step 2, proper next-question and back-to-question-N commands in the gateway, needs a gateway deploy from the mini.
-- Directory listings wait until a stranger can sign in to MCP without the beta password. The Official MCP Registry also waits for the dravec.org TXT record. A terms page is needed before any ChatGPT listing.
-- Night edition follow-ups (not built): the council map keeps Inter-era wrap widths; `ink-500` measures 2.6:1 where DESIGN.md claimed 2.9:1; the reminder letter (gateway) is not restyled.
-- Proposals not picked yet: topic pages trimmed to one claim; syncing the evening hour across devices; one shared persona roster; CIMD support in the gateway (for Smithery).
+- Not verified on a phone: the swipe against iOS Safari's and Android's back gestures (it starts 28 px from the left edge and needs sideways movement), the Android mute cause (a suspicion from the code and the log), whether Android plays the first adviser line without the tap's unlock.
+- The opening question is still its own screen (the intake); making it the conversation's first turn needs a new start protocol in the gateway.
+- Replies to one adviser go at once; Agree and Push back marks wait for the next message. Push back no longer takes words of its own (Answer does that).
+- Read aloud is the one read-aloud switch while a discussion is open; Listen reads only an ended one.
+- Earlier threads still open: voice latency and accuracy not measured; voice bar step 2 (gateway next/back commands); directory listings wait for sign-in without the password; Night edition follow-ups; unpicked proposals.
 
 ## What's next
-The reviewer reads the voice PR. Pavol tries the preview (`https://voice-thread-and-candle.council-4rs.pages.dev`) with a real microphone, then merge or changes.
+A separate reviewer reads the council PR and flywheel #217; Pavol tries the preview on his phone, then merge or changes.

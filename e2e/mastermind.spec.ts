@@ -56,10 +56,11 @@ test('Business roster → intake → three turns with controls → capture → c
   const second = page.getByTestId('contribution').nth(1)
   const firstName = (await first.getByTestId('speaker').textContent())!
   const secondName = (await second.getByTestId('speaker').textContent())!
+  await first.getByRole('button', { name: `Answer or mark ${firstName}` }).click()
   await first.getByRole('button', { name: 'Agree' }).click()
+  await second.getByRole('button', { name: `Answer or mark ${secondName}` }).click()
   await second.getByRole('button', { name: 'Push back' }).click()
-  await page.getByLabel(`Why you push back on ${secondName}`).fill('demand is not the question yet')
-  await expect(page.getByTestId('notes-tray')).toHaveText(/Your 2 notes go with your next message/)
+  await expect(page.getByTestId('notes-tray')).toHaveText(/Your 2 marks go with your next message/)
   await page.evaluate(() => window.scrollTo(0, 0))
   await first.scrollIntoViewIfNeeded()
   await settle(page)
@@ -70,11 +71,13 @@ test('Business roster → intake → three turns with controls → capture → c
   expect(await noOverflow(page)).toBeLessThanOrEqual(1)
 
   // Turn 2: she answers in her own words; three speakers this time.
-  await page.getByLabel('Your turn').fill('The constraint is engineering time, not demand.')
-  await page.getByRole('button', { name: 'Say it' }).click()
+  await page.getByTestId('type-instead').click()
+  await page.getByTestId('voice-draft').fill('The constraint is engineering time, not demand.')
+  await page.getByTestId('voice-send').click()
   await expect(page.getByTestId('user')).toContainText('The constraint is engineering time')
   await expect(page.getByTestId('user')).toContainText(`To ${firstName} (`)
-  await expect(page.getByTestId('user')).toContainText('Push back — demand is not the question yet')
+  await expect(page.getByTestId('user')).toContainText(`To ${secondName} (`)
+  await expect(page.getByTestId('user')).toContainText('Push back.')
   await expect(page.getByTestId('notes-tray')).toHaveCount(0)
   await expect(page.getByTestId('floor')).toHaveCount(2, { timeout: 20_000 })
   await expect(page.getByTestId('contribution')).toHaveCount(5)
@@ -181,7 +184,7 @@ test('Classics roster, quick path: no intake, straight to the group, then wrap u
   await page.getByRole('button', { name: 'Wrap up' }).click()
   await expect(page.getByTestId('proposal')).toBeVisible({ timeout: 20_000 })
   await expect(page.getByRole('button', { name: 'Open the journal' })).toBeVisible({ timeout: 20_000 })
-  await expect(page.getByRole('button', { name: 'Say it' })).toHaveCount(0)
+  await expect(page.getByTestId('voice-bar')).toHaveCount(0)
 })
 
 test('"Last time…": remembered journal opens the session, and the outcome writes back', async ({ page }) => {

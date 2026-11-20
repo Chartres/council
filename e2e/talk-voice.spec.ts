@@ -38,7 +38,7 @@ const audio = (page: Page) =>
 /** Her turn: speak, see the words, finish, send. */
 const say = async (page: Page, text: string) => {
   await hear(page, text)
-  await expect(page.getByTestId('voice-draft')).toHaveValue(text)
+  await expect(page.getByTestId('draft')).toContainText(text)
   await page.getByTestId('voice-finish').click()
   await page.getByTestId('voice-send').click()
 }
@@ -88,14 +88,14 @@ test('Talk speaks through the gateway: one element unlocked in the tap, adviser 
   // The room goes quiet: her turn opens by itself.
   await expect.poll(mics, { timeout: 20_000 }).toBe(2)
 
-  // Every line asked for a voice inside this session: the adviser's for theirs, the
-  // facilitator's for the question. All on one element, made once.
+  // Every line asked for a voice inside this session: the adviser's for theirs and, since a
+  // voice turn's question is the adviser's own (21 Nov), for the question too. One element.
   const seen = ((await (await request.get(`${STUB}/__tts`)).json()) as Seen[]).slice(seenBefore)
   const floor = (await page.getByTestId('floor').last().textContent())!.trim()
   expect(seen.length).toBeGreaterThanOrEqual(2)
   expect(seen.every((s) => s.session_id && s.session_id.startsWith('stub-'))).toBe(true)
-  expect(seen.find((s) => s.text === floor)?.speaker).toBe('facilitator')
-  const advisers = seen.filter((s) => s.speaker !== 'facilitator')
+  const advisers = seen.filter((s) => s.text !== floor)
+  expect(seen.find((s) => s.text === floor)?.speaker).toBe(advisers[0]?.speaker)
   expect(advisers.length).toBeGreaterThan(0)
   expect(new Set(advisers.map((s) => s.speaker)).size).toBe(1) // a voice turn is one adviser
   expect(advisers.map((s) => s.text).join(' ')).toBe(answer.trim())

@@ -69,9 +69,14 @@ export function flameTransform(s: FlameState, t: number): string {
 export interface CandleHandle {
   /** Every frame while the mic is open: the input level now and smoothed (RMS, 0..1), and the frame's time (ms). */
   flicker(raw: number, level: number, now: number): void
+  /** Every frame while an adviser is read aloud: a calm breath, with no voice behind it. */
+  breathe(now: number): void
   /** The mic closed: the flame rests. */
   rest(): void
 }
+
+/** The breath while an adviser speaks: a quiet level rising and falling slowly, no onsets. */
+export const breathLevel = (now: number) => 0.003 + 0.0025 * (1 + Math.sin(now / 1100))
 
 const RATIO = 860 / 280
 const FLAME_AT = 'radial-gradient(ellipse 34% 25% at 53.5% 27%, #000 50%, transparent 100%)'
@@ -103,7 +108,11 @@ export function Candle({
   useImperativeHandle(ref, () => {
     let s = FLAME_REST
     let last = 0
-    return {
+    const handle: CandleHandle = {
+      breathe(now) {
+        const l = breathLevel(now)
+        handle.flicker(l, l, now)
+      },
       flicker(raw, level, now) {
         if (still) return
         const dt = last ? Math.min(0.05, (now - last) / 1000) : 0
@@ -125,6 +134,7 @@ export function Candle({
         if (flame.current) flame.current.style.transform = ''
       },
     }
+    return handle
   }, [still])
 
   const height = size * RATIO

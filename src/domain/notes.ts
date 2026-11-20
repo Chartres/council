@@ -34,17 +34,22 @@ const line = (n: Note, name: string) => {
 
 /** Her notes, one line each, then a blank line and her own words. Never longer than the
  *  gateway takes: the screen stops her first (tooLong); a voice turn is cut at the limit. */
-export function composeMessage(notes: Note[], message: string, name: (id: string) => string): string {
-  const words = message.trim()
-  if (!notes.length) return words.slice(0, MAX_MESSAGE)
-  const lines = notes.map((n) => line(n, name(n.speaker)))
-  return (words ? [...lines, '', words].join('\n') : lines.join('\n')).slice(0, MAX_MESSAGE)
+export function composeMessage(notes: Note[], message: string, name: (id: string) => string, reply?: Reply): string {
+  return compose(notes, message, name, reply).slice(0, MAX_MESSAGE)
 }
 
-/** How long the message would be, uncut — over MAX_MESSAGE the Say it button waits. */
-export function composedLength(notes: Note[], message: string, name: (id: string) => string): number {
-  const words = message.trim()
-  if (!notes.length) return words.length
+/** How long the message would be, uncut — over MAX_MESSAGE Send waits. */
+export function composedLength(notes: Note[], message: string, name: (id: string) => string, reply?: Reply): number {
+  return compose(notes, message, name, reply).length
+}
+
+/** The one message his words answer, when he swiped or tapped Reply on it. */
+export type Reply = { speaker: string; quote: string }
+
+function compose(notes: Note[], message: string, name: (id: string) => string, reply?: Reply): string {
+  const said = message.trim()
+  const words = said && reply ? `To ${name(reply.speaker)} ("${reply.quote}"): ${said}` : said
+  if (!notes.length) return words
   const lines = notes.map((n) => line(n, name(n.speaker)))
-  return (words ? [...lines, '', words] : lines).join('\n').length
+  return (words ? [...lines, '', words] : lines).join('\n')
 }

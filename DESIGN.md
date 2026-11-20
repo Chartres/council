@@ -147,6 +147,39 @@ responses." Everything here is `src/components/Capture.tsx`.
 - Measured but not changed: `ink-500` is 2.6:1 on ink-950, under the 3:1 this file claimed for
   control edges. New edges here use marble-500 (3.9:1).
 
+## The floor and the painted look (21 Nov 2026)
+
+Pavol, 20 Nov, on `lab/voice-capture` (`one-voice.html`, `buttons.html`): "I like the first option
+of the buttons and I also like option A for the flow. However I am missing the candles … I love
+the idea of this being something like the messaging interface." Earlier: "make the buttons and
+other elements a little less straight, it should all play nicely with the painted candle style."
+
+- **The floor** replaces the reply box, its mic and the voice bar: one fixed bar, about 190 px at
+  390 px wide. Left, the candle cropped to its flame and shoulder (34 px wide); beside it the status
+  line over the thread. Under them the main button, painted, and at most one outlined second
+  button; under those a row of small italic words. His words are a dashed box at the end of the
+  conversation, right-aligned like a sent message in a messenger; tapping it closes the dashes
+  into a 2 px line and it becomes the field. Shots: `docs/review/2026-11-21-floor/`.
+- **The candle in every state**: it follows his voice while the mic is open, breathes slowly
+  while an adviser is read (`breathe` in `Candle.tsx`, `breathLevel`), and stands still otherwise.
+  Under reduced motion the breath is still too.
+- **Reading along**: the sentence being read sits on a candle underlay across the lower 38 % of the
+  line (`.now-reading`); read sentences are marble-300, those to come marble-400 (the dimmest text
+  colour; marble-500 stays for rules). Dots by the name: 6 px, candle-400 for now, marble-500 for
+  read, ink-700 for to come. They are decoration (`aria-hidden`); the status line says "sentence k of n".
+- **Painted buttons** (`.slab`, volume 2, "i · Ink outline"): the primary is ochre paint from the
+  same Therbusch canvas as the candle (`src/assets/paint-ochre.jpg`, 340 × 260, 30 kB, under the
+  candle's credit in the colophon) under a candle-300 wash at 60 %, with uneven corners and the
+  `#rough` SVG filter on `::before` only, so the word stays sharp. Measured: ink text #1a1206 on the
+  darkest pixel of the washed paint 4.9:1, on the median 7.6:1 (the lab's 28 % wash measured 1.7:1 at
+  its darkest, so the wash went up). The second button and an unlit primary are an ink outline at
+  full strength: 1.6 px marble-300 (8.7:1 on ink-900), marble-500 when disabled. Chips keep their
+  1 px edge with uneven corners (a filter there would blur the italic). Rules drawn by hand: `.dbl`
+  and the floor's top edge carry `#rough-s`. Both filters are inline in `index.html`.
+- **Answering one adviser**: the message being answered carries a 3 px candle bar on its left
+  edge; the floor says "Answering <Adviser>" with a × to let it go. Agree and Push back marks keep
+  the gloss form (2 px clay rule, the stance as a rubric).
+
 ## Rules this product adds
 
 - **Monograms, never portraits.** A persona is initials in a ring on a filled disc (`Monogram.tsx`;

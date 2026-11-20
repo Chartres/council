@@ -22,7 +22,7 @@ export const EDITION: string = whatsNew.version
 
 /** The painted candle on the recording surface (src/components/Candle.tsx). */
 export const CANDLE_CREDIT =
-  'The candle: a detail of Anna Dorothea Therbusch, A Scientist Seated at a Desk by Candlelight, about 1755. Cleveland Museum of Art, CC0.'
+  'The candle and the paint on the buttons: details of Anna Dorothea Therbusch, A Scientist Seated at a Desk by Candlelight, about 1755. Cleveland Museum of Art, CC0.'
 
 /** The colophon, line by line. */
 export const COLOPHON = [

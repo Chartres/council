@@ -112,26 +112,45 @@ VITE_GATEWAY_URL=http://localhost:8787 npm run dev   # terminal 2 — http://loc
 Run the dev gateway with `STUB_PASSWORD=tallow-candle npm run stub` to see the door.
 Primary journeys (v4, `/`): roster (Business/Classics) → pick ≤4 → Begin → one-screen intake
 (tap and talk/type/paste/drop/ask your AI, review the seven fields; stable fields prefilled) → conversation (speaker
-cards, floor question, reply box, control chips) → proposal → Accept → journal → commitment
+cards, floor question, the floor, control chips) → proposal → Accept → journal → commitment
 with a due date and an opt-in email reminder → Journal tab (outcomes, the evening examination from the hour she sets — default 17:30, `council:evening` — export). Returning: the
 "Last time" card on `/` and a "Last time…" opener. Past discussions: the Discussions sheet
 (header, left) lists every discussion newest first (signed in: `council_sessions`; anonymous:
 `council:discussions` in this browser, the newest 20) and the quick verdicts; one opens
 read-only, and "Continue this discussion" starts a gateway session seeded with its record
 (`resume` on `/v1/council/start`) while the app keeps writing to the same discussion.
-Voice bar (Talk on, `src/components/Talk.tsx`, Pavol 8 Nov and 20 Nov): a fixed bar at the bottom with
-"Question N" and the room's state (the recording sentence / Writing it down… / Yours to correct
-before it goes. / Thinking… n s / X is talking / Paused); tap it for the list of questions so far
-(one tap goes back to one). Every button is an icon with its word: Back, Pause, the main button,
-Next, End. The main button: Start / Finish / Send / Tap and talk / Cut in / Resume. A Talk turn is
-record → text → correct → send: the mic opens when the room goes quiet, her words are set in a
-field in the bar as they are written down, Finish ends the recording (the space bar on a
-keyboard), she corrects the text, Send sends it (⌘ or Ctrl with Enter). Nothing is sent by a pause.
-The mic is shut while an adviser speaks; Cut in stops the adviser and opens it. Back/Next/the list
-are sent as her plain words to the facilitator. The line being spoken is marked on screen
-(`now-speaking`) and kept in view. `e2e/voice-bar.spec.ts` checks it at 390 and 1280 px.
-Margin notes: Agree / Push back / Note under any contribution, sent with her next message. Reminder emails link to
-`/c/:commitmentId?outcome=done|later|drop`.
+The floor (`src/components/Talk.tsx`, Pavol 21 Nov, option A of `lab/voice-capture`
+`public/lab/one-voice.html`; before that "the voice bar", 8 and 20 Nov): the one place to speak in
+a conversation, with or without read aloud. A fixed bar at the bottom: the animated candle and
+its thread (`FloorLamp` in `Capture.tsx`: his voice while recording, a calm breath while an
+adviser is read, still otherwise), one status line (`src/domain/floor.ts`: "Recording. I can hear
+you." / "Writing it down: N parts left" (also mid-recording) / "<Adviser> is answering. Tap to
+speak instead." / "<Adviser>, sentence k of n" / "Read it over. Tap your words to correct them."
+/ "Your turn. Take your time." / "Paused." / "<Adviser>’s voice did not load. Tap to hear it, or
+read it above."), one main button (Talk / Finish / Send with Add more / Cut in with Pause / Tap to
+hear / Resume / Start) and a small row (Type instead; Back, Next and "Stop reading aloud" in read
+aloud; "Read aloud" otherwise). His words are a dashed message at the end of the conversation
+(`draft`, a portal into the screen's slot); a tap on it corrects them in the only text field,
+which exists only while he edits. Typing uses the same draft. Finish ends a recording (the space
+bar, read aloud only), Send sends (⌘ or Ctrl with Enter). Nothing is sent by a pause. Read aloud
+(`council:talk`, "Talk" before): each answer is read sentence by sentence as it streams, until a
+sentence with a quotation mark or a bracket, which waits for the checked `contribution`; from
+there the checked text is read in order (`rest` in `src/domain/sentences.ts`), so what is read is
+what is shown. A voice turn's floor question is read in its adviser's voice. One message, one
+voice: a line of a message the gateway began is fetched once more, and if it fails again the room
+holds there with "Tap to hear" (`group` in `src/domain/tts.ts`). The sentence being read is marked
+(`now-speaking`), read ones lighter, unread ones grey, with one dot per sentence; a cut-in leaves
+the unread ones grey. The mic is shut while an adviser speaks; Cut in stops the adviser and opens
+it; the cut-in ends with that answer. Back/Next/the list (tap the status line) are sent as his
+plain words to the facilitator. On Android the tap that opens the mic plays no audio unlock (the
+suspect for the mute on Firefox, 20 Nov); elsewhere it does, since Safari needs it.
+Answering one adviser (Eyal, feedback 533a9ad9): swipe a message right (touch or pen, starting
+28 px or more from the left edge, sideways more than down; `touch-action: pan-y`), or tap Reply by
+the name for Answer / Agree / Push back. Answer puts "Answering <Adviser> ×" in the floor and
+sends his next words at once as `To <Adviser> ("…"): …` (the gateway picks that adviser to
+answer). Agree and Push back are marks that go with his next message, as margin notes did.
+`e2e/floor.spec.ts` walks it; `FLOOR_REVIEW=1` re-shoots `docs/review/2026-11-21-floor/`.
+Reminder emails link to `/c/:commitmentId?outcome=done|later|drop`.
 v3 journeys (`/quick`): password → home → type (or dictate) an idea → convene → turns stream in →
 verdict card → reply box; today's question → convene → share the split; My ideas → reopen a
 past council. Voice in (`src/domain/capture.ts`, `src/components/Capture.tsx`; Pavol, 20 Nov):
@@ -204,7 +223,7 @@ Vendored client: `src/platform/flywheel-client.ts`, wrapped by `src/analytics.ts
 cookieless, fire-and-forget. Only shared-taxonomy names reach the events table (its insert
 policy drops anything else); `src/analytics.contract.test.ts` fails CI otherwise. Steps:
 `page_view`, `key_action` with `action` = convened / replied / talk_on / blocked (with the
-gateway's reason) / captured / committed / noted (margin notes sent, with `count` and `push`) / voice_turn (one per Talk turn: `think_ms`, `voice_ms`, `total_ms` from her Send to the first adviser audio; `silence_ms` and `stt_ms` are 0 since 20 Nov, when Send replaced the pause, `ears`, `out`; `src/domain/voiceTiming.ts`, shown to admins under the Talk status)
+gateway's reason) / captured / committed / noted (margin notes sent, with `count` and `push`) / voice_turn (one per Talk turn: `think_ms`, `voice_ms`, `total_ms` from her Send to the first adviser audio; `silence_ms` is 0 since 20 Nov, when Send replaced the pause; `stt_ms` is Finish to the last part landing with the gateway's ears (21 Nov; it was 0 before), `ears`, `out`; `mic_failed` `lost_*` also carries the track's `muted` and `state`, and `reopen: true` when a mute in view reopened the mic by itself; `src/domain/voiceTiming.ts`, shown to admins under the Talk status)
 (`keyAction()` in `src/analytics.ts`),
 `signup_started` (email submitted), `signup_completed` (first real sign-in per user per
 browser), and `conversion` when a proposal is accepted into the journal (v3: a completed verdict) — the aha moment, and `activation_event` in the portfolio record.

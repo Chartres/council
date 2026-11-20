@@ -45,8 +45,8 @@ export interface CaptureEvents {
   onProblem(engine: 'browser' | 'server', reason: string, recovered: boolean): void
   /** The mic was taken away mid-recording (the page went to the background, the input was
    *  unplugged). The owner calls finish(): what was recorded so far is still written down.
-   *  `away`: the page had been left. */
-  onLost(why: 'ended' | 'muted' | 'pagehide', away: boolean): void
+   *  `away`: the page had been left. `track`: the track's own state then, for the log. */
+  onLost(why: 'ended' | 'muted' | 'pagehide', away: boolean, track: { muted: boolean; state: string }): void
 }
 
 export interface Capture {
@@ -387,7 +387,7 @@ export async function openCapture(first: CaptureSink, ev: CaptureEvents): Promis
   const lose = (why: 'ended' | 'muted' | 'pagehide') => {
     if (!open || lost) return
     lost = true
-    ev.onLost(why, away)
+    ev.onLost(why, away, { muted: !!track?.muted, state: track?.readyState ?? 'none' })
   }
   const gone = () => (track?.readyState === 'ended' ? lose('ended') : track?.muted ? lose('muted') : undefined)
   const onEnded = () => lose('ended')

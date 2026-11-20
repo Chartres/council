@@ -70,6 +70,17 @@ describe('turnClock', () => {
     expect(c.audioStarted('gateway', 'browser')).toBeNull()
   })
 
+  // 20 Nov: stt_ms was always 0 once Send replaced the pause; the time the gateway took to write
+  // his words down after Finish was counted nowhere.
+  it('stt_ms is the time from Finish to the last part landing, passed with the send', () => {
+    let t = 10_000
+    const c = turnClock(() => t)
+    c.sent(t, null, 2_400)
+    c.firstLine()
+    t += 500
+    expect(c.audioStarted('gateway', 'server')).toMatchObject({ stt_ms: 2_400, think_ms: 0, voice_ms: 500 })
+  })
+
   it('unanswered after a spoken line keeps the report coming', () => {
     let t = 0
     const c = turnClock(() => t)

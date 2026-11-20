@@ -24,17 +24,20 @@ export function turnClock(now: () => number = () => Date.now()) {
   let stop: number | null = null
   let sent: number | null = null
   let first: number | null = null
+  let stt: number | null = null
   const reset = () => {
-    last = stop = sent = first = null
+    last = stop = sent = first = stt = null
   }
   return {
     /** Her words went to the group. `lastWordAt`: when she stopped speaking; `stoppedAt`
-     *  (server ears): when the recording went to be transcribed. */
-    sent(lastWordAt: number, stoppedAt: number | null = null) {
+     *  (server ears): when the recording went to be transcribed. `writingMs`: since Send
+     *  replaced the pause, how long the words took to land after Finish (Talk measures it). */
+    sent(lastWordAt: number, stoppedAt: number | null = null, writingMs?: number) {
       last = lastWordAt
       stop = stoppedAt
       sent = now()
       first = null
+      stt = writingMs ?? null
     },
     /** A line of the answer was handed to the speaker; only the first one counts. */
     firstLine() {
@@ -48,7 +51,7 @@ export function turnClock(now: () => number = () => Date.now()) {
         ears,
         out,
         silence_ms: (stop ?? sent) - last,
-        stt_ms: stop === null ? 0 : sent - stop,
+        stt_ms: stt ?? (stop === null ? 0 : sent - stop),
         think_ms: first - sent,
         voice_ms: t - first,
         total_ms: t - last,

@@ -18,8 +18,9 @@ test('every discussion is one tap away, readable, and can be continued', async (
   await page.getByLabel('What would you like the group to help you achieve?').fill('decide whether to pilot a premium tier')
   await page.getByRole('button', { name: 'Bring it to the group' }).click()
   await expect(page.getByTestId('floor')).toHaveCount(1, { timeout: 20_000 })
-  await page.getByLabel('Your turn').fill('The constraint is engineering time.')
-  await page.getByRole('button', { name: 'Say it' }).click()
+  await page.getByTestId('type-instead').click()
+  await page.getByTestId('voice-draft').fill('The constraint is engineering time.')
+  await page.getByTestId('voice-send').click()
   await expect(page.getByTestId('floor')).toHaveCount(2, { timeout: 20_000 })
   const lastQuestion = (await page.getByTestId('floor').last().textContent())!
 
@@ -41,7 +42,7 @@ test('every discussion is one tap away, readable, and can be continued', async (
   // Read-only: the transcript as it was, and one way on.
   await expect(page.getByTestId('past')).toBeVisible()
   await expect(page.getByTestId('user')).toContainText('The constraint is engineering time.')
-  await expect(page.getByLabel('Your turn')).toHaveCount(0)
+  await expect(page.getByTestId('voice-bar')).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Agree' })).toHaveCount(0)
   await page.screenshot({ path: 'e2e/shots/v4-discussion-past.png' })
 
@@ -52,7 +53,7 @@ test('every discussion is one tap away, readable, and can be continued', async (
   await expect(page.getByTestId('facilitator').last()).toContainText('We are picking up your discussion from')
   await expect(page.getByTestId('facilitator').last()).toContainText(lastQuestion)
   await expect(page.getByTestId('floor')).toHaveCount(3, { timeout: 20_000 })
-  await expect(page.getByLabel('Your turn')).toBeVisible()
+  await expect(page.getByTestId('voice-bar')).toBeVisible()
   const sent = (await (await request.get(`${STUB}/__resume`)).json()) as { items: { who: string; text: string }[] }
   expect(sent.items).toContainEqual({ who: 'you', text: 'The constraint is engineering time.' })
   expect(sent.items.at(-1)).toEqual({ who: 'floor', text: lastQuestion })

@@ -71,7 +71,7 @@ describe('Talk with the real speaker queue', () => {
     rerender(view())
     await flush()
     expect(pending).toHaveLength(2) // both sentences downloading, nothing playing yet
-    expect(screen.getByRole('status')).toHaveTextContent('Drucker is talking…')
+    expect(screen.getByRole('status')).toHaveTextContent('Drucker is answering. Tap to speak instead.')
 
     fireEvent.click(screen.getByTestId('cut-in'))
     pending.forEach((release) => release(undefined)) // the downloads land after the cut
@@ -84,7 +84,8 @@ describe('Talk with the real speaker queue', () => {
 })
 
 // iPhone (Eyal, 30 Oct: the read-aloud voice is robotic): a line the gateway cannot speak is not
-// read by the browser voice; the room moves on and the bar offers it again.
+// read by the browser voice. Since 21 Nov the room holds at that line and offers it again,
+// rather than reading on past a gap.
 describe('Talk on iPhone when the gateway cannot speak a line', () => {
   const synth = { speak: vi.fn(), cancel: vi.fn(), getVoices: () => [] }
   const failed = () => Promise.resolve({ ok: false, headers: { get: () => 'application/json' } })
@@ -106,15 +107,15 @@ describe('Talk on iPhone when the gateway cannot speak a line', () => {
   }
   const floor: Item[] = [{ kind: 'floor', question: 'What would change your mind?' }]
 
-  it('does not use the browser voice, hands the turn back, and offers Tap to hear', async () => {
+  it('does not use the browser voice, holds the room there, and offers Tap to hear', async () => {
     ios = true
     vi.stubGlobal('fetch', vi.fn(failed))
     start(floor)
     await flush()
     await flush()
     expect(synth.speak).not.toHaveBeenCalled()
-    expect(screen.getByRole('status')).toHaveTextContent('Recording.')
-    expect(screen.getByTestId('voice-missed')).toHaveTextContent('Voice did not load. The text is above.')
+    expect(screen.getByRole('status')).toHaveTextContent('voice did not load. Tap to hear it, or read it above.')
+    expect(fake.all).toHaveLength(1) // opened in the Start tap, shut for the line, not opened again
 
     // One tap tries the gateway once more, and this time it plays.
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(audio())))
@@ -123,7 +124,7 @@ describe('Talk on iPhone when the gateway cannot speak a line', () => {
     await flush()
     expect(JSON.parse((fetch as ReturnType<typeof vi.fn>).mock.calls[0][1].body).text).toBe('What would change your mind?')
     expect(lines()).toHaveLength(1)
-    expect(screen.queryByTestId('voice-missed')).toBeNull()
+    expect(screen.getByRole('status')).not.toHaveTextContent('did not load')
     // Only the tap's silent unlocking line went to the browser engine.
     expect(synth.speak.mock.calls.map((c) => (c[0] as { text: string }).text)).toEqual([' '])
   })
@@ -134,7 +135,7 @@ describe('Talk on iPhone when the gateway cannot speak a line', () => {
     await flush()
     await flush()
     expect(synth.speak).toHaveBeenCalledTimes(1)
-    expect(screen.queryByTestId('voice-missed')).toBeNull()
+    expect(screen.getByRole('status')).not.toHaveTextContent('did not load')
   })
 })
 
@@ -149,7 +150,7 @@ describe('Talk on iPhone, review 15 Nov', () => {
     ios = false
   })
 
-  it('a later line that starts playing takes the Tap to hear away (one shared player)', async () => {
+  it('a missed first sentence holds the room: the next one is not read over the gap', async () => {
     ios = true
     let call = 0
     vi.stubGlobal('fetch', vi.fn(() => (++call === 1 ? failed() : Promise.resolve(audio()))))
@@ -161,8 +162,8 @@ describe('Talk on iPhone, review 15 Nov', () => {
     await flush()
     await flush()
     await flush()
-    expect(lines()).toHaveLength(before + 1)
-    expect(screen.queryByTestId('voice-missed')).toBeNull()
+    expect(lines()).toHaveLength(before)
+    expect(screen.getByRole('status')).toHaveTextContent('Drucker’s voice did not load.')
   })
 
   it('a retried line is not timed as the turn: the wait before the tap is hers', async () => {
@@ -176,7 +177,7 @@ describe('Talk on iPhone, review 15 Nov', () => {
     act(() => fake.last().say('we have no engineers'))
     await act(async () => fireEvent.click(screen.getByTestId('voice-finish')))
     fireEvent.click(screen.getByTestId('voice-send'))
-    expect(onSay).toHaveBeenCalledWith('we have no engineers')
+    expect(onSay).toHaveBeenCalledWith('we have no engineers', true)
     r.rerender(view([{ kind: 'user', text: 'we have no engineers' }, { kind: 'floor', question: 'Who pays for it?' }]))
     await flush()
     await flush()

@@ -1,28 +1,28 @@
 {
-  "version": "1.3.0",
-  "date": "2026-11-20",
+  "version": "1.4.0",
+  "date": "2026-11-21",
   "items": [
     {
-      "id": "thread",
-      "text": "While you record, a line moves with your voice and words say what the microphone hears.",
-      "alt": "A thin line that rises and falls as if someone speaks, then rests; under it the words Recording. I can hear you.",
-      "media": "/whats-new/1.3.0/thread.html",
+      "id": "floor",
+      "text": "One bar to speak from: the candle, what is happening, and your words to correct.",
+      "alt": "A small candle flickers beside a moving line; above it a dashed note fills with words, and a painted Send button sits at the bottom",
+      "media": "/whats-new/1.4.0/floor.html",
       "width": 390,
       "height": 150
     },
     {
-      "id": "finish",
-      "text": "A recording ends when you tap Finish, not when you pause to think.",
-      "alt": "The line goes flat for a long pause while the Finish button stays as it is, then moves again",
-      "media": "/whats-new/1.3.0/finish.html",
+      "id": "reading",
+      "text": "Read aloud marks the sentence being read, and dots show how many are left.",
+      "alt": "Three sentences; a soft underline moves from the first to the second to the third while three dots light in turn",
+      "media": "/whats-new/1.4.0/reading.html",
       "width": 390,
       "height": 150
     },
     {
-      "id": "correct",
-      "text": "Your words appear as text you can correct before anything is sent.",
-      "alt": "A sentence in a field; one word is struck out and replaced, and then the Send button lights",
-      "media": "/whats-new/1.3.0/correct.html",
+      "id": "reply",
+      "text": "Swipe an adviser's message to the right, or tap Reply, to answer that adviser.",
+      "alt": "A message slides a little to the right and springs back; a line reading Answering Socrates appears below it",
+      "media": "/whats-new/1.4.0/reply.html",
       "width": 390,
       "height": 150
     }

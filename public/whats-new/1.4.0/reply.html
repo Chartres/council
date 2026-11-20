@@ -1,0 +1,17 @@
+<!doctype html>
+<meta charset="utf-8">
+<!-- What's new 1.4.0, answering one adviser (flywheel docs/standards/whats-new.md): CSS only,
+     nothing fetched. 5 s loop: the message slides right and back, "Answering Socrates" appears. -->
+<style>
+  html,body{margin:0;height:100%;background:#100e0b;overflow:hidden}
+  body{display:flex;flex-direction:column;justify-content:center;gap:12px;padding:0 20px;box-sizing:border-box;font:400 18px/25px "EB Garamond","Iowan Old Style",Georgia,serif;color:#d8d1c2}
+  .msg{animation:m 5s ease-in-out infinite}
+  .who{font-variant-caps:all-small-caps;letter-spacing:.08em;color:#f8f5ee}
+  .ans{opacity:0;color:#d8d1c2;animation:a 5s steps(1) infinite}
+  .ans b{font-weight:600;font-variant-caps:all-small-caps;letter-spacing:.06em;color:#cf9179}
+  @keyframes m{0%,15%{transform:none}30%{transform:translateX(48px)}42%,100%{transform:none}}
+  @keyframes a{0%,40%{opacity:0}41%,100%{opacity:1}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important}.ans{opacity:1}}
+</style>
+<div class="msg"><div class="who">Socrates</div>What would be left of the shop if Sunday were gone?</div>
+<div class="ans"><b>Answering</b> Socrates</div>

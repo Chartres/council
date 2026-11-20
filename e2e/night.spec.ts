@@ -180,11 +180,11 @@ test('a sitting: the flame flickers while the group thinks and rests under reduc
   // Speakers in small capitals; her push-back is a gloss under a red rule.
   const second = page.getByTestId('contribution').nth(1)
   expect(await second.getByTestId('speaker').evaluate((el) => getComputedStyle(el).fontVariantCaps)).toBe('all-small-caps')
+  const secondName = (await second.getByTestId('speaker').textContent())!
+  await second.getByRole('button', { name: `Answer or mark ${secondName}` }).click()
   await second.getByRole('button', { name: 'Push back' }).click()
   const gloss = second.getByTestId('margin-note')
-  await gloss.getByRole('textbox').fill('The evenings are mine to spend.')
   await expect(gloss.locator('.rubric')).toHaveText('You push back')
-  expect(await gloss.getByRole('textbox').evaluate((el) => getComputedStyle(el).fontStyle)).toBe('italic')
 
   // No catalogue note inside a conversation; the disclosure is word for word what it was.
   await expect(page.getByTestId('not-sought')).toHaveCount(0)
@@ -250,8 +250,8 @@ for (const [label, viewport] of [
     await expect(page.getByTestId('streaming')).toHaveCount(0, { timeout: 20_000 })
     await shot(page, '09-conversation')
     const second = page.getByTestId('contribution').nth(1)
+    await second.getByRole('button', { name: /^Answer or mark / }).click()
     await second.getByRole('button', { name: 'Push back' }).click()
-    await second.getByTestId('margin-note').getByRole('textbox').fill('The evenings are mine to spend.')
 
     // Talk mode: the voice bar, an adviser speaking, the gloss in the margin.
     await page.getByTestId('talk').click()

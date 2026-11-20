@@ -253,7 +253,7 @@ describe('MicButton: the mic is taken away when he leaves the page', () => {
     await act(async () => fake.last().lose())
     expect(fake.last().finish).toHaveBeenCalledTimes(1) // the part already recorded is written down
     expect(screen.getByRole('alert')).toHaveTextContent('The microphone stopped when you left the page. Tap to carry on.')
-    expect(analytics.keyAction).toHaveBeenCalledWith('mic_failed', { engine: 'mic', reason: 'lost_ended', away: true })
+    expect(analytics.keyAction).toHaveBeenCalledWith('mic_failed', { engine: 'mic', reason: 'lost_ended', away: true, muted: false, state: 'ended' })
     expect(mic()).toHaveTextContent('Tap and talk')
     expect(field().value).toBe('before I left')
     act(() => fake.all[0]!.say('and the part being written down'))
@@ -263,6 +263,24 @@ describe('MicButton: the mic is taken away when he leaves the page', () => {
     expect(screen.queryByRole('alert')).toBeNull()
     act(() => fake.last().say('after I came back'))
     expect(field().value).toBe('before I left and the part being written down after I came back')
+  })
+
+  // 20 Nov, Firefox on Android: mic_failed lost_muted 4 s after Talk opened, the page in view.
+  it('a mute with the page in view opens the mic again by itself once; a second one is said', async () => {
+    render(<Field />)
+    await open()
+    act(() => fake.last().say('first words'))
+    await act(async () => fake.last().mute())
+    expect(fake.all).toHaveLength(2) // reopened without a tap
+    expect(fake.all[0]!.finish).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(mic()).toHaveTextContent('Finish')
+    expect(analytics.keyAction).toHaveBeenCalledWith('mic_failed', { engine: 'mic', reason: 'lost_muted', away: false, muted: true, state: 'live', reopen: true })
+    act(() => fake.last().say('and more'))
+    expect(field().value).toBe('first words and more')
+    await act(async () => fake.last().mute())
+    expect(fake.all).toHaveLength(2)
+    expect(screen.getByRole('alert')).toHaveTextContent('The microphone stopped. Tap to carry on.')
   })
 
   it('lost with the page in view (unplugged) does not claim he left', async () => {
