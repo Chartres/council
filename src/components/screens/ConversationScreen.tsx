@@ -33,6 +33,7 @@ function ConversationView() {
   const { conversation, say, control, journal, continueDiscussion } = useMastermind()
   const { token } = useAuth()
   const [message, setMessage] = useState('')
+  const [micBusy, setMicBusy] = useState(false) // the reply box's mic records, or a part is still being written down
   const [more, setMore] = useState(false)
   const [replyOpen, setReplyOpen] = useState(false)
   // Margin notes, by the contribution's index; they go with her next message (Eyal, 29 Oct).
@@ -139,6 +140,7 @@ function ConversationView() {
     })
 
   const send = (e: React.FormEvent) => {
+    if (micBusy) return e.preventDefault() // Enter in the field must not get past a held button
     e.preventDefault()
     const text = message.trim()
     if ((!text && !noted.length) || busy || tooLong) return
@@ -234,6 +236,7 @@ function ConversationView() {
             onQuiet={() => setQuiet(true)}
             timing={isAdmin}
             onNow={setNow}
+            onLeft={(text) => setMessage((m) => (m.trim() ? `${m.trimEnd()} ${text}` : text))}
           >
             <ListenToggle chip on={listen} onChange={onListen} />
           </Talk>
@@ -255,27 +258,33 @@ function ConversationView() {
             <label htmlFor="reply" className="sr-only">
               Your turn
             </label>
-            <div className="field flex items-end gap-1 py-1.5 pr-1.5 pl-4">
-              <textarea
-                id="reply"
-                rows={1}
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                placeholder="Your answer, or push back"
-                className="min-h-11 min-w-0 flex-1 resize-none bg-transparent py-2 text-[19px] leading-[27px] text-marble-100 [field-sizing:content]"
-              />
-              <MicButton value={message} onChange={setMessage} label="your reply" />
-              <button
-                type="submit"
-                aria-label="Say it"
-                disabled={(!message.trim() && !noted.length) || busy || tooLong}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-marble-100 text-ink-950 disabled:bg-ink-800 disabled:text-marble-400"
-              >
-                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
-                  <path d="M12 19V5M6 11l6-6 6 6" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
-            </div>
+            <textarea
+              id="reply"
+              rows={1}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder="Your answer, or push back"
+              className="field resize-none [field-sizing:content]"
+            />
+            {/* Two word buttons of one kind: talk, and send. With Talk on, the voice bar is the mic. */}
+            {(() => {
+              const sendBtn = (
+                <button
+                  type="submit"
+                  disabled={(!message.trim() && !noted.length) || busy || tooLong || micBusy}
+                  className="slab min-w-0 flex-1 enabled:bg-marble-100 enabled:hover:bg-marble-50"
+                >
+                  Say it
+                </button>
+              )
+              return talk ? (
+                <div className="mt-2 flex">{sendBtn}</div>
+              ) : (
+                <MicButton value={message} onChange={setMessage} label="your reply" onBusy={setMicBusy} className="mt-2">
+                  {sendBtn}
+                </MicButton>
+              )
+            })()}
           </form>
           </>
           )}
@@ -335,7 +344,7 @@ function ConversationView() {
         {roster === 'business' ? BUSINESS_DISCLOSURE : DISCLOSURE}
       </p>
       {/* Room for the voice bar, so the reply box and the last line are never under it. */}
-      {talk && !past && !ended && <div aria-hidden="true" className="h-36" />}
+      {talk && !past && !ended && <div aria-hidden="true" className="h-80" />}
     </div>
   )
 }

@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { IntakeScreen } from './IntakeScreen'
 
@@ -8,28 +8,25 @@ vi.mock('@/app/CouncilContext', () => ({ GATEWAY_URL: 'https://gw.test', useCoun
 vi.mock('@/app/MastermindContext', () => ({ useMastermind: () => ({ begin, lastIntake: null }) }))
 const speak = vi.fn()
 vi.mock('@/components/Listen', () => ({ speak: (...a: unknown[]) => speak(...a), cancel: vi.fn() }))
-vi.mock('@/domain/speech', async (orig) => ({ ...(await orig<object>()), synthesisAvailable: () => true }))
-const tts = vi.hoisted(() => ({ unlock: vi.fn() }))
-vi.mock('@/domain/tts', () => tts)
+vi.mock('@/analytics', () => ({ keyAction: vi.fn() }))
+const fake = await vi.hoisted(async () => (await import('@/test/fakeCapture')).fakeCaptures())
+vi.mock('@/domain/capture', async (orig) => ({ ...(await orig<object>()), openCapture: fake.openCapture }))
+vi.mock('@/domain/stt', async (orig) => ({ ...(await orig<object>()), recordingSupported: () => true }))
 vi.mock('@/auth/AuthContext', () => ({ useAuth: () => ({ token: null }) }))
 
 const reply = (intake: object) => new Response(JSON.stringify({ intake }), { status: 200 })
 
 describe('IntakeScreen shortcuts', () => {
-  it('puts the three shortcuts under the goal, before the primary button, once each', () => {
+  it('puts the two shortcuts under the goal, before the primary button, once each; talking is a button of its own', () => {
     render(<IntakeScreen />)
     const row = screen.getByRole('group', { name: 'Shortcuts' })
-    expect(within(row).getAllByRole('button').map((b) => b.textContent)).toEqual([
-      'Let your AI fill this in',
-      'Talk it through',
-      'Drop files',
-    ])
+    expect(within(row).getAllByRole('button').map((b) => b.textContent)).toEqual(['Let your AI fill this in', 'Drop files'])
     const goal = screen.getByLabelText('What would you like the group to help you achieve?')
     const go = screen.getByRole('button', { name: 'Bring it to the group' })
     expect(goal.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(row.compareDocumentPosition(go) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    for (const name of ['Ask your AI', 'Pick a file']) expect(screen.queryByRole('button', { name })).toBeNull()
-    expect(screen.getAllByRole('button', { name: 'Talk it through' })).toHaveLength(1)
+    for (const name of ['Ask your AI', 'Pick a file', 'Talk it through', 'Skip']) expect(screen.queryByRole('button', { name })).toBeNull()
+    expect(screen.getAllByRole('button', { name: 'Tap and talk' })).toHaveLength(1)
   })
 
   it('"Let your AI fill this in" opens the copyable prompt', async () => {
@@ -124,33 +121,109 @@ describe('IntakeScreen shortcuts', () => {
   })
 })
 
-describe('IntakeScreen talk it through', () => {
-  it('asks the goal first when everything is empty', async () => {
+// Pavol, 20 Nov: "the primary journey here is you come in… I just start talking." And: "The
+// functionality of seeing the text and correcting it is super important."
+describe('IntakeScreen: tap and talk', () => {
+  const GOAL = 'What would you like the group to help you achieve?'
+  const goal = () => screen.getByLabelText(GOAL) as HTMLTextAreaElement
+  const mic = () => screen.getByTestId('mic')
+  beforeEach(() => {
+    fake.reset()
     speak.mockClear()
-    render(<IntakeScreen />)
-    await userEvent.click(screen.getByRole('button', { name: 'Talk it through' }))
-    await waitFor(() => expect(speak).toHaveBeenCalled())
-    expect(speak.mock.calls[0][0]).toBe('What would you like the group to help you achieve?')
+    begin.mockClear()
   })
 
-  it('skips a goal she already typed and asks what is happening today', async () => {
-    speak.mockClear()
+  it('one tap on the first screen opens the mic inside the tap; the question is not read aloud first', () => {
+    fake.state.hold = true
     render(<IntakeScreen />)
-    fireEvent.change(screen.getByLabelText('What would you like the group to help you achieve?'), { target: { value: 'Cut churn' } })
-    await userEvent.click(screen.getByRole('button', { name: 'Talk it through' }))
-    await waitFor(() => expect(speak).toHaveBeenCalled())
-    expect(speak.mock.calls[0][0]).toBe('What is happening today?')
+    expect(mic()).toHaveTextContent('Tap and talk')
+    expect(mic()).not.toHaveClass('slab-off') // the screen's one action while the goal is empty
+    fireEvent.click(mic())
+    expect(fake.openCapture).toHaveBeenCalledTimes(1) // before the click returned, not in a later effect
+    expect(speak).not.toHaveBeenCalled()
+    expect(screen.getByTestId('capture-status')).toHaveTextContent('Waiting for the microphone. Nothing is recorded yet.')
+  })
+
+  it('his words land in the goal as they arrive; nothing moves on by itself and nothing is sent', async () => {
+    vi.useFakeTimers()
+    render(<IntakeScreen />)
+    fireEvent.click(mic())
+    await act(async () => {})
+    act(() => fake.last().say('Decide whether to pilot the tier'))
+    expect(goal().value).toBe('Decide whether to pilot the tier')
+    act(() => vi.advanceTimersByTime(120_000)) // he thinks
+    expect(fake.last().finish).not.toHaveBeenCalled()
+    expect(fake.last().retarget).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Bring it to the group' })).toBeDisabled()
+    vi.useRealTimers()
+
+    await act(async () => fireEvent.click(mic())) // Finish
+    expect(fake.last().finish).toHaveBeenCalledTimes(1)
+    expect(begin).not.toHaveBeenCalled()
+
+    // The text is an ordinary field: he corrects it, and the corrected text is what goes.
+    fireEvent.change(goal(), { target: { value: 'Decide whether to pilot the premium tier' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Bring it to the group' }))
+    expect(begin).toHaveBeenCalledWith(expect.objectContaining({ goal: 'Decide whether to pilot the premium tier' }))
+  })
+
+  it('Next question moves the same open mic to the next empty field', async () => {
+    render(<IntakeScreen />)
+    fireEvent.click(mic())
+    await act(async () => {})
+    act(() => fake.last().say('Cut churn'))
+    fireEvent.click(screen.getByRole('button', { name: 'Next question' }))
+    expect(fake.openCapture).toHaveBeenCalledTimes(1)
+    expect(fake.last().retarget).toHaveBeenCalledTimes(1)
+    act(() => fake.last().say('Churn is four percent'))
+    expect(goal().value).toBe('Cut churn')
+    expect((screen.getByLabelText('What is happening today?') as HTMLTextAreaElement).value).toBe('Churn is four percent')
+    expect(screen.getAllByTestId('mic')).toHaveLength(1) // one Finish, beside the field being filled
+    expect(screen.getByTestId('voice-bar')).toHaveTextContent('What is happening today?')
+  })
+
+  it('the mic taken away at a later question: the next tap carries on at that question', async () => {
+    render(<IntakeScreen />)
+    fireEvent.click(mic())
+    await act(async () => {})
+    fireEvent.click(screen.getByRole('button', { name: 'Next question' }))
+    await act(async () => fake.last().lose())
+    expect(screen.getByRole('alert')).toHaveTextContent('The microphone stopped when you left the page. Tap to carry on.')
+    expect(screen.getByTestId('voice-bar')).toHaveTextContent('What is happening today?')
+    fireEvent.click(mic())
+    await act(async () => {})
+    act(() => fake.last().say('Churn is four percent'))
+    expect((screen.getByLabelText('What is happening today?') as HTMLTextAreaElement).value).toBe('Churn is four percent')
+    expect(goal().value).toBe('')
+  })
+
+  it('"Writing it down…" stays under the field the part belongs to, and Next question visits an answered field', async () => {
+    render(<IntakeScreen />)
+    fireEvent.change(screen.getByLabelText('What is happening today?'), { target: { value: 'Churn is four percent.' } })
+    fireEvent.click(mic())
+    await act(async () => {})
+    fireEvent.click(screen.getByRole('button', { name: 'Next question' }))
+    expect(screen.getByTestId('voice-bar')).toHaveTextContent('What is happening today?') // answered, and still visited
+    act(() => fake.last().ev.onPending(1))
+    await act(async () => fireEvent.click(mic())) // Finish, with a part still out
+    expect(screen.getByTestId('voice-bar')).toHaveTextContent('What is happening today?')
+    expect(screen.getByTestId('capture-writing')).toBeInTheDocument()
+    act(() => fake.last().say('It was three in March'))
+    expect((screen.getByLabelText('What is happening today?') as HTMLTextAreaElement).value).toBe('Churn is four percent. It was three in March')
+  })
+
+  it('recording again adds to a goal he already wrote', async () => {
+    render(<IntakeScreen />)
+    fireEvent.change(goal(), { target: { value: 'Cut churn.' } })
+    expect(mic()).toHaveClass('slab-off') // now "Bring it to the group" is the one action
+    fireEvent.click(mic())
+    await act(async () => {})
+    act(() => fake.last().say('Without discounting'))
+    expect(goal().value).toBe('Cut churn. Without discounting')
   })
 })
 
-describe('IntakeScreen talk it through, review 15 Nov', () => {
-  it('unlocks the gateway voice inside the tap (iPhone)', async () => {
-    tts.unlock.mockClear()
-    render(<IntakeScreen />)
-    await userEvent.click(screen.getByRole('button', { name: 'Talk it through' }))
-    expect(tts.unlock).toHaveBeenCalledTimes(1)
-  })
-
+describe('IntakeScreen order', () => {
   it('lists About you in the order the walk asks it', () => {
     render(<IntakeScreen />)
     const list = screen.getByRole('list', { name: 'Your context' })

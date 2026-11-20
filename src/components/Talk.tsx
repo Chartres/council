@@ -1,80 +1,28 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { addWords, CapturePanel, micAvailable, micProblem, MicIcon, useCapture } from '@/components/Capture'
 import { cancel, speak } from '@/components/Listen'
 import { personaName } from '@/content/personas'
+import { primeMic } from '@/domain/capture'
 import { unlock } from '@/domain/tts'
 import type { Item } from '@/domain/mastermind'
 import { sentenceChunker } from '@/domain/sentences'
-import { recognitionCtor, VOICE, type Recognition } from '@/domain/speech'
-import { record, serverEars, SttError, transcribe, unlockAudioInput, type Recording } from '@/domain/stt'
+import { recognitionCtor, VOICE } from '@/domain/speech'
+import { serverEars } from '@/domain/stt'
 import { keyAction } from '@/analytics'
 import { describeTurn, turnClock } from '@/domain/voiceTiming'
-import { micProblem } from '@/components/MicButton'
 
-// Talk mode (council-v4.3.md "Talk mode"): a hands-free room, driven from a player bar at the
-// bottom of the screen (Pavol, 8 Nov: "something more live, podcast-like, audio-player-like").
-// She says when she is done (Done), or a long pause sends it, with a countdown she can see; the
+// Talk mode (council-v4.3.md "Talk mode"): a room driven from a player bar at the bottom of the
+// screen (Pavol, 8 Nov: "something more live, podcast-like, audio-player-like"). The room and he
+// take turns. His turn (Pavol, 20 Nov): the mic opens, the thread and the candle show that sound
+// is coming in, his words are set in a field as they are written down, and the turn ends when he
+// taps Finish, not when he pauses. The text is his to correct; it goes when he taps Send. The
 // adviser's answer is spoken sentence by sentence as it streams, and the line being spoken is
 // marked on screen; pause holds the room and resumes where it stopped; previous and next move
-// between the facilitator's questions; two words over the audio stop it and start her message.
-// On an iPhone (and wherever the browser has no recogniser) the gateway's ears take turns
-// instead: the mic records while the room is quiet and is closed while an adviser speaks,
-// so the phone plays through its speaker; "Cut in" stops the adviser and opens the mic.
+// between the facilitator's questions; "Cut in" stops an adviser and opens the mic.
+// The mic is closed while an adviser speaks, so a phone plays through its speaker and the
+// room's own voice is not written down as his.
 
 export const TALK_STORAGE = 'council:talk'
-/** The pause that sends her message on its own. Long on purpose: thinking pauses are not the end
- *  (Pavol, 8 Nov: 1.2 s cut him off); Done sends at once. The intake's dictation keeps 2,500 ms. */
-export const TALK_SILENCE_MS = 4000
-/** The last stretch of that pause is counted down in the bar, so the send never surprises her. */
-export const COUNTDOWN_MS = 2000
-/** Words heard over the audio that count as cutting in, not a cough. */
-const BARGE_IN_WORDS = 2
-/** After an engine error (network, aborted, no-speech) wait this long before listening again. */
-export const RETRY_MS = 1000
-const FATAL = ['not-allowed', 'service-not-allowed', 'audio-capture']
-/** After a line ends, its echo can still arrive from the recogniser this late. Short on purpose:
- *  her answer to the question comes after it, and may reuse the question's words. */
-export const ECHO_GRACE_MS = 1500
-/** Share of the heard words that must match the room's words, in order and nearly contiguous. */
-const ECHO_SHARE = 0.75
-/** Extra words a matching run may span beyond what was heard (misheard or dropped words). */
-const ECHO_SLACK = 2
-
-const words = (t: string) => t.split(/\s+/).filter(Boolean).length
-const tokens = (t: string) =>
-  t
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}']+/gu, ' ')
-    .split(' ')
-    .filter(Boolean)
-
-/** Longest common subsequence of two token lists. */
-function lcs(a: string[], b: string[]): number {
-  let prev = new Array<number>(b.length + 1).fill(0)
-  for (const w of a) {
-    const row = [0]
-    for (let j = 1; j <= b.length; j++) row[j] = w === b[j - 1] ? prev[j - 1] + 1 : Math.max(prev[j], row[j - 1])
-    prev = row
-  }
-  return prev[b.length]
-}
-
-/**
- * On speakerphone the mic hears the adviser. True when `heard` is the room's own `lines` coming
- * back: some window of the lines no longer than what was heard plus ECHO_SLACK words contains
- * ECHO_SHARE of the heard words in order. Contiguity is the point: an answer that reuses a few
- * common words from a long line ("it is working") does not line up the way an echo does.
- */
-export function isEcho(heard: string, lines: string[]): boolean {
-  const h = tokens(heard)
-  if (!h.length) return false
-  const s = tokens(lines.join(' '))
-  const width = h.length + ECHO_SLACK
-  const need = Math.ceil(h.length * ECHO_SHARE)
-  for (let i = 0; i <= Math.max(0, s.length - width); i++) {
-    if (lcs(h, s.slice(i, i + width)) >= need) return true
-  }
-  return false
-}
 
 export function Talk({
   on,
@@ -86,6 +34,7 @@ export function Talk({
   children,
   timing = false,
   onNow,
+  onLeft,
 }: {
   on: boolean
   onChange: (on: boolean) => void
@@ -101,36 +50,24 @@ export function Talk({
   timing?: boolean
   /** The line being spoken (its item's index and text), for the screen to mark; null when quiet. */
   onNow?: (now: { index: number; text: string } | null) => void
+  /** Talk ended with words he had not sent: they go to the reply box, not away. */
+  onLeft?: (text: string) => void
 }) {
-  const Ctor = recognitionCtor()
-  const [ears] = useState<'browser' | 'server' | null>(() => (serverEars(!!Ctor) ? 'server' : Ctor ? 'browser' : null))
-  const clip = useRef<Recording | null>(null)
-  const opening = useRef(false) // a clip is starting or being transcribed: one at a time
-  const [writing, setWriting] = useState(false) // a clip is being transcribed (status line)
+  const [hasMic] = useState(micAvailable)
+  // Whose words: the browser's recogniser or the gateway's (for the turn report only).
+  const [ears] = useState<'browser' | 'server'>(() => (serverEars(!!recognitionCtor()) ? 'server' : 'browser'))
   const [problem, setProblem] = useState<string | null>(null)
   // Remembered as on is not enough: the mic and the speaker wait for a tap on this page.
   const [armed, setArmed] = useState(false)
   const active = on && armed
   const [talker, setTalker] = useState<string | null>(null)
   const queued = useRef(0) // lines handed to the speaker and not yet finished
-  const muted = useRef(false) // talked over: the rest of this turn stays on screen, unspoken
+  const muted = useRef(false) // cut in on: the rest of this turn stays on screen, unspoken
   const handled = useRef(items.length) // what was on screen before Talk is not read
   const chunk = useRef<{ index: number; text: string; next: ReturnType<typeof sentenceChunker> } | null>(null)
-  const rec = useRef<Recognition | null>(null)
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined) // her pause before the auto-send
-  const retry = useRef<ReturnType<typeof setTimeout> | undefined>(undefined) // listening again after an engine error
-  const held = useRef('') // words that finished while the group was still answering
-  // The room's lines for the echo check: queued or playing (ended null), or ended moments ago.
-  const lines = useRef<{ text: string; ended: number | null }[]>([])
-  const echoOf = (heard: string) => {
-    const now = Date.now()
-    lines.current = lines.current.filter((l) => l.ended === null || now - l.ended < ECHO_GRACE_MS)
-    return isEcho(heard, lines.current.map((l) => l.text))
-  }
-  // The wait from her last word to the first adviser audio, once per turn (key_action voice_turn).
+  const held = useRef('') // words sent while the group was still answering
+  // The wait from his Send to the first adviser audio, once per turn (key_action voice_turn).
   const clock = useRef(turnClock()).current
-  const heardAt = useRef<number | null>(null) // her last word, for the turn she sends next
-  const stoppedAt = useRef<number | null>(null) // server ears: the clip went to be written down
   const [lastTurn, setLastTurn] = useState<string | null>(null)
   // Paused: the room holds. Lines that were queued or arrive meanwhile wait in `pending` and are
   // spoken from the first unfinished one on resume; the mic stays shut.
@@ -138,46 +75,76 @@ export function Talk({
   const pausedRef = useRef(false)
   const pending = useRef<{ text: string; speaker: string; index: number }[]>([])
   const skipping = useRef(false) // after previous/next: the old answer's tail is not spoken
-  // Her words are in and the auto-send is counting (browser ears): when the last one came.
-  const [pendingSince, setPendingSince] = useState<number | null>(null)
-  const flushNow = useRef<(() => void) | null>(null)
-  // A ticking clock for the countdown and the "Thinking… n s" line, only while either shows.
+  // A ticking clock for the "Thinking… n s" line, only while it shows.
   const [tick, setTick] = useState(() => Date.now())
   const thinkingSince = useRef<number | null>(null)
   // iPhone/iPad: the last line the gateway could not speak (no robot voice there, Eyal 30 Oct).
   const [missed, setMissed] = useState<{ text: string; speaker: string; index: number } | null>(null)
-  const live = useRef({ active, streaming, onSay, onChange, onNow })
-  live.current = { active, streaming, onSay, onChange, onNow }
+  const mounted = useRef(true)
+  const live = useRef({ active, streaming, onSay, onChange, onNow, onLeft })
+  live.current = { active, streaming, onSay, onChange, onNow, onLeft }
+
+  // His turn, as text: what the mic wrote down and what he typed or fixed. Nothing goes until Send.
+  const [draft, setDraft] = useState('')
+  const draftRef = useRef('')
+  const setText = (t: string) => {
+    draftRef.current = t
+    setDraft(t)
+  }
+  /** A mic that cannot open is said in words (and logged by the hook); Talk switches off. */
+  const cap = useCapture({
+    talk: true,
+    onFail: (reason) => {
+      setProblem(micProblem(reason))
+      live.current.onChange(false)
+    },
+  })
+  const capRef = useRef(cap)
+  capRef.current = cap
+
+  /** His turn may open: Talk on, nobody speaking, and the group not answering (unless he cut in). */
+  const herTurn = () => {
+    const { active, streaming } = live.current
+    return mounted.current && active && !pausedRef.current && !queued.current && (!streaming || muted.current)
+  }
+  /** Open the mic for his turn. With words waiting to be sent, it waits for him. */
+  const openMic = () => {
+    if (!herTurn() || draftRef.current.trim()) return
+    record()
+  }
+  /** Every piece is added to what is there: a correction he made is not overwritten. */
+  const record = () => capRef.current.start((piece) => setText(addWords(draftRef.current, piece)))
+  /** The room speaks, or he sent by hand: the mic closes. What he said so far stays as text. */
+  const shutMic = () => {
+    if (capRef.current.busy()) void capRef.current.finish()
+  }
 
   const voice = (text: string, speaker: string, index = -1, again = false) => {
     if (muted.current && !again) return
     const entry = { text, speaker, index }
     pending.current.push(entry)
     if (pausedRef.current) return
-    // The room speaks: the gateway's mic closes so the phone plays through its speaker and
-    // the advisers' words are never recorded as hers.
-    if (ears === 'server') shutMic()
+    // The room speaks: the mic closes so the phone plays through its speaker and the advisers'
+    // words are never written down as his.
+    shutMic()
     queued.current += 1
-    const line = { text, ended: null as number | null }
-    lines.current.push(line)
     if (speaker !== 'facilitator') setTalker(speaker)
     clock.firstLine()
     const done = () => {
-      line.ended = Date.now()
       pending.current = pending.current.filter((p) => p !== entry)
       queued.current = Math.max(0, queued.current - 1)
       if (queued.current) return
       setTalker(null)
       live.current.onNow?.(null)
-      // The room went quiet: her turn. (The browser recogniser never closed.)
-      if (ears === 'server') void listenClip()
+      // The room went quiet: his turn.
+      openMic()
     }
     speak(text, VOICE, done, speaker, (via) => {
       // A line is playing on the one shared player: a retry now would queue behind it, so the
       // offer of an earlier missed line goes (only the last missed line is kept anyway).
       if (mounted.current) setMissed(null)
       if (mounted.current) live.current.onNow?.(index >= 0 ? { index, text } : null)
-      const t = ears && clock.audioStarted(via, ears)
+      const t = clock.audioStarted(via, ears)
       if (!t) return
       keyAction('voice_turn', t)
       if (mounted.current) setLastTurn(describeTurn(t))
@@ -187,10 +154,10 @@ export function Talk({
   /** Tap to hear: the missed line once more through the gateway (the tap lets it play on iOS). */
   const hearAgain = () => {
     if (!missed) return
-    // She is already speaking into an open clip (server ears): her words come first.
-    if (ears === 'server' && (writing || clip.current?.heard?.())) return
+    // He is already speaking into the open mic, or his words are being written down: they come first.
+    if (cap.phase === 'writing' || cap.heard()) return
     setMissed(null)
-    clock.reset() // the wait before the tap is hers, not the voice's
+    clock.reset() // the wait before the tap is his, not the voice's
     unlock()
     voice(missed.text, missed.speaker, missed.index, true)
   }
@@ -200,8 +167,6 @@ export function Talk({
     cancel()
     queued.current = 0
     pending.current = []
-    const now = Date.now()
-    for (const l of lines.current) l.ended ??= now
     setTalker(null)
     live.current.onNow?.(null)
   }
@@ -210,21 +175,14 @@ export function Talk({
   const pause = () => {
     pausedRef.current = true
     setPaused(true)
-    clearTimeout(timer.current)
-    setPendingSince(null)
-    clock.reset() // a paused turn is not timed: the wait would be hers
+    clock.reset() // a paused turn is not timed: the wait would be his
     cancel()
     queued.current = 0
-    // The stopped lines are no longer playing: their echo window starts now (as in hush).
-    const now = Date.now()
-    for (const l of lines.current) l.ended ??= now
     setTalker(null)
     live.current.onNow?.(null)
-    // Words already being written down go through; only an open mic is shut.
-    if (ears === 'server' && writing) return
-    close()
+    shutMic()
   }
-  /** Carry on from the first line that had not finished; with none left, it is her turn. */
+  /** Carry on from the first line that had not finished; with none left, it is his turn. */
   const resume = () => {
     pausedRef.current = false
     setPaused(false)
@@ -232,21 +190,20 @@ export function Talk({
     const left = pending.current
     pending.current = []
     for (const p of left) voice(p.text, p.speaker, p.index)
-    // Browser ears listen through the room (barge-in); server ears wait for it to finish.
-    listen()
+    openMic()
   }
 
-  /** Previous / next question and the question list: her words to the facilitator, plainly. */
+  /** Previous / next question and the question list: his words to the facilitator, plainly. */
   const steer = (text: string) => {
     if (pausedRef.current) {
       pausedRef.current = false
       setPaused(false)
     }
     hush()
+    shutMic()
     muted.current = true // what was still coming of this answer stays on screen, unspoken
-    skipping.current = true // and stays unspoken until her message is on screen
+    skipping.current = true // and stays unspoken until his message is on screen
     send(text, true)
-    if (ears === 'browser') listen()
   }
 
   const send = (text: string, wasHeld = false) => {
@@ -256,201 +213,53 @@ export function Talk({
     }
     muted.current = false
     setMissed(null)
-    setPendingSince(null)
     // A turn that waited for the group to finish is not timed: its wait is the group's, not ours.
-    if (!wasHeld && heardAt.current !== null) clock.sent(heardAt.current, ears === 'server' ? stoppedAt.current : null)
+    if (!wasHeld) clock.sent(Date.now())
     else clock.reset()
-    heardAt.current = stoppedAt.current = null
     live.current.onSay(text)
   }
 
-  // Server ears. Every recording belongs to a generation; shutting the mic (the room speaks,
-  // she sends by hand, Talk goes off, the screen goes away) moves to the next one, and whatever
-  // the old generation was still opening or transcribing is dropped when it comes back.
-  const gen = useRef(0)
-  const mounted = useRef(true)
-  const shutMic = () => {
-    gen.current += 1
-    opening.current = false
-    clip.current?.cancel()
-    clip.current = null
-    setWriting(false)
-  }
-  /** Her turn may open: Talk on, nobody speaking, and the group not answering (unless she cut in). */
-  const herTurn = () => {
-    const { active, streaming } = live.current
-    return mounted.current && active && !pausedRef.current && !queued.current && (!streaming || muted.current)
+  /** Send: his words, as he left them, go to the group. The only way a voice turn is sent. */
+  const sendDraft = () => {
+    const text = draftRef.current.trim()
+    if (!text || capRef.current.phase !== 'idle') return
+    setText('')
+    send(text)
   }
 
-  /** One turn of hers through the gateway: record until a pause, transcribe, send. */
-  const listenClip = async () => {
-    if (clip.current || opening.current || !herTurn()) return
-    opening.current = true
-    const g = gen.current
-    let r: Recording
-    try {
-      r = await record({
-        silenceMs: TALK_SILENCE_MS,
-        maxMs: 60_000,
-        // Nothing said for a while: drop the clip and keep listening with a fresh one.
-        idleMs: 30_000,
-        onSilence: () => void heardClip(r, g, false),
-        onIdle: () => {
-          if (clip.current !== r) return
-          clip.current = null
-          r.cancel()
-          void listenClip()
-        },
-      })
-    } catch (e) {
-      if (g !== gen.current) return
-      opening.current = false
-      return stopFor(e instanceof SttError ? e.reason : 'unavailable')
-    }
-    // Shut while the mic was opening, or the room started talking meanwhile: not her turn.
-    if (g !== gen.current || !herTurn()) {
-      if (g === gen.current) opening.current = false
-      return r.cancel()
-    }
-    opening.current = false
-    clip.current = r
+  /** Finish: the recording ends, the turn does not. Focus leaves the button, which is about to
+   *  read "Send": a second press of the space bar must not send words he has not looked at. */
+  const finishTurn = () => {
+    ;(document.activeElement as HTMLElement | null)?.blur?.()
+    void capRef.current.finish()
   }
 
-  const heardClip = async (r: Recording, g: number, done: boolean) => {
-    if (clip.current !== r || g !== gen.current) return
-    clip.current = null
-    opening.current = true
-    setWriting(true)
-    // Done: she finished just now. Otherwise the recorder calls this after TALK_SILENCE_MS of quiet,
-    // so her last word was that long ago (at the 60 s cap, or with no loudness to watch, a guess).
-    heardAt.current = done ? Date.now() : Date.now() - TALK_SILENCE_MS
-    stoppedAt.current = Date.now()
-    const { clip: audio } = await r.stop()
-    let text = ''
-    try {
-      text = audio.size ? await transcribe(audio) : ''
-    } catch (e) {
-      if (g !== gen.current) return
-      opening.current = false
-      setWriting(false)
-      return stopFor(e instanceof SttError ? e.reason : 'unavailable')
-    }
-    if (g !== gen.current) return // Talk went off or the screen went away: her words stay unsaid
-    opening.current = false
-    setWriting(false)
-    if (text) send(text)
-    // Nothing intelligible: listen again.
-    else void listenClip()
-  }
-
-  /** A failure the room cannot talk past: say it, log it, switch Talk off. */
-  const stopFor = (reason: string, engine: 'server' | 'browser' = 'server') => {
-    keyAction('mic_failed', { engine, reason, talk: true })
-    if (!mounted.current) return
-    setProblem(micProblem(reason))
-    live.current.onChange(false)
-  }
-
-  /** Server ears, while an adviser speaks: stop the room and open the mic now, even mid-answer
-   *  (what she says waits for the answer to finish, like any message sent while it streams). */
+  /** Stop the room and open the mic now, even mid-answer (what he then sends waits for the
+   *  answer to finish, like any message sent while it streams). */
   const cutIn = () => {
-    unlockAudioInput()
     muted.current = true
     hush()
-    void listenClip()
+    // With words already waiting he is still cutting in to say more: the mic opens and adds to them.
+    if (herTurn()) record()
   }
 
-  const listen = () => {
-    if (pausedRef.current) return
-    if (ears === 'server') return void listenClip()
-    if (!Ctor || rec.current) return
-    const r = new Ctor()
-    r.continuous = true
-    r.interimResults = true
-    let offset = 0 // results before this index were already sent
-    let seen = 0
-    let heard = '' // her words since the last flush; the room's own echo is left out
-    let error: string | null = null
-    const flush = () => {
-      clearTimeout(timer.current)
-      setPendingSince(null)
-      offset = seen
-      const text = heard
-      heard = ''
-      if (rec.current !== r || !text) return
-      // A cough or one word over the audio is not a message.
-      if (queued.current && words(text) < BARGE_IN_WORDS) return
-      send(text)
-    }
-    r.onresult = (e) => {
-      seen = e.results.length
-      // Each recogniser segment is judged on its own: the adviser's voice through the speaker
-      // is dropped, and what is left is hers, so a cut-in is heard even mid-echo.
-      let t = ''
-      for (let i = offset; i < seen; i++) {
-        const part = e.results[i][0]?.transcript ?? ''
-        if (!echoOf(part)) t += ` ${part}`
-      }
-      heard = t.replace(/\s+/g, ' ').trim()
-      if (queued.current && words(heard) >= BARGE_IN_WORDS) {
-        muted.current = true
-        hush()
-      }
-      if (heard) heardAt.current = Date.now()
-      // Her own turn: the bar counts the auto-send down (a word over the room is not a turn yet).
-      setPendingSince(heard && !queued.current ? Date.now() : null)
-      clearTimeout(timer.current)
-      timer.current = setTimeout(flush, TALK_SILENCE_MS)
-    }
-    r.onerror = (e) => {
-      error = e?.error ?? 'unknown'
-    }
-    r.onend = () => {
-      if (rec.current !== r) return
-      flush()
-      rec.current = null
-      if (error && FATAL.includes(error)) return stopFor(error, 'browser')
-      if (!live.current.active) return
-      // ponytail: engines end on their own (Chrome after ~8 s of quiet): listen again at once;
-      // after an error (network, aborted) wait a second so a dead engine is not a tight loop.
-      if (error) retry.current = setTimeout(() => live.current.active && listen(), RETRY_MS)
-      else listen()
-    }
-    rec.current = r
-    flushNow.current = flush
-    r.start()
-  }
-
-  /** Done: send what she said now, without waiting out the pause. */
-  const done = () => {
-    if (ears === 'server') {
-      const r = clip.current
-      if (r) void heardClip(r, gen.current, true)
-      return
-    }
-    // Between engines (a retry after an error) there is nothing to flush: listen again now.
-    if (!rec.current) return listen()
-    flushNow.current?.()
-  }
-
-  const close = () => {
-    clearTimeout(timer.current)
-    clearTimeout(retry.current)
-    const r = rec.current
-    rec.current = null
-    r?.abort()
-    shutMic()
-  }
-
-  // On: listen (already started inside the tap). Off: mic and audio stop, the turn is let go.
+  // On: his turn opens (already started inside the tap). Off: mic and audio stop, the turn is let go.
   useEffect(() => {
-    if (active) return listen()
+    if (active) return openMic()
     clock.reset()
     pausedRef.current = false
     setPaused(false)
     pending.current = []
     skipping.current = false
-    close()
+    // The recording in progress is finished, not dropped: the reply box gets his words once the
+    // last part has been written down.
+    const ending = capRef.current.finish()
+    const hand = () => {
+      if (live.current.active) return // back on before the last part landed: the words stay here
+      if (draftRef.current.trim()) live.current.onLeft?.(draftRef.current.trim())
+      setText('')
+    }
+    void ending.then(hand, hand)
     if (queued.current) hush() // only what Talk queued: Listen's narration is not ours to stop
     held.current = ''
     muted.current = false
@@ -461,27 +270,9 @@ export function Talk({
     mounted.current = true
     return () => {
       mounted.current = false
-      close()
       cancel()
     }
   }, [])
-
-  // Words that finished while the group was answering go as soon as it is done.
-  useEffect(() => {
-    if (streaming) {
-      // She sent by hand or tapped a chip while the mic was open: the group answers now.
-      if (ears === 'server' && !muted.current) shutMic()
-      return
-    }
-    if (!held.current) {
-      // Server ears: an answer that left nothing to speak hands the turn straight back.
-      if (ears === 'server' && active && !queued.current) void listenClip()
-      return
-    }
-    const text = held.current
-    held.current = ''
-    if (active) send(text, true)
-  }, [streaming])
 
   // Voice out: each completed sentence of the growing contribution, then the floor question.
   useEffect(() => {
@@ -518,20 +309,40 @@ export function Talk({
     if (!streaming) clock.unanswered()
   }, [active, items, streaming])
 
+  // Words sent while the group was answering go as soon as it is done. (After the effect
+  // above: lines that arrived with the end of the stream are queued before the turn is offered.)
+  useEffect(() => {
+    if (streaming) {
+      // He sent by hand or tapped a chip while the mic was open: the group answers now.
+      if (!muted.current) shutMic()
+      return
+    }
+    if (!held.current) {
+      // An answer that left nothing to speak hands the turn straight back.
+      if (active && !queued.current) openMic()
+      return
+    }
+    const text = held.current
+    held.current = ''
+    if (active) send(text, true)
+  }, [streaming])
+
   const tap = () => {
     if (active) return onChange(false)
     setProblem(null)
     unlock() // inside the tap: the shared player may speak from now on (iOS)
-    if (ears === 'server') unlockAudioInput() // and the mic's loudness watch may hear
     setArmed(true)
     if (!on) onChange(true)
-    listen()
+    // The mic is asked for inside this tap: opened if it is his turn already, otherwise asked
+    // and let go, so the permission prompt does not arrive in the middle of the conversation.
+    if (!queued.current && !streaming && !draftRef.current.trim()) record()
+    else primeMic()
   }
 
   // "Thinking… n s" counts from the moment the group started answering.
   if (streaming && thinkingSince.current === null) thinkingSince.current = Date.now()
   if (!streaming) thinkingSince.current = null
-  const ticking = on && (streaming || pendingSince !== null)
+  const ticking = on && streaming
   useEffect(() => {
     if (!ticking) return
     setTick(Date.now())
@@ -541,9 +352,7 @@ export function Talk({
 
   const floors = items.flatMap((it) => (it.kind === 'floor' ? [it.question] : []))
   const [list, setList] = useState(false)
-  const left = pendingSince === null ? null : Math.max(0, TALK_SILENCE_MS - (tick - pendingSince))
-  const thinking = streaming && !talker
-  const herTurnNow = active && !paused && !talker && !streaming && !writing
+  const hasDraft = !!draft.trim()
 
   const status = !armed
     ? 'Tap to resume'
@@ -551,48 +360,67 @@ export function Talk({
       ? 'Paused'
       : talker
         ? `${personaName(talker)} is talking…`
-        : streaming
-          ? `Thinking… ${Math.max(0, Math.floor((tick - (thinkingSince.current ?? tick)) / 1000))} s`
-          : writing
+        : cap.recording
+          ? (cap.status?.text ?? '')
+          : cap.phase === 'writing'
             ? 'Writing it down…'
-            : left !== null && left <= COUNTDOWN_MS
-              ? `Sending in ${Math.ceil(left / 1000)} s…`
-              : 'Listening…'
+            : hasDraft
+              ? 'Yours to correct before it goes.'
+              : streaming
+                ? `Thinking… ${Math.max(0, Math.floor((tick - (thinkingSince.current ?? tick)) / 1000))} s`
+                : 'Your turn.'
 
   // The main button does the one thing that makes sense now.
-  const main = !armed
+  const main: { label: string; onClick?: () => void; testid: string; key?: boolean; mic?: boolean } = !armed
     ? { label: 'Start', onClick: tap, testid: 'voice-start' }
     : paused
       ? { label: 'Resume', onClick: resume, testid: 'voice-resume' }
       : talker
-        ? ears === 'server'
-          ? { label: 'Cut in', onClick: cutIn, testid: 'cut-in' }
-          : {
-              label: 'Interrupt',
-              onClick: () => {
-                muted.current = true
-                hush()
-              },
-              testid: 'voice-interrupt',
-            }
-        : herTurnNow
-          ? { label: 'Done', onClick: done, testid: 'voice-done' }
-          : { label: thinking ? 'Wait' : 'Writing', onClick: undefined, testid: 'voice-wait' }
+        ? { label: 'Cut in', onClick: cutIn, testid: 'cut-in', key: true }
+        : cap.recording
+          ? { label: 'Finish', onClick: finishTurn, testid: 'voice-finish', key: true }
+          : cap.phase === 'writing'
+            ? { label: 'Writing…', testid: 'voice-wait' }
+            : hasDraft
+              ? { label: 'Send', onClick: sendDraft, testid: 'voice-send' }
+              : streaming
+                ? { label: 'Wait', testid: 'voice-wait' }
+                : { label: 'Tap and talk', onClick: record, testid: 'voice-talk', key: true, mic: true }
+
+  // On a keyboard: the space bar is the main button while it means talk, finish or cut in;
+  // Send takes ⌘ or Ctrl with Enter, so a second press of the space bar cannot send by accident.
+  const keys = useRef({ main, sendDraft })
+  keys.current = { main, sendDraft }
+  useEffect(() => {
+    if (!active) return
+    const onKey = (e: KeyboardEvent) => {
+      const { main, sendDraft } = keys.current
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) return sendDraft()
+      const el = e.target as HTMLElement | null
+      if (e.code !== 'Space' || e.repeat || !main.key || el?.closest?.('textarea, input, select, button, a, [contenteditable]')) return
+      e.preventDefault()
+      main.onClick?.()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [active])
 
   const icon = (d: string) => (
     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
       <path d={d} strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
-  const round = 'flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-marble-200 hover:text-marble-50 disabled:text-marble-600'
+  // Every control in the bar is an icon with its word (Pavol, 20 Nov: "some text, some icons").
+  const worded = 'flex min-h-11 w-11 shrink-0 flex-col items-center justify-center text-marble-200 hover:text-marble-50 disabled:text-marble-400'
+  const word = (w: string) => <span className="sc text-[17px] leading-[20px]">{w}</span>
 
-  if (!ears) return null
+  if (!hasMic) return null
   if (!on)
     return (
       <div className="mt-6">
         <div className="flex items-center gap-2">
           <button type="button" onClick={tap} aria-pressed={false} data-testid="talk" className="slab slab-off flex-1 gap-2">
-            {icon('M12 3a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3zM5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21')}
+            <MicIcon />
             Talk
           </button>
           {children}
@@ -605,6 +433,7 @@ export function Talk({
       </div>
     )
 
+  const myTurn = active && !paused && !talker
   return (
     <>
       <section
@@ -642,7 +471,11 @@ export function Talk({
             className="flex min-h-11 w-full items-center gap-2 text-left"
           >
             <span className="t-label shrink-0 text-candle-300">{floors.length ? `Question ${floors.length}` : 'Opening'}</span>
-            <span role="status" data-testid="talk-status" className="truncate text-[18px] italic leading-[23px] text-marble-200">
+            <span
+              role="status"
+              data-testid="talk-status"
+              className={`text-[18px] italic leading-[23px] ${cap.recording ? '' : 'truncate'} ${cap.recording && cap.status?.tone === 'bad' ? 'text-clay-400' : 'text-marble-200'}`}
+            >
               {status}
             </span>
           </button>
@@ -664,34 +497,63 @@ export function Talk({
               {problem}
             </p>
           )}
-          <div className="mt-1 flex items-center justify-between gap-1">
+          {/* His turn: his words as text, his to correct; under them the candle and the thread while it records. */}
+          {myTurn && (cap.phase !== 'idle' || hasDraft || !streaming) && (
+            <>
+              <label htmlFor="voice-draft" className="sr-only">
+                Your turn, as text. Correct it before it goes.
+              </label>
+              <textarea
+                id="voice-draft"
+                data-testid="voice-draft"
+                rows={1}
+                value={draft}
+                onChange={(e) => setText(e.target.value)}
+                // The phone's keyboard opens over a tall fixed bar: keep the field in view.
+                onFocus={(e) => e.currentTarget.scrollIntoView?.({ block: 'nearest' })}
+                placeholder="Your words are set here as you speak. You can also type."
+                className="field mt-1 max-h-32 resize-none overflow-y-auto [field-sizing:content]"
+              />
+              <CapturePanel cap={cap} compact sentence={false} className="mt-1" />
+              {hasDraft && cap.phase === 'idle' && (
+                <button type="button" onClick={record} data-testid="voice-more" className="text-btn flex items-center gap-2">
+                  <MicIcon />
+                  Add more by voice
+                </button>
+              )}
+            </>
+          )}
+          <div className="mt-1 flex items-center justify-between gap-2">
             <button
               type="button"
-              aria-label="Previous question"
+              aria-label="Back to the previous question"
               disabled={!active || floors.length < 2}
               onClick={() => steer(`Let's go back to the previous question: "${floors[floors.length - 2]}"`)}
-              className={round}
+              className={worded}
             >
               {icon('M7 6v12M18 6l-8 6 8 6z')}
+              {word('Back')}
             </button>
             <button
               type="button"
-              aria-label="Pause"
               aria-pressed={paused}
               data-testid="voice-pause"
               disabled={!active}
               onClick={paused ? resume : pause}
-              className={round}
+              className={worded}
             >
               {paused ? icon('M8 5l11 7-11 7z') : icon('M9 5v14M15 5v14')}
+              {word('Pause')}
             </button>
             <button
               type="button"
               data-testid={main.testid}
               disabled={!main.onClick}
               onClick={main.onClick}
-              className="slab min-w-28 flex-1 gap-2"
+              aria-keyshortcuts={main.key ? 'Space' : main.testid === 'voice-send' ? 'Meta+Enter Control+Enter' : undefined}
+              className="slab min-w-20 flex-1 gap-2 px-2"
             >
+              {main.mic && <MicIcon />}
               {main.label}
             </button>
             <button
@@ -699,14 +561,17 @@ export function Talk({
               aria-label="Next question"
               disabled={!active || !floors.length}
               onClick={() => steer("Let's move on to the next question.")}
-              className={round}
+              className={worded}
             >
               {icon('M17 6v12M6 6l8 6-8 6z')}
+              {word('Next')}
             </button>
-            <button type="button" aria-label="End voice" data-testid="talk" aria-pressed={true} onClick={() => onChange(false)} className={round}>
+            <button type="button" aria-label="End voice" data-testid="talk" aria-pressed={true} onClick={() => onChange(false)} className={worded}>
               {icon('M6 6l12 12M18 6L6 18')}
+              {word('End')}
             </button>
           </div>
+          <p className="t-fine mt-1 hidden text-center md:block">Space bar: talk, finish, cut in. ⌘ or Ctrl with Enter: send.</p>
         </div>
       </section>
     </>

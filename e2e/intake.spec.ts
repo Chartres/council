@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { FAKE_VOICE, hear } from './fakeVoice'
 
 // v4.1 intake, one screen (flywheel/docs/expansion/council-v4.1.md). Marta is a product
 // manager; she pastes what her AI wrote about her, drops her LinkedIn PDF, or talks it
@@ -103,64 +104,41 @@ test('ask your AI: the prompt is one tap from the clipboard', async ({ page }) =
   expect(copied).toContain('WORKING_STYLE:')
 })
 
-test('talk it through: the facilitator asks each empty field aloud and the answers fill in', async ({ page }) => {
-  await page.addInitScript(`
-    class FakeRecognition {
-      start() {
-        setTimeout(() => {
-          this.onresult?.({ results: [Object.assign([{ transcript: 'spoken answer' }], { isFinal: true })] })
-          this.onend?.()
-        }, 20)
-      }
-      stop() { this.onend?.() }
-      abort() {}
-    }
-    Object.defineProperty(window, 'SpeechRecognition', { value: FakeRecognition })
-    Object.defineProperty(window, 'webkitSpeechRecognition', { value: FakeRecognition })
-    Object.defineProperty(window, 'SpeechSynthesisUtterance', { value: class { constructor(t) { this.text = t } } })
-    Object.defineProperty(window, 'speechSynthesis', {
-      value: {
-        spoken: [],
-        speak(u) { this.spoken.push(u.text); setTimeout(() => u.onend?.(), 10) },
-        cancel() {},
-        getVoices() { return [{ lang: 'en-GB' }] },
-      },
-    })
-  `)
+test('tap and talk: one tap at the question, the words land as text, Next question moves on, nothing moves by itself', async ({ page }) => {
+  await page.addInitScript(FAKE_VOICE)
   await openIntake(page)
-  await page.getByLabel('What would you like the group to help you achieve?').fill('decide on a premium tier')
-  await openAbout(page)
-  await page.getByRole('button', { name: 'Talk it through' }).click()
-  await expect(page.getByLabel('How would you like the group to work with you?')).toHaveValue('spoken answer')
-  await expect(page.getByTestId('voice-bar')).toHaveCount(0)
-  await expect(page.getByLabel('Who are you professionally?')).toHaveValue('spoken answer')
-  // The filled field was not asked again.
-  await expect(page.getByLabel('What would you like the group to help you achieve?')).toHaveValue('decide on a premium tier')
-  // The tap's silent primer (one space, from the voice unlock) is not a question.
-  const spoken = (await page.evaluate(() => (window.speechSynthesis as unknown as { spoken: string[] }).spoken)).filter((t) => t.trim())
-  expect(spoken).toHaveLength(6)
-  // Goal is filled, so the walk starts at the next decision question (Eyal, 29 Oct).
-  expect(spoken[0]).toBe('What is happening today?')
+  const goal = page.getByLabel('What would you like the group to help you achieve?')
+  const mic = page.getByTestId('mic')
+  await expect(mic).toHaveText('Tap and talk')
+  await mic.click()
+  await expect(page.getByTestId('capture-status')).toContainText('Recording.')
+  await hear(page, 'decide on a premium tier')
+  await expect(goal).toHaveValue('decide on a premium tier')
+  // Nothing is read aloud, and a pause does not move to the next question.
+  await page.waitForTimeout(3000)
+  await expect(page.getByLabel('What is happening today?')).toBeHidden()
+  expect((await page.evaluate(() => (window.speechSynthesis as unknown as { spoken: string[] }).spoken)).filter((t) => t.trim())).toEqual([])
+
+  await page.getByRole('button', { name: 'Next question' }).click()
+  await hear(page, 'churn is four percent')
+  await expect(page.getByLabel('What is happening today?')).toHaveValue('churn is four percent')
+  await expect(goal).toHaveValue('decide on a premium tier')
+  expect(await page.evaluate(() => (window as unknown as { __mics: number }).__mics)).toBe(1) // one mic, one permission
+  await page.getByTestId('mic').click() // Finish
+  await expect(page.getByTestId('mic')).toHaveText('Tap and talk')
+  await expect(page.getByTestId('capture')).toHaveCount(0)
 })
 
-test('talk it through without voice support focuses each empty field in turn', async ({ page }) => {
-  // No recogniser and no recorder for the gateway either: typing takes over.
+test('without any mic there is no talk button, and typing is as plain as before', async ({ page }) => {
   await page.addInitScript(`
     for (const name of ['SpeechRecognition', 'webkitSpeechRecognition', 'speechSynthesis', 'MediaRecorder']) {
       Object.defineProperty(window, name, { value: undefined, configurable: true })
     }
   `)
   await openIntake(page)
-  await openAbout(page)
-  await page.getByRole('button', { name: 'Talk it through' }).click()
-  await expect(page.getByLabel('What would you like the group to help you achieve?')).toBeFocused()
-  await page.keyboard.type('decide on a premium tier')
-  await page.getByRole('button', { name: 'Next' }).click()
-  await expect(page.getByLabel('What is happening today?')).toBeFocused()
-  await page.getByRole('button', { name: 'Skip' }).click()
-  await expect(page.getByLabel('What would a successful outcome look like?')).toBeFocused()
-  await page.getByRole('button', { name: 'Stop talking' }).click()
-  await expect(page.getByTestId('voice-bar')).toHaveCount(0)
+  await expect(page.getByTestId('mic')).toHaveCount(0)
+  await page.getByLabel('What would you like the group to help you achieve?').fill('decide on a premium tier')
+  await expect(page.getByRole('button', { name: 'Bring it to the group' })).toBeEnabled()
 })
 
 test('several files at once: read in turn, a big one skipped by name, Materials goes to the group', async ({ page }) => {

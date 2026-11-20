@@ -2,8 +2,7 @@ import { useEffect, useReducer, useRef, useState } from 'react'
 import { GATEWAY_URL, useCouncil } from '@/app/CouncilContext'
 import { useMastermind } from '@/app/MastermindContext'
 import { useAuth } from '@/auth/AuthContext'
-import { cancel, speak } from '@/components/Listen'
-import { micAvailable, MicButton } from '@/components/MicButton'
+import { addWords, CapturePanel, micAvailable, MicIcon, useCapture } from '@/components/Capture'
 import { PrivacyLink } from '@/components/screens/PrivacyScreen'
 import {
   AI_PROMPT,
@@ -15,11 +14,8 @@ import {
   importNote,
   mergeIntake,
 } from '@/domain/intakeImport'
-import { VOICE_IDLE, currentField, voiceReducer } from '@/domain/intakeVoice'
-import { INTAKE_QUESTIONS, MAX_MATERIALS, intakePayload, stableIntake, voiceOrder, type Intake } from '@/domain/mastermind'
-import { synthesisAvailable, VOICE } from '@/domain/speech'
-import { unlockAudioInput } from '@/domain/stt'
-import { unlock } from '@/domain/tts'
+import { VOICE_IDLE, currentField, nextField, voiceReducer, walkQueue } from '@/domain/intakeVoice'
+import { INTAKE_QUESTIONS, MAX_MATERIALS, intakePayload, stableIntake, voiceOrder, type Intake, type IntakeId } from '@/domain/mastermind'
 
 const TRUST_KEY = 'council:trust-seen'
 
@@ -58,7 +54,7 @@ const SHORTCUT = 'text-btn text-[19px]'
 const filled = (a: Intake) => Object.fromEntries(Object.entries(a).filter(([, v]) => v?.trim())) as Intake
 const ask = (id: string) => INTAKE_QUESTIONS.find((q) => q.id === id)!.q
 
-/** One screen: bring what you have, ask your AI, or talk it through; then review and go. */
+/** One screen: tap and talk, type, bring what you have or ask your AI; then review and go. */
 export function IntakeScreen() {
   const { go, councilKey, lockDoor, lockApproval } = useCouncil()
   const { token } = useAuth()
@@ -74,7 +70,9 @@ export function IntakeScreen() {
   const fileInput = useRef<HTMLInputElement>(null)
   const latest = useRef(answers)
   latest.current = answers
-  const field = currentField(voice)
+  const cap = useCapture()
+  // The field being spoken into; none once the mic is closed (or never opened).
+  const field = cap.recording ? currentField(voice) : null
 
   // Signed in, the last intake arrives from Supabase after mount: fill the stable fields still empty.
   useEffect(() => {
@@ -171,40 +169,25 @@ export function IntakeScreen() {
       () => setCopied(false),
     )
 
-  // Talk it through: speak the question, then listen. Without synthesis it goes straight
-  // to listening; without recognition the field gets focus so typing takes over.
-  useEffect(() => {
-    if (voice.phase !== 'ask' || !field) return
-    if (!micAvailable()) document.getElementById(`f-${field}`)?.focus()
-    if (!synthesisAvailable()) {
-      dispatch({ type: 'asked' })
-      return
-    }
-    let done = false
-    const finish = () => {
-      if (done) return
-      done = true
-      dispatch({ type: 'asked' })
-    }
-    speak(ask(field), VOICE, finish)
-    // ponytail: some engines never fire onend; a length-based timer is the backstop.
-    const t = setTimeout(finish, 1200 + ask(field).length * 60)
-    return () => {
-      done = true
-      clearTimeout(t)
-    }
-  }, [voice.phase, voice.at, field])
-
+  // Voice (Pavol, 20 Nov): he arrives at the question and starts talking with one tap. The mic
+  // opens inside that tap; nothing is read aloud first, and nothing moves on by itself.
+  const add = (id: IntakeId) => (piece: string) => setAnswers((a) => ({ ...a, [id]: addWords(a[id] ?? '', piece) }))
+  // After the mic was taken away (he left the page), the next tap carries on at the same field.
+  const lostAt = cap.lost ? currentField(voice) : null
   const startVoice = () => {
-    unlockAudioInput() // the mics that mount after this tap may need to hear (iOS)
-    unlock() // and the gateway voice may play the questions (iOS)
+    if (!lostAt) dispatch({ type: 'start', queue: walkQueue() })
+    cap.start(add(lostAt ?? 'goal'))
+  }
+  const upNext = nextField(voice)
+  const nextQuestion = () => {
+    if (!upNext) return
+    cap.retarget(add(upNext)) // one open mic: what was said so far stays in this field
+    dispatch({ type: 'next' })
     setOpen(true)
-    dispatch({ type: 'start', empty: voiceOrder(answers) })
   }
-  const stopVoice = () => {
-    cancel()
-    dispatch({ type: 'stop' })
-  }
+  useEffect(() => {
+    if (field && field !== 'goal') document.getElementById(`f-${field}`)?.scrollIntoView?.({ block: 'center' })
+  }, [field])
 
   // Listed in the order the walk asks them, so screen and voice agree.
   const about = voiceOrder({})
@@ -212,26 +195,38 @@ export function IntakeScreen() {
     .map((id) => INTAKE_QUESTIONS.find((q) => q.id === id)!)
   const goal = INTAKE_QUESTIONS.find((q) => q.id === 'goal')!
 
-  // The facilitator's question lives in the row it fills, so question, mic and Skip share a viewport.
-  const voiceBar = (id: string, label: string) =>
-    field === id && (
-      <div className="mt-2 flex items-center gap-3" data-testid="voice-bar">
-        {voice.phase === 'listen' && (
-          <MicButton
-            key={id}
-            autoStart
-            value={answers[id as keyof Intake] ?? ''}
-            onChange={(t) => set(id, t)}
-            label={label}
-            onDone={(heard) => heard && dispatch({ type: 'advance' })}
-          />
-        )}
-        <p className="t-title flex-1 italic">{ask(id)}</p>
-        <button type="button" onClick={() => dispatch({ type: 'advance' })} className="text-btn px-3">
-          {answers[id as keyof Intake]?.trim() ? 'Next' : 'Skip'}
-        </button>
+  // The recording's controls sit under the field they fill: one filled action per state
+  // ("Tap and talk", then "Finish"), and "Next question" as a second word button.
+  const voiceControls = (id: IntakeId) => {
+    // While the last part is still being written down, "Writing it down…" stays under the field it belongs to.
+    const writingAt = cap.phase === 'writing' ? currentField(voice) : null
+    if (!micAvailable() || (field ?? lostAt ?? writingAt ?? 'goal') !== id) return null
+    const { phase } = cap
+    return (
+      <div className="mt-2" data-testid="voice-bar">
+        {id !== 'goal' && <p className="t-title mb-2 italic">{ask(id)}</p>}
+        <CapturePanel cap={cap} className="mb-2" />
+        <div className="flex gap-2">
+          <button
+            type="button"
+            data-testid="mic"
+            onClick={() => (phase === 'idle' ? startVoice() : cap.recording ? void cap.finish() : undefined)}
+            disabled={phase === 'writing'}
+            aria-pressed={cap.recording}
+            className={`slab min-w-0 flex-1 gap-2 ${cap.recording || (phase === 'idle' && !answers.goal?.trim()) ? '' : 'slab-off'}`}
+          >
+            <MicIcon />
+            {phase === 'idle' ? 'Tap and talk' : phase === 'writing' ? 'Writing it down…' : 'Finish'}
+          </button>
+          {cap.recording && upNext && (
+            <button type="button" onClick={nextQuestion} className="slab slab-off min-w-0 flex-1">
+              Next question
+            </button>
+          )}
+        </div>
       </div>
     )
+  }
 
   return (
     <div className="mx-auto max-w-xl px-4 pb-12">
@@ -250,7 +245,6 @@ export function IntakeScreen() {
       <label htmlFor="f-goal" className={`t-note versal-raised mt-2 block ${field === 'goal' ? 'text-candle-300' : 'text-marble-200'}`}>
         {goal.q}
       </label>
-      {voiceBar('goal', goal.label)}
       <textarea
         id="f-goal"
         rows={2}
@@ -261,8 +255,9 @@ export function IntakeScreen() {
         placeholder={goal.hint}
         className="t-display mt-2 block w-full resize-none border-b-2 border-marble-500 bg-transparent pb-3 [field-sizing:content] placeholder:text-marble-400 focus:border-candle-400 focus-visible:shadow-none"
       />
+      {voiceControls('goal')}
 
-      {/* Three ways to skip the form; what they fill is reviewed under About you. */}
+      {/* Two ways to skip the form; what they fill is reviewed under About you. */}
       <div className="mt-2 flex flex-wrap gap-x-4" role="group" aria-label="Shortcuts">
         <button
           type="button"
@@ -274,9 +269,6 @@ export function IntakeScreen() {
           className={SHORTCUT}
         >
           Let your AI fill this in
-        </button>
-        <button type="button" onClick={voice.phase === 'idle' ? startVoice : stopVoice} className={SHORTCUT}>
-          {voice.phase === 'idle' ? 'Talk it through' : 'Stop talking'}
         </button>
         <button type="button" onClick={() => fileInput.current?.click()} disabled={busy} className={SHORTCUT}>
           Drop files
@@ -311,11 +303,10 @@ export function IntakeScreen() {
 
       <button
         type="button"
-        onClick={() => {
-          stopVoice()
-          begin(intakePayload(answers))
-        }}
-        className="slab mt-6"
+        onClick={() => begin(intakePayload(answers))}
+        // While it records or writes down, his words are not all on the page yet.
+        disabled={cap.phase !== 'idle'}
+        className={`slab mt-6 ${answers.goal?.trim() || !micAvailable() ? '' : 'slab-off'}`}
       >
         Bring it to the group
       </button>
@@ -353,7 +344,6 @@ export function IntakeScreen() {
               <label htmlFor={`f-${q.id}`} className={`t-label block ${field === q.id ? 'text-candle-300' : ''}`}>
                 {q.label}
               </label>
-              {voiceBar(q.id, q.label)}
               <textarea
                 id={`f-${q.id}`}
                 rows={1}
@@ -363,6 +353,7 @@ export function IntakeScreen() {
                 placeholder={field === q.id ? q.hint : q.q}
                 className="field mt-2 resize-none [field-sizing:content]"
               />
+              {voiceControls(q.id)}
             </li>
           ))}
           <li>

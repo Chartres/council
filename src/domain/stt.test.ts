@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { isAppleMobile, markBrowserEngineBroken, resetEars, serverEars, SttError, transcribe } from './stt'
+import { isAppleMobile, markBrowserEngineBroken, resetAudioInput, resetEars, serverEars, SttError, transcribe, unlockAudioInput } from './stt'
 
 const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'
 const MAC = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15'
@@ -35,12 +35,17 @@ describe('serverEars: which ears a mic tap uses', () => {
     expect(serverEars(true, { userAgent: IPHONE, maxTouchPoints: 5, platform: 'iPhone' })).toBe(true)
   })
 
-  it('keeps the browser recogniser where it works, until it fails once this visit', () => {
+  it('keeps the browser recogniser on a desktop, where it shares the mic with the meter, until it fails once this visit', () => {
     canRecord()
-    const pixel = { userAgent: PIXEL, maxTouchPoints: 5, platform: 'Linux' }
-    expect(serverEars(true, pixel)).toBe(false)
+    const desk = { userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/142.0 Safari/537.36', maxTouchPoints: 0, platform: 'MacIntel' }
+    expect(serverEars(true, desk)).toBe(false)
     markBrowserEngineBroken()
-    expect(serverEars(true, pixel)).toBe(true)
+    expect(serverEars(true, desk)).toBe(true)
+  })
+
+  it('records for the gateway on Android, whose recogniser takes the mic away from the meter', () => {
+    canRecord()
+    expect(serverEars(true, { userAgent: PIXEL, maxTouchPoints: 5, platform: 'Linux' })).toBe(true)
   })
 
   it('records where there is no recogniser at all, and has no ears without MediaRecorder', () => {
@@ -48,6 +53,73 @@ describe('serverEars: which ears a mic tap uses', () => {
     expect(serverEars(false, { userAgent: PIXEL, maxTouchPoints: 0, platform: 'Linux' })).toBe(true)
     vi.stubGlobal('MediaRecorder', undefined)
     expect(serverEars(false, { userAgent: IPHONE, maxTouchPoints: 5, platform: 'iPhone' })).toBe(false)
+  })
+})
+
+// Pavol, 20 Nov (Firefox on his phone): after switching apps and back, the mic "doesn't work
+// anymore. I then have to refresh the page."
+describe('unlockAudioInput: every tap gets audio that is running', () => {
+  class Ctx {
+    static made: Ctx[] = []
+    state = 'running'
+    resume = vi.fn(() => Promise.resolve())
+    close = vi.fn(() => Promise.resolve())
+    constructor() {
+      Ctx.made.push(this)
+    }
+  }
+  it('keeps one context while it runs, and makes a new one in the tap when it was suspended, interrupted or closed', () => {
+    Ctx.made = []
+    resetAudioInput()
+    vi.stubGlobal('AudioContext', Ctx)
+    const first = unlockAudioInput()
+    expect(unlockAudioInput()).toBe(first)
+    expect(Ctx.made).toHaveLength(1)
+    for (const state of ['suspended', 'interrupted', 'closed']) {
+      const old = Ctx.made.at(-1)!
+      old.state = state
+      const next = unlockAudioInput() as unknown as Ctx
+      expect(next).not.toBe(old)
+      expect(next.state).toBe('running')
+      if (state !== 'closed') expect(old.close).toHaveBeenCalled()
+      expect(next.resume).toHaveBeenCalled()
+    }
+    expect(Ctx.made).toHaveLength(4)
+    vi.unstubAllGlobals()
+    resetAudioInput()
+  })
+
+  // Review of PR #40: a context made outside a real tap stays suspended on WebKit, and closing
+  // the old one first leaves nothing that could come back.
+  it('outside a tap it keeps the suspended context and asks it to resume; in a tap the old one is closed only once the new one runs', () => {
+    Ctx.made = []
+    resetAudioInput()
+    vi.stubGlobal('AudioContext', Ctx)
+    const activation = { isActive: false }
+    vi.stubGlobal('navigator', { ...navigator, userActivation: activation })
+    const first = unlockAudioInput() as unknown as Ctx
+    first.state = 'suspended'
+    first.resume.mockClear()
+    expect(unlockAudioInput()).toBe(first) // Talk opening the mic without a tap
+    expect(first.resume).toHaveBeenCalled()
+    expect(first.close).not.toHaveBeenCalled()
+
+    activation.isActive = true
+    class Slow extends Ctx {
+      state = 'suspended'
+      listeners: (() => void)[] = []
+      addEventListener = (_: string, f: () => void) => void this.listeners.push(f)
+      removeEventListener = () => {}
+    }
+    vi.stubGlobal('AudioContext', Slow)
+    const next = unlockAudioInput() as unknown as Slow
+    expect(next).not.toBe(first)
+    expect(first.close).not.toHaveBeenCalled() // the new one is not confirmed running yet
+    next.state = 'running'
+    next.listeners.forEach((f) => f())
+    expect(first.close).toHaveBeenCalled()
+    vi.unstubAllGlobals()
+    resetAudioInput()
   })
 })
 

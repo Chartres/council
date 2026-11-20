@@ -1,16 +1,15 @@
-import { expect, test, type Page } from '@playwright/test'
-import { FAKE_VOICE } from './fakeVoice'
+import { expect, test } from '@playwright/test'
+import { FAKE_VOICE, hear } from './fakeVoice'
 
 // The voice player bar (Pavol, 8 Nov): a fixed bar at the bottom, like a podcast's "now playing"
 // bar. It says which question the room is on and what is happening; the line being spoken is
 // marked on screen; pause holds the room and resumes it; previous/next and the question list
-// steer the facilitator; Done ends her turn without waiting out the pause.
+// steer the facilitator. Her turn (Pavol, 20 Nov): Finish ends the recording, the words are
+// text she can correct, Send sends them. Every control is an icon with its word.
 
 test.beforeEach(async ({ request }) => {
   await request.post('http://localhost:8787/__reset')
 })
-
-const hear = (page: Page, t: string) => page.evaluate((t) => (window as unknown as { __hear: (t: string) => void }).__hear(t), t)
 
 for (const [label, viewport] of [
   ['phone', { width: 390, height: 844 }],
@@ -29,12 +28,18 @@ for (const [label, viewport] of [
     const bar = page.getByTestId('voice-bar')
     await expect(bar).toBeVisible()
     await expect(page.getByTestId('voice-where')).toContainText('Question 1')
-    await expect(page.getByTestId('talk-status')).toHaveText('Listening…')
-    await expect(page.getByTestId('voice-done')).toBeEnabled()
+    await expect(page.getByTestId('talk-status')).toContainText('Recording.')
+    await expect(page.getByTestId('voice-finish')).toBeEnabled()
+    await expect(bar.getByTestId('thread')).toBeVisible()
+    await expect(bar.getByTestId('candle')).toBeVisible()
+    // No bare icons: every button in the bar carries a word.
+    for (const b of await bar.getByRole('button').all()) expect((await b.innerText()).trim()).not.toBe('')
 
-    // She speaks and taps Done: it goes at once; the adviser's line is marked as it is spoken.
+    // She speaks, finishes and sends; the adviser's line is marked as it is spoken.
     await hear(page, 'the constraint is engineering time')
-    await page.getByTestId('voice-done').click()
+    await page.getByTestId('voice-finish').click()
+    await expect(page.getByTestId('talk-status')).toHaveText('Yours to correct before it goes.')
+    await page.getByTestId('voice-send').click()
     await expect(page.getByTestId('user')).toContainText('the constraint is engineering time')
     await expect(page.getByTestId('now-speaking')).toBeVisible({ timeout: 10_000 })
     await expect(page.getByTestId('talk-status')).toHaveText(/is talking…$/)

@@ -1,20 +1,28 @@
 {
-  "version": "1.2.0",
-  "date": "2026-11-18",
+  "version": "1.3.0",
+  "date": "2026-11-20",
   "items": [
     {
-      "id": "book-page",
-      "text": "The app is now set as a book: running heads, red rubrics and a colophon.",
-      "alt": "A running head, a double rule, a red rubric and a question beside a boxed red initial appear one after another",
-      "media": "/whats-new/1.2.0/page.html",
+      "id": "thread",
+      "text": "While you record, a line moves with your voice and words say what the microphone hears.",
+      "alt": "A thin line that rises and falls as if someone speaks, then rests; under it the words Recording. I can hear you.",
+      "media": "/whats-new/1.3.0/thread.html",
       "width": 390,
       "height": 150
     },
     {
-      "id": "device",
-      "text": "The mark is a candle on a closed book; the flame moves while the advisers think.",
-      "alt": "A drawn candle standing on a closed book inside an oval; its flame leans and straightens",
-      "media": "/whats-new/1.2.0/device.html",
+      "id": "finish",
+      "text": "A recording ends when you tap Finish, not when you pause to think.",
+      "alt": "The line goes flat for a long pause while the Finish button stays as it is, then moves again",
+      "media": "/whats-new/1.3.0/finish.html",
+      "width": 390,
+      "height": 150
+    },
+    {
+      "id": "correct",
+      "text": "Your words appear as text you can correct before anything is sent.",
+      "alt": "A sentence in a field; one word is struck out and replaced, and then the Send button lights",
+      "media": "/whats-new/1.3.0/correct.html",
       "width": 390,
       "height": 150
     }

@@ -1,0 +1,554 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+// One capture path (Pavol, 20 Nov): the mic opens inside the tap, a recording ends only when he
+// says so, and long answers are cut into parts the gateway can take. The fakes: a stream, a
+// recorder that "records" a counter, a loudness meter the test drives, and transcribe().
+
+const stt = vi.hoisted(() => {
+  class SttError extends Error {
+    constructor(readonly reason: string) {
+      super(reason)
+    }
+  }
+  return {
+    SttError,
+    transcribe: vi.fn(),
+    serverEars: vi.fn(() => true),
+    recordingSupported: vi.fn(() => true),
+    markBrowserEngineBroken: vi.fn(),
+    unlockAudioInput: vi.fn(),
+    mimeType: () => 'audio/webm',
+    isAppleMobile: vi.fn(() => false),
+  }
+})
+vi.mock('./stt', () => stt)
+
+const { openCapture, primeMic, MAX_PART_MS, PAUSE_CUT_MS, WORDLESS_MS, STOP_TIMEOUT_MS } = await import('./capture')
+
+let loud = false
+/** The room when nobody speaks: a little noise by default; 0 is a dead input (digitally flat). */
+let room = 0.002
+/** When set, the level of the signal instead of loud/room (RMS for the square wave the fake makes). */
+let amp: number | null = null
+let silentStop = false // a recorder that never reports its stop
+let ctxState = 'running'
+let stopped = 0
+let recorders: FakeRecorder[] = []
+const listeners = new Map<string, () => void>()
+const track = {
+  label: 'Desk microphone',
+  readyState: 'live',
+  muted: false,
+  stop: () => void stopped++,
+  addEventListener: (type: string, f: () => void) => void listeners.set(type, f),
+  removeEventListener: (type: string) => void listeners.delete(type),
+}
+const setHidden = (hidden: boolean) => {
+  Object.defineProperty(document, 'hidden', { value: hidden, configurable: true })
+  document.dispatchEvent(new Event('visibilitychange'))
+}
+const stream = { getTracks: () => [track], getAudioTracks: () => [track] }
+const getUserMedia = vi.fn(async () => stream)
+
+class FakeRecorder {
+  state = 'inactive'
+  mimeType = 'audio/webm'
+  ondataavailable: ((e: { data: Blob }) => void) | null = null
+  onstop: (() => void) | null = null
+  n: number
+  constructor() {
+    recorders.push(this)
+    this.n = recorders.length
+  }
+  start() {
+    this.state = 'recording'
+  }
+  stop() {
+    this.state = 'inactive'
+    this.ondataavailable?.({ data: new Blob([`clip${this.n}`]) })
+    if (!silentStop) this.onstop?.()
+  }
+}
+
+class Rec {
+  static all: Rec[] = []
+  continuous = false
+  interimResults = false
+  results: { t: string; final: boolean }[] = []
+  onresult: ((e: { results: unknown[] }) => void) | null = null
+  onend: (() => void) | null = null
+  onerror: ((e?: { error?: string }) => void) | null = null
+  start = vi.fn()
+  stop = vi.fn(() => this.onend?.())
+  abort = vi.fn()
+  constructor() {
+    Rec.all.push(this)
+  }
+  say(t: string, final = true) {
+    const last = this.results[this.results.length - 1]
+    if (last && !last.final) this.results.pop()
+    this.results.push({ t, final })
+    this.onresult?.({ results: this.results.map((r) => Object.assign([{ transcript: r.t }], { isFinal: r.final })) })
+  }
+}
+
+const ctx = {
+  get state() {
+    return ctxState
+  },
+  resume: vi.fn(),
+  createMediaStreamSource: () => ({ connect() {}, disconnect() {} }),
+  createAnalyser: () => ({
+    fftSize: 1024,
+    getFloatTimeDomainData(buf: Float32Array) {
+      const a = amp ?? (loud ? 0.56 : room)
+      for (let i = 0; i < buf.length; i++) buf[i] = i % 2 ? a : -a
+    },
+  }),
+}
+
+const sink = () => {
+  const heard: string[] = []
+  const interim: string[] = []
+  return { heard, interim, onText: (t: string) => void heard.push(t), onInterim: (t: string) => void interim.push(t) }
+}
+const events = () => ({ onPending: vi.fn(), onProblem: vi.fn(), onLost: vi.fn() })
+const clipText = (b: Blob) => b.text()
+const settle = async () => {
+  for (let i = 0; i < 20; i++) await Promise.resolve()
+}
+
+beforeEach(() => {
+  vi.useFakeTimers()
+  loud = false
+  room = 0.002
+  amp = null
+  silentStop = false
+  stt.isAppleMobile.mockReturnValue(false)
+  ctx.resume.mockClear()
+  ctxState = 'running'
+  stopped = 0
+  track.readyState = 'live'
+  track.muted = false
+  listeners.clear()
+  Object.defineProperty(document, 'hidden', { value: false, configurable: true })
+  recorders = []
+  Rec.all = []
+  stt.transcribe.mockReset()
+  stt.serverEars.mockReturnValue(true)
+  stt.markBrowserEngineBroken.mockClear()
+  stt.unlockAudioInput.mockReset()
+  stt.unlockAudioInput.mockReturnValue(ctx)
+  getUserMedia.mockClear()
+  getUserMedia.mockImplementation(async () => stream)
+  vi.stubGlobal('MediaRecorder', FakeRecorder)
+  Object.defineProperty(navigator, 'mediaDevices', { value: { getUserMedia }, configurable: true })
+})
+afterEach(() => {
+  vi.useRealTimers()
+  vi.unstubAllGlobals()
+  delete (window as unknown as Record<string, unknown>).SpeechRecognition
+})
+
+describe('openCapture: the mic', () => {
+  it('asks for the mic and wakes the audio before anything is awaited: inside the tap', () => {
+    void openCapture(sink(), events())
+    expect(stt.unlockAudioInput).toHaveBeenCalledTimes(1)
+    expect(getUserMedia).toHaveBeenCalledTimes(1)
+  })
+
+  it('names a blocked mic and a missing one', async () => {
+    getUserMedia.mockRejectedValueOnce(Object.assign(new Error('no'), { name: 'NotAllowedError' }))
+    await expect(openCapture(sink(), events())).rejects.toMatchObject({ reason: 'denied' })
+    getUserMedia.mockRejectedValueOnce(Object.assign(new Error('no'), { name: 'NotFoundError' }))
+    await expect(openCapture(sink(), events())).rejects.toMatchObject({ reason: 'no_mic' })
+  })
+
+  it('reports the input by name, its level, and whether the audio is running', async () => {
+    const c = await openCapture(sink(), events())
+    expect(c.label).toBe('Desk microphone')
+    expect(c.level()).toBeLessThan(0.005)
+    expect(c.heard()).toBe(false)
+    loud = true
+    vi.advanceTimersByTime(100)
+    expect(c.level()).toBeGreaterThan(0.3)
+    expect(c.heard()).toBe(true)
+    expect(c.audioRunning()).toBe(true)
+    ctxState = 'suspended'
+    expect(c.audioRunning()).toBe(false)
+    c.cancel()
+  })
+
+  it('asks the audio to resume once more after the permission prompt', async () => {
+    const pending = openCapture(sink(), events())
+    expect(ctx.resume).not.toHaveBeenCalled() // (the unlock is a fake here; this is the capture's own call)
+    const c = await pending
+    expect(ctx.resume).toHaveBeenCalledTimes(1)
+    c.cancel()
+  })
+
+  it('tells a dead input from a quiet room: only a flat signal counts as hearing nothing', async () => {
+    const c = await openCapture(sink(), events())
+    vi.advanceTimersByTime(10_000) // a quiet room for ten seconds while he thinks
+    expect(c.flatMs()).toBeLessThan(200)
+    expect(c.heard()).toBe(false)
+    room = 0 // the input goes dead: exactly flat
+    vi.advanceTimersByTime(3100)
+    expect(c.flatMs()).toBeGreaterThanOrEqual(3000)
+    room = 0.002
+    vi.advanceTimersByTime(100)
+    expect(c.flatMs()).toBeLessThan(200)
+    c.cancel()
+  })
+
+  it('primeMic asks for permission inside the tap and lets the mic go at once', async () => {
+    primeMic()
+    expect(getUserMedia).toHaveBeenCalledTimes(1)
+    await settle()
+    expect(stopped).toBe(1)
+  })
+})
+
+describe('openCapture: no waiting for silence', () => {
+  it('a long pause after speaking does not end the recording; only finish does', async () => {
+    stt.transcribe.mockResolvedValue('so I think')
+    const s = sink()
+    const c = await openCapture(s, events())
+    loud = true
+    vi.advanceTimersByTime(2000)
+    loud = false
+    vi.advanceTimersByTime(120_000) // two minutes of thinking
+    await settle()
+    expect(stopped).toBe(0) // the mic is still open
+    expect(recorders.at(-1)!.state).toBe('recording')
+    expect(s.heard).toEqual(['so I think']) // what he said before the pause is already text
+
+    loud = true
+    vi.advanceTimersByTime(1000)
+    stt.transcribe.mockResolvedValue('we should wait')
+    await c.finish()
+    expect(s.heard).toEqual(['so I think', 'we should wait'])
+    expect(stopped).toBe(1)
+  })
+
+  it('never opened his mouth: nothing is sent to the gateway, however long it stays open', async () => {
+    const c = await openCapture(sink(), events())
+    vi.advanceTimersByTime(MAX_PART_MS * 3)
+    await c.finish()
+    expect(stt.transcribe).not.toHaveBeenCalled()
+  })
+})
+
+describe('openCapture: parts', () => {
+  it('cuts before the gateway’s limit, keeps recording, and joins the parts in order', async () => {
+    const answers: ((t: string) => void)[] = []
+    stt.transcribe.mockImplementation(() => new Promise<string>((res) => answers.push(res)))
+    const s = sink()
+    const ev = events()
+    const c = await openCapture(s, ev)
+    loud = true
+    vi.advanceTimersByTime(MAX_PART_MS * 2 + 5000) // talking for 105 s without a pause
+    await settle()
+    expect(stt.transcribe).toHaveBeenCalledTimes(2)
+    expect(recorders).toHaveLength(3)
+    expect(recorders[2]!.state).toBe('recording') // no gap: the third part is already running
+    expect(ev.onPending).toHaveBeenLastCalledWith(2)
+    const done = c.finish()
+    await settle()
+    expect(stt.transcribe).toHaveBeenCalledTimes(3)
+    expect(await Promise.all(stt.transcribe.mock.calls.map((call) => clipText(call[0] as Blob)))).toEqual(['clip1', 'clip2', 'clip3'])
+
+    // The gateway answers out of order; the text is joined in the order it was said.
+    answers[2]!('three')
+    answers[1]!('two')
+    await settle()
+    expect(s.heard).toEqual([])
+    answers[0]!('one')
+    await done
+    expect(s.heard).toEqual(['one', 'two', 'three'])
+    expect(ev.onPending).toHaveBeenLastCalledWith(0)
+  })
+
+  it('a pause after speech sends that part to be written down while the recording goes on', async () => {
+    stt.transcribe.mockResolvedValue('first thought')
+    const s = sink()
+    const c = await openCapture(s, events())
+    loud = true
+    vi.advanceTimersByTime(3000)
+    loud = false
+    vi.advanceTimersByTime(PAUSE_CUT_MS + 100)
+    await settle()
+    expect(s.heard).toEqual(['first thought'])
+    expect(recorders.at(-1)!.state).toBe('recording')
+    c.cancel()
+  })
+
+  it('a part the gateway could not write down is said, and the rest still lands', async () => {
+    stt.transcribe.mockRejectedValueOnce(new stt.SttError('quota')).mockResolvedValueOnce('the second part')
+    const s = sink()
+    const ev = events()
+    const c = await openCapture(s, ev)
+    loud = true
+    vi.advanceTimersByTime(MAX_PART_MS + 1000)
+    await c.finish()
+    expect(ev.onProblem).toHaveBeenCalledWith('server', 'quota', false)
+    expect(s.heard).toEqual(['the second part'])
+  })
+
+  it('tries a part once more when the network dropped it', async () => {
+    stt.transcribe.mockRejectedValueOnce(new stt.SttError('network')).mockResolvedValueOnce('made it')
+    const s = sink()
+    const ev = events()
+    const c = await openCapture(s, ev)
+    loud = true
+    vi.advanceTimersByTime(1000)
+    await c.finish()
+    expect(s.heard).toEqual(['made it'])
+    expect(ev.onProblem).not.toHaveBeenCalled()
+  })
+
+  it('retarget: what was said before goes to the old field, what comes after to the new one', async () => {
+    stt.transcribe.mockResolvedValueOnce('the goal').mockResolvedValueOnce('the situation')
+    const a = sink()
+    const b = sink()
+    const c = await openCapture(a, events())
+    loud = true
+    vi.advanceTimersByTime(1000)
+    c.retarget(b)
+    vi.advanceTimersByTime(1000)
+    await c.finish()
+    expect(a.heard).toEqual(['the goal'])
+    expect(b.heard).toEqual(['the situation'])
+    expect(getUserMedia).toHaveBeenCalledTimes(1) // one mic, one permission
+  })
+
+  it('a quiet voice is kept: just above the room is enough for the part to be sent', async () => {
+    stt.transcribe.mockResolvedValue('said quietly')
+    const s = sink()
+    const c = await openCapture(s, events())
+    amp = 0.012
+    vi.advanceTimersByTime(10_000)
+    await c.finish()
+    expect(stt.transcribe).toHaveBeenCalled()
+    expect(s.heard).toEqual(['said quietly'])
+  })
+
+  it('a recorder that never reports its stop does not hold the mic or "Writing it down…"', async () => {
+    stt.transcribe.mockResolvedValue('still written down')
+    const s = sink()
+    const ev = events()
+    const c = await openCapture(s, ev)
+    loud = true
+    vi.advanceTimersByTime(1000)
+    silentStop = true
+    const done = c.finish()
+    expect(stopped).toBe(1) // the mic is let go with the tap, not after the recorder answers
+    await vi.advanceTimersByTimeAsync(STOP_TIMEOUT_MS + 10)
+    await done
+    expect(s.heard).toEqual(['still written down']) // what it had recorded is not thrown away
+    expect(ev.onPending).toHaveBeenLastCalledWith(0)
+  })
+
+  it('each part counts its own bytes: the old recorder’s last data does not weigh on the new part', async () => {
+    const big = { data: new Blob([new Uint8Array(2_000_000)]) }
+    const c = await openCapture(sink(), events())
+    loud = true
+    vi.advanceTimersByTime(MAX_PART_MS + 100)
+    await settle()
+    expect(recorders).toHaveLength(2)
+    recorders[0]!.ondataavailable?.(big) // late data from the part that was cut
+    vi.advanceTimersByTime(300)
+    expect(recorders).toHaveLength(2) // the new part was not cut for bytes that are not its own
+    recorders[1]!.ondataavailable?.(big)
+    vi.advanceTimersByTime(300)
+    expect(recorders).toHaveLength(3)
+    c.cancel()
+  })
+
+  it('on an iPhone the old recorder stops before the new one starts', async () => {
+    stt.isAppleMobile.mockReturnValue(true)
+    const order: string[] = []
+    const c = await openCapture(sink(), events())
+    const first = recorders[0]!
+    const stop = first.stop.bind(first)
+    first.stop = () => (order.push('stop old'), stop())
+    const Real = FakeRecorder
+    vi.stubGlobal('MediaRecorder', class extends Real { constructor() { super(); order.push('start new') } })
+    loud = true
+    vi.advanceTimersByTime(MAX_PART_MS + 100)
+    expect(order.slice(0, 2)).toEqual(['stop old', 'start new'])
+    c.cancel()
+  })
+
+  it('a recorder that will not start the next part is said, not swallowed', async () => {
+    const ev = events()
+    const c = await openCapture(sink(), ev)
+    vi.stubGlobal('MediaRecorder', class { constructor() { throw new Error('no') } })
+    loud = true
+    vi.advanceTimersByTime(MAX_PART_MS + 5000)
+    expect(ev.onProblem).toHaveBeenCalledWith('server', 'recorder', false)
+    expect(ev.onProblem).toHaveBeenCalledTimes(1)
+    c.cancel()
+  })
+
+  it('cancel throws the recording away', async () => {
+    const s = sink()
+    const c = await openCapture(s, events())
+    loud = true
+    vi.advanceTimersByTime(1000)
+    c.cancel()
+    await settle()
+    expect(stt.transcribe).not.toHaveBeenCalled()
+    expect(stopped).toBe(1)
+  })
+})
+
+// Pavol, 20 Nov, Firefox on his phone: "when I switch to another window or another app on the
+// phone and then switch back … I try to speak again and it doesn't work anymore. I then have
+// to refresh the page."
+describe('openCapture: the mic is taken away', () => {
+  it('the track ending mid-recording is reported once, and what was recorded so far is still written down', async () => {
+    stt.transcribe.mockResolvedValue('said before I left')
+    const s = sink()
+    const ev = events()
+    const c = await openCapture(s, ev)
+    loud = true
+    vi.advanceTimersByTime(1000)
+    setHidden(true)
+    track.readyState = 'ended'
+    listeners.get('ended')!()
+    listeners.get('ended')?.()
+    expect(ev.onLost).toHaveBeenCalledTimes(1)
+    expect(ev.onLost).toHaveBeenCalledWith('ended', true) // he had left the page
+    await c.finish() // what the owner does when told
+    expect(s.heard).toEqual(['said before I left'])
+    expect(stopped).toBe(1) // the stream is released
+    expect(listeners.size).toBe(0)
+  })
+
+  it('coming back to a track that ended or stayed muted while the page was away is a loss too', async () => {
+    const ev = events()
+    const c = await openCapture(sink(), ev)
+    setHidden(true)
+    expect(ev.onLost).not.toHaveBeenCalled() // leaving the page is not a loss by itself
+    track.muted = true
+    setHidden(false)
+    expect(ev.onLost).toHaveBeenCalledWith('muted', true)
+    c.cancel()
+  })
+
+  it('leaving and coming back with the mic still live loses nothing; the audio is asked to resume', async () => {
+    const ev = events()
+    const c = await openCapture(sink(), ev)
+    ctx.resume.mockClear()
+    setHidden(true)
+    setHidden(false)
+    expect(ev.onLost).not.toHaveBeenCalled()
+    expect(ctx.resume).toHaveBeenCalled()
+    c.cancel()
+  })
+
+  it('a mute while the page is in view gets two seconds before it counts', async () => {
+    const ev = events()
+    const c = await openCapture(sink(), ev)
+    track.muted = true
+    listeners.get('mute')!()
+    vi.advanceTimersByTime(1900)
+    expect(ev.onLost).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(200)
+    expect(ev.onLost).toHaveBeenCalledWith('muted', false)
+    c.cancel()
+  })
+
+  it('a tap that finds the audio not running moves the meter to a new context', async () => {
+    const c = await openCapture(sink(), events())
+    const fresh = { ...ctx, state: 'running', createAnalyser: vi.fn(ctx.createAnalyser), createMediaStreamSource: vi.fn(ctx.createMediaStreamSource) }
+    ctxState = 'interrupted'
+    expect(c.audioRunning()).toBe(false)
+    stt.unlockAudioInput.mockReturnValue(fresh)
+    c.wake()
+    expect(fresh.createMediaStreamSource).toHaveBeenCalled()
+    expect(c.audioRunning()).toBe(true)
+    loud = true
+    expect(c.level()).toBeGreaterThan(0.3)
+    c.cancel()
+  })
+})
+
+describe('openCapture: live words from the browser where it has them', () => {
+  beforeEach(() => {
+    stt.serverEars.mockReturnValue(false)
+    Object.defineProperty(window, 'SpeechRecognition', { value: Rec, configurable: true })
+  })
+
+  it('finished phrases are text at once, unfinished ones are shown as they come, nothing goes to the gateway', async () => {
+    const s = sink()
+    const c = await openCapture(s, events())
+    const r = Rec.all[0]!
+    expect(r.start).toHaveBeenCalled()
+    r.say('we have no', false)
+    expect(s.interim.at(-1)).toBe('we have no')
+    r.say('we have no engineers')
+    expect(s.heard).toEqual(['we have no engineers'])
+    r.say('and no money', false)
+    await c.finish() // the engine ends without finishing the phrase: it still counts
+    expect(s.heard).toEqual(['we have no engineers', 'and no money'])
+    expect(stt.transcribe).not.toHaveBeenCalled()
+  })
+
+  it('retarget: the engine keeps listening; an unfinished phrase stays in the old field and is not repeated in the new', async () => {
+    const a = sink()
+    const b = sink()
+    const c = await openCapture(a, events())
+    const r = Rec.all[0]!
+    r.say('cut churn')
+    r.say('by a third', false)
+    c.retarget(b)
+    expect(a.heard).toEqual(['cut churn', 'by a third'])
+    expect(r.stop).not.toHaveBeenCalled()
+    r.say('by a third') // the engine finishes the phrase it had begun
+    r.say('churn is four percent')
+    expect(a.heard).toEqual(['cut churn', 'by a third'])
+    expect(b.heard).toEqual(['churn is four percent'])
+    expect(Rec.all).toHaveLength(1)
+    c.cancel()
+  })
+
+  it('the engine giving up in a quiet stretch is not an ending: it listens again', async () => {
+    const c = await openCapture(sink(), events())
+    Rec.all[0]!.onerror?.({ error: 'no-speech' })
+    Rec.all[0]!.onend?.()
+    expect(Rec.all).toHaveLength(2)
+    expect(stopped).toBe(0)
+    c.cancel()
+  })
+
+  it('the engine failing hands the words to the gateway, with what was said since its last phrase', async () => {
+    stt.transcribe.mockResolvedValue('and no money')
+    const s = sink()
+    const ev = events()
+    const c = await openCapture(s, ev)
+    loud = true
+    Rec.all[0]!.say('we have no engineers')
+    vi.advanceTimersByTime(1000)
+    Rec.all[0]!.onerror?.({ error: 'network' })
+    Rec.all[0]!.onend?.()
+    expect(stt.markBrowserEngineBroken).toHaveBeenCalled()
+    expect(ev.onProblem).toHaveBeenCalledWith('browser', 'network', true)
+    await c.finish()
+    expect(s.heard).toEqual(['we have no engineers', 'and no money'])
+    expect(Rec.all).toHaveLength(1)
+  })
+
+  it('sound but no words from the engine: the gateway takes over, so a lit mic with nothing happening cannot last', async () => {
+    stt.transcribe.mockResolvedValue('can you hear me')
+    const s = sink()
+    const ev = events()
+    const c = await openCapture(s, ev)
+    loud = true
+    vi.advanceTimersByTime(WORDLESS_MS + 200)
+    expect(ev.onProblem).toHaveBeenCalledWith('browser', 'wordless', true)
+    await c.finish()
+    expect(s.heard).toEqual(['can you hear me'])
+  })
+})

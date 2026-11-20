@@ -10,6 +10,7 @@ import { humanDate } from '@/domain/dates'
 export function HomeScreen() {
   const { picked, togglePersona, convene } = useCouncil()
   const [idea, setIdea] = useState('')
+  const [micBusy, setMicBusy] = useState(false) // recording, or a part still being written down
   const day = todayKey()
   const question = dailyQuestion(day)
 
@@ -26,17 +27,15 @@ export function HomeScreen() {
         <label htmlFor="idea" className="t-display block">
           What are you working on?
         </label>
-        <div className="mt-2 flex items-end gap-2">
-          <textarea
-            id="idea"
-            rows={4}
-            value={idea}
-            onChange={(e) => setIdea(e.target.value)}
-            placeholder="A business, a project, a decision you keep turning over."
-            className="field min-w-0 flex-1 resize-y"
-          />
-          <MicButton value={idea} onChange={setIdea} label="your idea" />
-        </div>
+        <textarea
+          id="idea"
+          rows={4}
+          value={idea}
+          onChange={(e) => setIdea(e.target.value)}
+          placeholder="A business, a project, a decision you keep turning over."
+          className="field mt-2 resize-y"
+        />
+        <MicButton value={idea} onChange={setIdea} label="your idea" primary={!idea.trim()} onBusy={setMicBusy} className="mt-2" />
 
         <details className="mt-2">
           <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 py-2 [&::-webkit-details-marker]:hidden">
@@ -93,7 +92,7 @@ export function HomeScreen() {
         </details>
 
         {/* Unlit until there is something to debate: .slab:disabled is an outline. */}
-        <button type="submit" disabled={!idea.trim()} className="slab mt-6">
+        <button type="submit" disabled={!idea.trim() || micBusy} className="slab mt-6">
           Convene the council
         </button>
       </form>
