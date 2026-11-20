@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="robots" content="noindex" />
+<title>Less straight: three volumes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400&display=swap" rel="stylesheet" />
+<style>
+  :root { --ink-950: #100e0b; --ink-850: #1e1a15; --ink-700: #342d23; --m-50: #f8f5ee; --m-100: #ece7db; --m-200: #d8d1c2; --m-300: #b9b1a0; --m-400: #968d7c; --m-500: #776f61; --candle-300: #efce8d; --candle-400: #e0b263; --clay-400: #cf9179; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--ink-950); color: var(--m-100); font: 400 19px/27px 'EB Garamond', 'Iowan Old Style', Georgia, serif; min-height: 100dvh; padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom); }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; touch-action: manipulation; }
+  button:focus-visible, textarea:focus-visible { outline: 2px solid var(--candle-400); outline-offset: 4px; }
+  .sc { font-variant-caps: all-small-caps; letter-spacing: .08em; font-size: 17px; line-height: 22px; }
+  .wrap { max-width: 36rem; margin: 0 auto; padding: 12px 16px 24px; }
+  .head { display: flex; justify-content: space-between; color: var(--m-400); padding-bottom: 6px; }
+  nav { display: flex; gap: 4px; margin: 8px 0 14px; }
+  nav button { flex: 1; min-height: 44px; color: var(--m-400); border-bottom: 2px solid transparent; }
+  nav button[aria-selected="true"] { color: var(--m-50); border-color: var(--candle-400); }
+  .rubric { color: var(--clay-400); margin: 0; }
+  h1 { font: 500 28px/32px 'EB Garamond', Georgia, serif; margin: 6px 0 10px; text-wrap: balance; }
+  textarea { width: 100%; background: transparent; color: var(--m-50); border: 0; font: inherit; padding: 0 0 8px; resize: none; display: block; }
+  .candle { width: 84px; aspect-ratio: 280 / 860; margin: 6px auto 0; display: block; -webkit-mask-image: radial-gradient(ellipse 50% 50% at 52% 46%, #000 35%, transparent 96%); mask-image: radial-gradient(ellipse 50% 50% at 52% 46%, #000 35%, transparent 96%); }
+  .row { display: flex; gap: 10px; margin-top: 14px; }
+  .row > * { flex: 1; }
+  .note { color: var(--m-400); font-size: 17px; line-height: 22px; margin: 14px 0 0; }
+  .what { margin: 22px 0 0; color: var(--m-200); }
+
+  /* shared shapes: the shape lives on ::before so the words stay sharp */
+  .btn { position: relative; isolation: isolate; min-height: 56px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 0 16px; }
+  .btn::before { content: ''; position: absolute; inset: 0; z-index: -1; }
+  .rule, .under { display: block; height: 3px; }
+  svg.ic { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+
+  /* 0 · today: straight */
+  [data-vol="0"] .head { border-bottom: 3px double var(--m-500); }
+  [data-vol="0"] .btn::before { border-radius: 4px; }
+  [data-vol="0"] .primary { color: var(--ink-950); }
+  [data-vol="0"] .primary::before { background: var(--candle-400); }
+  [data-vol="0"] .second::before { border: 2px solid var(--m-300); }
+  [data-vol="0"] .under { background: var(--m-500); height: 2px; }
+  [data-vol="0"] .rule { background: var(--ink-700); height: 1px; margin-top: 18px; }
+
+  /* 1 · inked: the same shapes, drawn by a hand */
+  [data-vol="1"] .head { border-bottom: 2px solid var(--m-500); filter: url(#rough-s); }
+  [data-vol="1"] .btn::before { filter: url(#rough); }
+  [data-vol="1"] .primary { color: var(--ink-950); }
+  [data-vol="1"] .primary::before { background: var(--candle-400); border-radius: 7px 11px 6px 12px / 12px 6px 11px 7px; }
+  [data-vol="1"] .second::before { border: 1.8px solid var(--m-300); border-radius: 11px 6px 12px 7px / 6px 12px 7px 11px; }
+  [data-vol="1"] .under { background: var(--m-400); height: 2px; filter: url(#rough-s); border-radius: 2px; }
+  [data-vol="1"] .rule { background: var(--m-500); height: 1.500px; margin-top: 18px; filter: url(#rough-s); opacity: .6; }
+
+  /* 2 · painted: the fill is paint from the same canvas */
+  [data-vol="2"] .head { border-bottom: 2px solid var(--m-500); filter: url(#rough-s); }
+  [data-vol="2"] .btn::before { filter: url(#rough); }
+  [data-vol="2"] .primary { color: #1a1206; text-shadow: 0 1px 0 rgba(255,220,160,.25); }
+  [data-vol="2"] .primary::before { background: linear-gradient(rgba(224,178,99,.28), rgba(224,178,99,.28)), url(img/paint-ochre.jpg) center / cover; border-radius: 8px 13px 7px 14px / 14px 7px 13px 8px; box-shadow: inset 0 0 14px rgba(40,18,4,.45); }
+  [data-vol="2"] .second::before { border: 1.8px solid var(--m-300); border-radius: 12px 7px 13px 8px / 7px 13px 8px 12px; background: url(img/paint-wood.jpg) left center / 220% 220%; opacity: .32; }
+  [data-vol="2"] .under { height: 4px; background: url(img/paint-ochre.jpg) center / 100% 100%; filter: url(#rough-s); border-radius: 3px; opacity: .85; }
+  [data-vol="2"] .rule { background: var(--m-500); height: 1.500px; margin-top: 18px; filter: url(#rough-s); opacity: .6; }
+
+  /* 3 · brushed: buttons and rules are strokes of a loaded brush */
+  [data-vol="3"] .head { border-bottom: 0; }
+  [data-vol="3"] .head::after { content: none; }
+  [data-vol="3"] .btn { min-height: 60px; }
+  [data-vol="3"] .btn::before { filter: url(#rough-l); -webkit-mask: var(--stroke) center / 100% 100% no-repeat; mask: var(--stroke) center / 100% 100% no-repeat; }
+  [data-vol="3"] .primary { color: #1a1206; text-shadow: 0 1px 0 rgba(255,220,160,.25); }
+  [data-vol="3"] .primary::before { background: linear-gradient(rgba(224,178,99,.25), rgba(224,178,99,.25)), url(img/paint-ochre.jpg) center / cover; }
+  [data-vol="3"] .second { color: var(--m-50); }
+  [data-vol="3"] .second::before { background: url(img/paint-wood.jpg) center / cover; opacity: .8; }
+  [data-vol="3"] .under, [data-vol="3"] .rule, [data-vol="3"] .headrule { height: 7px; background: url(img/paint-ochre.jpg) center / 100% 100%; -webkit-mask: var(--dry) center / 100% 100% no-repeat; mask: var(--dry) center / 100% 100% no-repeat; }
+  [data-vol="3"] .rule { margin-top: 18px; opacity: .5; }
+  .headrule { display: none; }
+  [data-vol="3"] .headrule { display: block; opacity: .7; }
+  :root {
+    --stroke: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 60' preserveAspectRatio='none'%3E%3Cpath d='M6 14C40 6 90 9 150 7s110-3 140 5c8 6 6 30 2 40-30 6-80 3-140 5S40 58 8 50C1 40 2 22 6 14z'/%3E%3Cpath d='M290 16l8 3-7 4 9 5-9 4 8 6-10 2z M10 20l-8 2 7 5-8 4 8 5-7 6 9 1z'/%3E%3C/svg%3E");
+    --dry: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 8' preserveAspectRatio='none'%3E%3Cpath d='M0 4C30 1 80 2 140 3s110-2 160 0v3C250 8 190 6 140 7S40 8 0 6z'/%3E%3Cpath d='M250 1h40v1h-40zM20 6h60v1H20z' opacity='.6'/%3E%3C/svg%3E");
+  }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <filter id="rough" x="-3%" y="-12%" width="106%" height="124%"><feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="7"/><feDisplacementMap in="SourceGraphic" scale="4.500"/></filter>
+  <filter id="rough-s" x="-2%" y="-300%" width="104%" height="700%"><feTurbulence type="fractalNoise" baseFrequency="0.02 0.4" numOctaves="2" seed="11"/><feDisplacementMap in="SourceGraphic" scale="3"/></filter>
+  <filter id="rough-l" x="-3%" y="-12%" width="106%" height="124%"><feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="3" seed="3"/><feDisplacementMap in="SourceGraphic" scale="6"/></filter>
+</svg>
+
+<div class="wrap" id="page" data-vol="2">
+  <div class="head sc"><span>Mastermind Council</span><span>Sample · not the app</span></div>
+  <span class="headrule"></span>
+  <nav role="tablist" aria-label="How far">
+    <button role="tab" class="sc" data-v="0">Today</button>
+    <button role="tab" class="sc" data-v="1">1 · Inked</button>
+    <button role="tab" class="sc" data-v="2">2 · Painted</button>
+    <button role="tab" class="sc" data-v="3">3 · Brushed</button>
+  </nav>
+
+  <p class="rubric sc">Your question</p>
+  <h1>What would you like the group to help you achieve?</h1>
+  <textarea rows="2" aria-label="Your answer">decide whether to keep the shop open on Sundays</textarea>
+  <span class="under"></span>
+  <img class="candle" src="img/candle.jpg" alt="" />
+  <div class="row">
+    <button class="btn primary"><svg class="ic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.500 11a6.500 6.500 0 0 0 13 0M12 17.500V21"/></svg>Finish</button>
+    <button class="btn second">Next question</button>
+  </div>
+  <span class="rule"></span>
+  <div class="row"><button class="btn second" style="flex:1">Bring it to the group</button></div>
+  <p class="note">Everything below is optional. The group works with what you give it.</p>
+  <p class="what" id="what"></p>
+</div>
+
+<script>
+const WHAT = {
+  0: 'Today: straight edges, a flat gold fill, ruled lines.',
+  1: 'Inked: the same shapes drawn by a hand. Edges and rules waver slightly, corners are uneven. Colours stay flat.',
+  2: 'Painted: as Inked, and the main button is filled with paint from the same 1755 canvas (the sleeve). The second button carries a little of the lit table top.',
+  3: 'Brushed: buttons and rules are single strokes of a loaded brush, with ragged ends. The loudest of the three.',
+}
+function show(v) {
+  document.getElementById('page').dataset.vol = v
+  for (const b of document.querySelectorAll('nav button')) b.setAttribute('aria-selected', String(b.dataset.v === String(v)))
+  document.getElementById('what').textContent = WHAT[v]
+}
+document.querySelectorAll('nav button').forEach((b) => (b.onclick = () => show(b.dataset.v)))
+show(location.hash.replace('#v', '') in WHAT ? location.hash.replace('#v', '') : 2)
+</script>
+</body>
+</html>
