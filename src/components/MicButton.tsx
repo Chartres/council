@@ -1,4 +1,4 @@
-import { useRef, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { addWords, CapturePanel, micAvailable, MicIcon, useCapture } from '@/components/Capture'
 
 /**
@@ -13,6 +13,7 @@ export function MicButton({
   label,
   primary = false,
   className = '',
+  onBusy,
   children,
 }: {
   value: string
@@ -22,6 +23,9 @@ export function MicButton({
   /** The screen's one action right now (an empty field): filled. Otherwise an outline. */
   primary?: boolean
   className?: string
+  /** True while it records or a part is still being written down: his words are not all in the
+   *  field yet, so the host holds its send button. */
+  onBusy?: (busy: boolean) => void
   /** Sits beside the button (the composer's send). */
   children?: ReactNode
 }) {
@@ -34,8 +38,17 @@ export function MicButton({
     onChange(latest.current)
   }
 
-  if (!micAvailable()) return null
   const { phase } = cap
+  const busy = phase !== 'idle'
+  const told = useRef(onBusy)
+  told.current = onBusy
+  useEffect(() => {
+    told.current?.(busy)
+    // Gone from the screen (Talk took over the mic): the host is not left holding its button.
+    return () => told.current?.(false)
+  }, [busy])
+
+  if (!micAvailable()) return null
   return (
     <div className={className}>
       <CapturePanel cap={cap} className="mb-2" />

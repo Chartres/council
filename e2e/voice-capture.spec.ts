@@ -41,7 +41,8 @@ const level = (page: Page) => page.getByTestId('thread').evaluate((c) => Number(
 const drawing = (page: Page) => page.getByTestId('thread').evaluate((c) => (c as HTMLCanvasElement).toDataURL())
 const flame = (page: Page) => page.getByTestId('candle-flame').evaluate((g) => (g as HTMLElement).style.transform)
 // The flame's pose: a lean of a few degrees and a few percent of height. It does not grow with the voice.
-const POSE = /^skewX\(-?[0-5]\.\d+deg\) scaleY\((0\.9[3-9]\d*|1\.0[0-4]\d*)\)$/
+// (Firefox writes skewX(1.00deg) as skewX(1deg) and scaleY(1.0000) as scaleY(1).)
+const POSE = /^skewX\(-?[0-5](\.\d+)?deg\) scaleY\((0\.9[3-9]\d*|1(\.0[0-4]\d*)?)\)$/
 
 for (const [label, viewport] of VIEWPORTS) {
   test(`${label}: arrive at the question, tap, see it record, finish, correct the text, and that text is what goes`, async ({ page }) => {
@@ -67,10 +68,10 @@ for (const [label, viewport] of VIEWPORTS) {
     await shot('02-waiting-for-the-microphone')
 
     await page.evaluate(() => (window as unknown as { __grantMic: () => void }).__grantMic())
-    await expect(status).toHaveText('Recording. Say something.')
+    await expect(status).toHaveText('Recording. Say something when you are ready.')
     await expect(page.getByTestId('candle')).toBeVisible()
     await expect(page.getByAltText('A painted candle burning in a brass holder')).toBeVisible()
-    expect(await level(page)).toBe(0)
+    expect(await level(page)).toBeLessThan(0.005)
 
     // Sound comes in: the thread moves, the flame flickers, the sentence says so.
     await tone(page, true)
@@ -89,7 +90,7 @@ for (const [label, viewport] of VIEWPORTS) {
     await page.evaluate(() => (window as unknown as { __ctxs: AudioContext[] }).__ctxs[0]!.suspend())
     await expect(status).toContainText('The browser has paused audio')
     await shot('04-audio-paused')
-    await page.getByRole('heading', { name: 'Your question' }).dispatchEvent('pointerdown')
+    await page.getByText('Your question', { exact: true }).last().click() // a real tap; a touch pointerdown would not count
     await expect(status).toContainText('Recording.')
 
     // He says something and pauses to think: that part is written down while the mic stays open.
@@ -123,13 +124,15 @@ for (const [label, viewport] of VIEWPORTS) {
     const shot = shooter(page, label)
     await page.setViewportSize(viewport)
     await page.addInitScript(FAKE_EARS)
+    await page.addInitScript(() => ((window as unknown as { __dead: boolean }).__dead = true))
     await openIntake(page)
     const mic = page.getByTestId('mic')
     await mic.click()
     const status = page.getByTestId('capture-status')
-    await expect(status).toHaveText('Recording. Say something.')
+    await expect(status).toHaveText('Recording. Say something when you are ready.')
+    // A dead input: digitally flat. (A quiet room does not get this sentence: see the first journey's 4 s pause.)
     await expect(status).toHaveText('I can’t hear anything from “Test microphone”. Check the input, or speak up.', { timeout: 6000 })
-    expect(await level(page)).toBe(0)
+    expect(await level(page)).toBeLessThan(0.005)
     await shot('07-heard-nothing')
     // It is still recording: the moment sound arrives, it says so.
     await tone(page, true)
@@ -244,6 +247,40 @@ test('leaving the page and coming back: the words so far are kept, it says so, a
   await speakInto(page, 'and after I came back')
   await expect(goal).toHaveValue('said before I left and after I came back', { timeout: 10_000 })
   await mic.click()
+})
+
+// Review of PR #40: "Say it" worked while the mic recorded or a part was pending, so the last
+// sentence was lost or landed in an emptied box.
+test('the reply box: Say it waits for the mic to finish and the last part to land, and what is sent includes it', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  const shot = shooter(page, 'phone')
+  await page.addInitScript(FAKE_EARS)
+  await openIntake(page)
+  await page.getByLabel(GOAL).fill('decide whether to pilot a premium tier')
+  await page.getByRole('button', { name: 'Bring it to the group' }).click()
+  await expect(page.getByTestId('floor')).toHaveCount(1, { timeout: 20_000 })
+
+  const reply = page.locator('#reply')
+  const say = page.getByRole('button', { name: 'Say it' })
+  const mic = page.getByTestId('mic')
+  await reply.fill('Two things.')
+  await expect(say).toBeEnabled()
+  await mic.click()
+  await expect(say).toBeDisabled() // one filled action while it records: Finish
+  await speakInto(page, 'the constraint is engineering time')
+  await expect(reply).toHaveValue('Two things. the constraint is engineering time', { timeout: 10_000 })
+  await expect(say).toBeDisabled()
+  await shot('14-reply-box-recording')
+  // The last sentence, with no pause after it: it is only written down after Finish.
+  await tone(page, true)
+  await page.evaluate(() => ((window as unknown as { __say: string }).__say = 'and the budget is fixed'))
+  await page.waitForTimeout(400)
+  await mic.click()
+  await expect(reply).toHaveValue('Two things. the constraint is engineering time and the budget is fixed', { timeout: 10_000 })
+  await expect(say).toBeEnabled()
+  await say.click()
+  await expect(page.getByTestId('user')).toHaveText(/Two things\. the constraint is engineering time and the budget is fixed/)
+  await expect(reply).toHaveValue('')
 })
 
 test('reduced motion: the flame stands still, the thread still moves', async ({ page }) => {

@@ -166,7 +166,7 @@ export type IntakeId = (typeof INTAKE_QUESTIONS)[number]['id']
 // the goal, the decision (situation, success, constraints), then who she is.
 const VOICE_ORDER: IntakeId[] = ['goal', 'situation', 'success', 'constraints', 'role', 'organization', 'working_style']
 
-/** The fields the intake's voice walk visits: the still-empty ones, goal first. */
+/** The intake's fields that still have no answer, in the order the screen lists them, goal first. */
 export const voiceOrder = (answers: Intake): IntakeId[] => VOICE_ORDER.filter((id) => !answers[id]?.trim())
 
 /** The gateway rejects the whole intake when one field is longer (MAX_FIELD). */

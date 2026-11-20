@@ -33,6 +33,7 @@ function ConversationView() {
   const { conversation, say, control, journal, continueDiscussion } = useMastermind()
   const { token } = useAuth()
   const [message, setMessage] = useState('')
+  const [micBusy, setMicBusy] = useState(false) // the reply box's mic records, or a part is still being written down
   const [more, setMore] = useState(false)
   const [replyOpen, setReplyOpen] = useState(false)
   // Margin notes, by the contribution's index; they go with her next message (Eyal, 29 Oct).
@@ -139,6 +140,7 @@ function ConversationView() {
     })
 
   const send = (e: React.FormEvent) => {
+    if (micBusy) return e.preventDefault() // Enter in the field must not get past a held button
     e.preventDefault()
     const text = message.trim()
     if ((!text && !noted.length) || busy || tooLong) return
@@ -269,7 +271,7 @@ function ConversationView() {
               const sendBtn = (
                 <button
                   type="submit"
-                  disabled={(!message.trim() && !noted.length) || busy || tooLong}
+                  disabled={(!message.trim() && !noted.length) || busy || tooLong || micBusy}
                   className="slab min-w-0 flex-1 enabled:bg-marble-100 enabled:hover:bg-marble-50"
                 >
                   Say it
@@ -278,7 +280,7 @@ function ConversationView() {
               return talk ? (
                 <div className="mt-2 flex">{sendBtn}</div>
               ) : (
-                <MicButton value={message} onChange={setMessage} label="your reply" className="mt-2">
+                <MicButton value={message} onChange={setMessage} label="your reply" onBusy={setMicBusy} className="mt-2">
                   {sendBtn}
                 </MicButton>
               )

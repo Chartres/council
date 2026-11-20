@@ -102,10 +102,20 @@ export function unlockAudioInput(): AudioContext | null {
   try {
     const C = audioCtor()
     if (!C) return null
-    if (shared && shared.state !== 'running') {
-      // Not trusted to come back: a new one made in this tap starts running.
-      void shared.close?.().catch(() => {})
-      shared = null
+    // A new context can only start inside a real tap (a click; a touch pointerdown is not one).
+    // Outside one, the old context is asked to resume and kept: it may come back by itself.
+    const tap = navigator.userActivation?.isActive ?? true
+    if (shared && shared.state !== 'running' && (tap || shared.state === 'closed')) {
+      const old = shared
+      const next = (shared = new C())
+      // The old one is closed only once the new one is confirmed running.
+      const retire = () => {
+        if (next.state !== 'running') return
+        next.removeEventListener?.('statechange', retire)
+        if (old.state !== 'closed') void old.close?.().catch(() => {})
+      }
+      next.addEventListener?.('statechange', retire)
+      retire()
     }
     shared ??= new C()
     void shared.resume?.()?.catch?.(() => {})

@@ -3,7 +3,7 @@
 // Nothing moves on by itself (Pavol, 20 Nov: no waiting for silence). The screen owns the mic;
 // this reducer owns only the order.
 
-import { voiceOrder, type Intake, type IntakeId } from './mastermind'
+import { voiceOrder, type IntakeId } from './mastermind'
 
 export interface VoiceState {
   queue: IntakeId[]
@@ -14,8 +14,9 @@ export type VoiceAction = { type: 'start'; queue: IntakeId[] } | { type: 'next' 
 
 export const VOICE_IDLE: VoiceState = { queue: [], at: 0 }
 
-/** The goal first, filled or not (a second recording adds to it), then the still-empty fields. */
-export const walkQueue = (answers: Intake): IntakeId[] => ['goal', ...voiceOrder(answers).filter((id) => id !== 'goal')]
+/** Every field in the order the screen lists them, goal first. A field that already has an
+ *  answer is visited too: a second recording adds to it, and "Next question" passes it. */
+export const walkQueue = (): IntakeId[] => voiceOrder({})
 
 export function voiceReducer(state: VoiceState, action: VoiceAction): VoiceState {
   switch (action.type) {

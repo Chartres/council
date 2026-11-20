@@ -9,10 +9,17 @@
 // and whether a part is worth sending. The gateway's Whisper runs its own VAD.
 
 import { recognitionCtor, type Recognition } from './speech'
-import { markBrowserEngineBroken, mimeType, recordingSupported, serverEars, SttError, transcribe, unlockAudioInput } from './stt'
+import { isAppleMobile, markBrowserEngineBroken, mimeType, recordingSupported, serverEars, SttError, transcribe, unlockAudioInput } from './stt'
 
-/** Louder than this (RMS of the waveform, 0..1) is speech; quieter is the room. */
-export const SPEECH_RMS = 0.02
+/** Louder than this (RMS of the waveform, 0..1) is speech; quieter is the room. Low on purpose:
+ *  a quiet voice must count. When in doubt a part is sent: losing words is worse than
+ *  transcribing a quiet one. */
+export const SPEECH_RMS = 0.01
+/** A sample this small is no signal at all. A quiet room is far above it; a dead or muted input is
+ *  exactly flat. Only that is called "I can't hear anything". */
+export const FLAT_PEAK = 1e-4
+/** A recorder that does not report its stop within this is taken as stopped. */
+export const STOP_TIMEOUT_MS = 2000
 /** The gateway takes about a minute of audio in one clip (2 MB): a part is cut before that. */
 export const MAX_PART_MS = 50_000
 export const MAX_PART_BYTES = 1_500_000
@@ -49,6 +56,9 @@ export interface Capture {
   level(): number
   /** True once something louder than the room came in. */
   heard(): boolean
+  /** How long the input has been digitally flat (ms): a dead or muted input, not a quiet room.
+   *  0 while there is any signal, or while the level cannot be read. */
+  flatMs(): number
   /** False when the browser has suspended audio: the level cannot be read. */
   audioRunning(): boolean
   /** Ask the browser to resume audio (call inside a tap). */
@@ -97,6 +107,8 @@ async function writeDown(clip: Blob): Promise<string> {
 export async function openCapture(first: CaptureSink, ev: CaptureEvents): Promise<Capture> {
   let ctx = unlockAudioInput()
   const stream = await askMic()
+  // Once more after the permission prompt: the context made in the tap may still be suspended.
+  void ctx?.resume?.()?.catch?.(() => {})
   const release = () => stream.getTracks().forEach((t) => t.stop())
 
   const Ctor = recognitionCtor()
@@ -110,7 +122,9 @@ export async function openCapture(first: CaptureSink, ev: CaptureEvents): Promis
   // --- the meter ---------------------------------------------------------------------------
   let analyser: AnalyserNode | null = null
   let source: MediaStreamAudioSourceNode | null = null
-  let buf = new Uint8Array(0)
+  let buf = new Float32Array(0)
+  let bytes = new Uint8Array(0)
+  let lastSignal = Date.now() // the last time the input was not flat
   const buildMeter = () => {
     try {
       source?.disconnect()
@@ -120,7 +134,9 @@ export async function openCapture(first: CaptureSink, ev: CaptureEvents): Promis
       a.fftSize = 1024
       source = ctx.createMediaStreamSource(stream)
       source.connect(a)
-      buf = new Uint8Array(a.fftSize)
+      buf = new Float32Array(a.fftSize)
+      bytes = new Uint8Array(a.fftSize)
+      lastSignal = Date.now()
       analyser = a
     } catch {
       analyser = null // no meter: the screen says the audio is paused, the recording still runs
@@ -130,11 +146,25 @@ export async function openCapture(first: CaptureSink, ev: CaptureEvents): Promis
   const audioRunning = () => !!analyser && ctx?.state === 'running'
   const level = () => {
     if (!analyser) return 0
-    analyser.getByteTimeDomainData(buf)
     let sum = 0
-    for (const v of buf) sum += ((v - 128) / 128) ** 2
+    let peak = 0
+    if (typeof analyser.getFloatTimeDomainData === 'function') {
+      // Floats: byte data rounds a quiet room and a dead input to the same 128.
+      analyser.getFloatTimeDomainData(buf)
+      for (const v of buf) {
+        sum += v * v
+        if (v > peak || -v > peak) peak = Math.abs(v)
+      }
+    } else {
+      // ponytail: an engine without float data cannot tell flat from quiet, so it is not called flat.
+      analyser.getByteTimeDomainData(bytes)
+      for (const v of bytes) sum += ((v - 128) / 128) ** 2
+      peak = 1
+    }
+    if (peak >= FLAT_PEAK) lastSignal = Date.now()
     return Math.sqrt(sum / buf.length)
   }
+  const flatMs = () => (audioRunning() ? Date.now() - lastSignal : 0)
 
   // --- parts for the gateway ------------------------------------------------------------------
   let sink = first
@@ -146,24 +176,23 @@ export async function openCapture(first: CaptureSink, ev: CaptureEvents): Promis
   let partHeard = false
   let lastLoud = 0
   let partBegan = Date.now()
-  let partBytes = 0
-  type Part = { rec: MediaRecorder; chunks: Blob[]; sink: CaptureSink }
+  type Part = { rec: MediaRecorder; chunks: Blob[]; sink: CaptureSink; bytes: number }
   let part: Part | null = null
   const type = canRecord ? mimeType() : undefined
 
   const startPart = () => {
-    const chunks: Blob[] = []
     const rec = new MediaRecorder(stream, { ...(type ? { mimeType: type } : {}), audioBitsPerSecond: BITS_PER_SECOND })
+    // Each part counts its own bytes: the old recorder's last data must not weigh on the new part.
+    const p: Part = { rec, chunks: [], sink, bytes: 0 }
     rec.ondataavailable = (e) => {
       if (!e.data?.size) return
-      chunks.push(e.data)
-      partBytes += e.data.size
+      p.chunks.push(e.data)
+      p.bytes += e.data.size
     }
     partHeard = false
     partBegan = Date.now()
-    partBytes = 0
     rec.start(1000)
-    part = { rec, chunks, sink }
+    part = p
   }
 
   /** Close a part. Kept: it goes to the gateway and its words land in order. */
@@ -173,6 +202,8 @@ export async function openCapture(first: CaptureSink, ev: CaptureEvents): Promis
       const done = () => resolve(new Blob(p.chunks, { type: p.rec.mimeType || type || 'audio/webm' }))
       if (p.rec.state === 'inactive') return done()
       p.rec.onstop = done
+      // A recorder that never reports its stop must not hold the stream or "Writing it down…".
+      setTimeout(done, STOP_TIMEOUT_MS)
       try {
         p.rec.stop()
       } catch {
@@ -208,6 +239,10 @@ export async function openCapture(first: CaptureSink, ev: CaptureEvents): Promis
   const cut = (keep: boolean) => {
     if (!canRecord || dead) return
     const old = part
+    // ponytail: on iPhone and iPad the old recorder stops first (a gap of a few ms): two recorders
+    // on one stream is unproven there. Elsewhere the new one starts first and nothing falls between.
+    const stopFirst = isAppleMobile()
+    if (stopFirst) void endPart(old, keep)
     try {
       startPart()
     } catch {
@@ -216,7 +251,7 @@ export async function openCapture(first: CaptureSink, ev: CaptureEvents): Promis
       // The recorder would not start again: from here nothing is written down, and he is told.
       if (mode === 'server' && open) ev.onProblem('server', 'recorder', false)
     }
-    void endPart(old, keep)
+    if (!stopFirst) void endPart(old, keep)
   }
 
   // --- the browser's recogniser (live words) -------------------------------------------------
@@ -324,7 +359,7 @@ export async function openCapture(first: CaptureSink, ev: CaptureEvents): Promis
       return
     }
     if (partHeard && now - lastLoud >= PAUSE_CUT_MS) cut(true)
-    else if (now - partBegan >= MAX_PART_MS || partBytes >= MAX_PART_BYTES) cut(worthKeeping())
+    else if (now - partBegan >= MAX_PART_MS || (part?.bytes ?? 0) >= MAX_PART_BYTES) cut(worthKeeping())
   }, 100)
 
   let unwatch = () => {}
@@ -379,6 +414,7 @@ export async function openCapture(first: CaptureSink, ev: CaptureEvents): Promis
     label: track?.label || 'this microphone',
     level,
     heard: () => everHeard,
+    flatMs,
     audioRunning,
     wake() {
       // Inside a tap: a context that is not running is replaced, and the meter moves to it.
@@ -416,8 +452,10 @@ export async function openCapture(first: CaptureSink, ev: CaptureEvents): Promis
       }
       const last = part
       part = null
-      await endPart(last, mode === 'server' && worthKeeping())
+      // stop() is asked for first, then the mic is let go at once: the light goes off with the tap.
+      const stopping = endPart(last, mode === 'server' && worthKeeping())
       release()
+      await stopping
       await chain
     },
     cancel() {

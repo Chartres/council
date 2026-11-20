@@ -21,6 +21,7 @@ const VOTE_CLASS: Record<Vote, string> = {
 export function SessionScreen() {
   const { session, reply, go } = useCouncil()
   const [message, setMessage] = useState('')
+  const [micBusy, setMicBusy] = useState(false) // recording, or a part still being written down
   const [shareState, setShareState] = useState<'idle' | 'shared' | 'copied' | 'failed'>('idle')
   const [listen, setListen] = useListen()
   const end = useRef<HTMLDivElement>(null)
@@ -178,10 +179,10 @@ export function SessionScreen() {
             placeholder="Push back, add a constraint, ask them to go further."
             className="field resize-y"
           />
-          <MicButton value={message} onChange={setMessage} label="your reply" primary={!message.trim()} className="mt-2" />
+          <MicButton value={message} onChange={setMessage} label="your reply" primary={!message.trim()} onBusy={setMicBusy} className="mt-2" />
           <button
             type="submit"
-            disabled={!message.trim()}
+            disabled={!message.trim() || micBusy}
             className="slab mt-2"
           >
             Continue the debate

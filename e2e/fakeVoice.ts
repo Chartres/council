@@ -4,8 +4,9 @@ import type { Page } from '@playwright/test'
 //
 // The mic (FAKE_MIC): real getUserMedia hangs in Playwright's Chromium, so it is replaced by
 // a real audio stream from an oscillator. The app's own AudioContext and AnalyserNode read it,
-// so the thread on screen moves with a real level. The tone is off until the test turns it on
-// (window.__tone(true)): a silent stream is how a dead input looks. The recorder is a fake
+// so the thread on screen moves with a real level. Until the test turns the tone on
+// (window.__tone(true)) the stream is a quiet room: a faint signal, far below speech.
+// window.__dead = true before the mic opens makes it a dead input: digitally flat. The recorder is a fake
 // that "records" the text in window.__say; the stub gateway reads it back as the transcript.
 //
 // FAKE_VOICE: a desktop Chrome. The recogniser gives live words: window.__hear(text) is one
@@ -38,11 +39,12 @@ export const FAKE_MIC = `
     const osc = ctx.createOscillator()
     const gain = ctx.createGain()
     const out = ctx.createMediaStreamDestination()
-    gain.gain.value = wantTone ? 0.5 : 0
+    const ROOM = window.__dead ? 0 : 0.001
+    gain.gain.value = wantTone ? 0.5 : ROOM
     osc.frequency.value = 220
     osc.connect(gain).connect(out)
     osc.start()
-    window.__tone = (on) => { wantTone = on; gain.gain.value = on ? 0.5 : 0 }
+    window.__tone = (on) => { wantTone = on; gain.gain.value = on ? 0.5 : ROOM }
     const track = out.stream.getAudioTracks()[0]
     Object.defineProperty(track, 'label', { value: 'Test microphone' })
     // What a phone does when the page goes to the background: the page is hidden, the track

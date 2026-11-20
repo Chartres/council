@@ -130,6 +130,9 @@ responses." Everything here is `src/components/Capture.tsx`.
   action per state: "Tap and talk" while the field is empty, "Finish" while it records, then the
   screen's own action ("Bring it to the group", "Send"). The others are outlines (`.slab-off`).
   The reply box's send is a word button, "Say it", in marble.
+- **One filled action while it records**: the form's own send ("Say it", "Convene the council",
+  "Continue the debate", "Send", "Bring it to the group") is held until the mic is finished and
+  the last part has landed.
 - **The words**: his words are set in the ordinary field as they are written down, added after
   what is there. Words the browser has not settled on yet show in italic under the thread;
   "Writing it down…" shows while the gateway has a part. Nothing is sent until he presses the

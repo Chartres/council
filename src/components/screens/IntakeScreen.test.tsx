@@ -197,6 +197,21 @@ describe('IntakeScreen: tap and talk', () => {
     expect(goal().value).toBe('')
   })
 
+  it('"Writing it down…" stays under the field the part belongs to, and Next question visits an answered field', async () => {
+    render(<IntakeScreen />)
+    fireEvent.change(screen.getByLabelText('What is happening today?'), { target: { value: 'Churn is four percent.' } })
+    fireEvent.click(mic())
+    await act(async () => {})
+    fireEvent.click(screen.getByRole('button', { name: 'Next question' }))
+    expect(screen.getByTestId('voice-bar')).toHaveTextContent('What is happening today?') // answered, and still visited
+    act(() => fake.last().ev.onPending(1))
+    await act(async () => fireEvent.click(mic())) // Finish, with a part still out
+    expect(screen.getByTestId('voice-bar')).toHaveTextContent('What is happening today?')
+    expect(screen.getByTestId('capture-writing')).toBeInTheDocument()
+    act(() => fake.last().say('It was three in March'))
+    expect((screen.getByLabelText('What is happening today?') as HTMLTextAreaElement).value).toBe('Churn is four percent. It was three in March')
+  })
+
   it('recording again adds to a goal he already wrote', async () => {
     render(<IntakeScreen />)
     fireEvent.change(goal(), { target: { value: 'Cut churn.' } })

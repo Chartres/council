@@ -2,9 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { VOICE_IDLE, currentField, nextField, voiceReducer, walkQueue } from './intakeVoice'
 
 describe('the intake walk', () => {
-  it('starts at the goal, filled or not, then takes the still-empty fields in order', () => {
-    expect(walkQueue({})).toEqual(['goal', 'situation', 'success', 'constraints', 'role', 'organization', 'working_style'])
-    expect(walkQueue({ goal: 'Cut churn', success: 'Under 2%' })).toEqual(['goal', 'situation', 'constraints', 'role', 'organization', 'working_style'])
+  it('visits every field in the screen’s order, goal first: an answered field can take more by voice', () => {
+    expect(walkQueue()).toEqual(['goal', 'situation', 'success', 'constraints', 'role', 'organization', 'working_style'])
   })
 
   it('moves only when told: next goes to the following field and stops at the last', () => {

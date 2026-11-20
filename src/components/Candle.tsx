@@ -1,4 +1,4 @@
-import { useImperativeHandle, useRef, type Ref } from 'react'
+import { useId, useImperativeHandle, useRef, type Ref } from 'react'
 import painting from '@/assets/candle-therbusch-1755.jpg'
 
 // The candle on the recording surface, behind one boundary: this file is the only one that
@@ -91,6 +91,8 @@ export function Candle({
   crop?: number
   ref?: Ref<CandleHandle>
 }) {
+  // Its own filter id: two candles on one page (a field's and the voice bar's) must not share one.
+  const waver = `candle-waver-${useId().replace(/[^a-zA-Z0-9]/g, '')}`
   const flame = useRef<HTMLImageElement>(null)
   const light = useRef<HTMLDivElement>(null)
   const turb = useRef<SVGFETurbulenceElement>(null)
@@ -155,12 +157,12 @@ export function Candle({
             draggable={false}
             data-testid="candle-flame"
             className={layer}
-            style={{ ...mask(FLAME_AT), transformOrigin: '53.5% 47.5%', filter: still ? undefined : 'url(#candle-waver)', willChange: 'transform' }}
+            style={{ ...mask(FLAME_AT), transformOrigin: '53.5% 47.5%', filter: still ? undefined : `url(#${waver})`, willChange: 'transform' }}
           />
         </div>
       </div>
       <svg width="0" height="0" className="absolute" aria-hidden="true">
-        <filter id="candle-waver" x="-30%" y="-10%" width="160%" height="70%" colorInterpolationFilters="sRGB">
+        <filter id={waver} x="-30%" y="-10%" width="160%" height="70%" colorInterpolationFilters="sRGB">
           <feTurbulence ref={turb} type="fractalNoise" baseFrequency="0.015 0.035" numOctaves="2" seed="4" result="n" />
           <feDisplacementMap ref={disp} in="SourceGraphic" in2="n" scale="2" xChannelSelector="R" yChannelSelector="G" />
         </filter>

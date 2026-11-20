@@ -38,9 +38,10 @@ Mastermind Council at https://council.dravec.org, in private beta behind a passw
 - The voice PR waits for a separate review and for Pavol's try with a real microphone on a Mac and an iPhone.
 - Pavol has not seen the painted flame's second motion yet; the constants are in `FLAME` (`src/components/Candle.tsx`).
 - Not verified on a device: what Firefox on his phone does to the track and the audio when the page goes to the background (the fix is built from the code and the standard events, and tested with a simulated loss), Safari's level meter after the tap, the earpiece/speaker switch on iPhone when the mic opens, Chrome's recogniser beside an open mic stream, and how Whisper handles a part cut at a 1.5 s breath.
-- `mic_failed` with `reason: heard_nothing` fires after 3 s without sound, so a long think before the first word logs one too. Read it with that in mind.
+- "I can’t hear anything" and `mic_failed` `heard_nothing` now mean a flat signal for 3 s (a dead input), not a quiet room. Not checked: whether a browser's noise suppression ever outputs exact silence in a quiet room, which would show the warning wrongly.
 - A Talk turn is now two taps (Finish, Send). If that is one too many, "Finish and send" as a second button is the smaller change.
-- The intake has one "Tap and talk", at the goal; later fields are reached with Next question, not with a button of their own.
+- The intake has one "Tap and talk", at the goal; later fields are reached with Next question, which now visits answered fields too.
+- 20 Nov, late: an independent review asked for changes (send held while the mic is busy, Talk's end keeps pending parts, the flat-input rule, wake on click); they are in the PR.
 - Pavol closes Eyal's two feedback items with `scripts/feedback.mjs` (in flywheel).
 - Not measured yet: voice latency and transcription accuracy. Both need SQL or gateway logs, which wait for Pavol.
 - Voice bar step 2, proper next-question and back-to-question-N commands in the gateway, needs a gateway deploy from the mini.

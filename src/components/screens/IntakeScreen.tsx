@@ -175,7 +175,7 @@ export function IntakeScreen() {
   // After the mic was taken away (he left the page), the next tap carries on at the same field.
   const lostAt = cap.lost ? currentField(voice) : null
   const startVoice = () => {
-    if (!lostAt) dispatch({ type: 'start', queue: walkQueue(answers) })
+    if (!lostAt) dispatch({ type: 'start', queue: walkQueue() })
     cap.start(add(lostAt ?? 'goal'))
   }
   const upNext = nextField(voice)
@@ -198,7 +198,9 @@ export function IntakeScreen() {
   // The recording's controls sit under the field they fill: one filled action per state
   // ("Tap and talk", then "Finish"), and "Next question" as a second word button.
   const voiceControls = (id: IntakeId) => {
-    if (!micAvailable() || (field ?? lostAt ?? 'goal') !== id) return null
+    // While the last part is still being written down, "Writing it down…" stays under the field it belongs to.
+    const writingAt = cap.phase === 'writing' ? currentField(voice) : null
+    if (!micAvailable() || (field ?? lostAt ?? writingAt ?? 'goal') !== id) return null
     const { phase } = cap
     return (
       <div className="mt-2" data-testid="voice-bar">

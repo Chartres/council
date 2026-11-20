@@ -239,7 +239,8 @@ export function Talk({
   const cutIn = () => {
     muted.current = true
     hush()
-    openMic()
+    // With words already waiting he is still cutting in to say more: the mic opens and adds to them.
+    if (herTurn()) record()
   }
 
   // On: his turn opens (already started inside the tap). Off: mic and audio stop, the turn is let go.
@@ -250,9 +251,15 @@ export function Talk({
     setPaused(false)
     pending.current = []
     skipping.current = false
-    capRef.current.cancel()
-    if (draftRef.current.trim()) live.current.onLeft?.(draftRef.current.trim())
-    setText('')
+    // The recording in progress is finished, not dropped: the reply box gets his words once the
+    // last part has been written down.
+    const ending = capRef.current.finish()
+    const hand = () => {
+      if (live.current.active) return // back on before the last part landed: the words stay here
+      if (draftRef.current.trim()) live.current.onLeft?.(draftRef.current.trim())
+      setText('')
+    }
+    void ending.then(hand, hand)
     if (queued.current) hush() // only what Talk queued: Listen's narration is not ours to stop
     held.current = ''
     muted.current = false
@@ -404,7 +411,7 @@ export function Talk({
     </svg>
   )
   // Every control in the bar is an icon with its word (Pavol, 20 Nov: "some text, some icons").
-  const worded = 'flex min-h-11 w-12 shrink-0 flex-col items-center justify-center text-marble-200 hover:text-marble-50 disabled:text-marble-400'
+  const worded = 'flex min-h-11 w-11 shrink-0 flex-col items-center justify-center text-marble-200 hover:text-marble-50 disabled:text-marble-400'
   const word = (w: string) => <span className="sc text-[17px] leading-[20px]">{w}</span>
 
   if (!hasMic) return null
@@ -502,6 +509,8 @@ export function Talk({
                 rows={1}
                 value={draft}
                 onChange={(e) => setText(e.target.value)}
+                // The phone's keyboard opens over a tall fixed bar: keep the field in view.
+                onFocus={(e) => e.currentTarget.scrollIntoView?.({ block: 'nearest' })}
                 placeholder="Your words are set here as you speak. You can also type."
                 className="field mt-1 max-h-32 resize-none overflow-y-auto [field-sizing:content]"
               />
@@ -514,7 +523,7 @@ export function Talk({
               )}
             </>
           )}
-          <div className="mt-1 flex items-center justify-between gap-1">
+          <div className="mt-1 flex items-center justify-between gap-2">
             <button
               type="button"
               aria-label="Back to the previous question"

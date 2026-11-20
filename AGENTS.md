@@ -59,8 +59,9 @@ every journey goes through the real header path; `e2e/gate.spec.ts` clears it to
 
 The mic in e2e (`e2e/fakeVoice.ts`): real `getUserMedia` hangs in Playwright's Chromium, so it is
 replaced by an oscillator into a `MediaStreamDestination`. The app's own `AudioContext` and
-`AnalyserNode` read that stream, so the level the thread draws is real. The tone is off until the
-test turns it on (`tone(page, true)`): a silent stream is what a dead input looks like.
+`AnalyserNode` read that stream, so the level the thread draws is real. Until the test turns the
+tone on (`tone(page, true)`) the stream is a quiet room, a faint signal far below speech;
+`window.__dead = true` before the mic opens makes it a dead input, digitally flat.
 `FAKE_VOICE` is a desktop Chrome (live words: `hear(page, text)`), `FAKE_EARS` an iPhone (the
 gateway's words: `speakInto(page, text)`). No test uses a real microphone.
 `VOICE_REVIEW=1 CI=1 npx playwright test e2e/voice-capture.spec.ts` re-shoots
@@ -138,16 +139,24 @@ one capture path for every recording surface (quick idea, intake, reply box, fee
 "Tap and talk" opens the mic with `getUserMedia` inside the tap; an `AnalyserNode` gives the real
 input level for the thread (a thin line) and the candle (`src/components/Candle.tsx`: a painted
 candle whose flame leans and dips a little with the voice; still under reduced motion). One sentence says the state: "Waiting for the microphone. Nothing is
-recorded yet." / "Recording. Say something." / "Recording. I can hear you." / "Recording. Take
-your time." / "I can’t hear anything from “<input>”. Check the input, or speak up." (after 3 s
-with no sound) / paused audio / blocked / no microphone. A recording ends on Finish (or Next
+recorded yet." / "Recording. Say something when you are ready." / "Recording. I can hear you." /
+"Recording. Take your time." / "I can’t hear anything from “<input>”. Check the input, or speak
+up." / paused audio (any tap wakes it; the listener is on `click`, a touch `pointerdown` is not a
+user activation) / blocked / no microphone. "I can’t hear anything" means a dead input, not a
+quiet room: the float samples stayed under 1e-4 for 3 s (`flatMs`). Thinking before the first
+word shows no warning and logs nothing. While a mic records or a part is still being written
+down, its form's send button is held (`MicButton` `onBusy`), so the last sentence cannot be left
+behind. A recording ends on Finish (or Next
 question in the intake), not on a pause: there is no silence endpoint and no idle cancel. Words:
 the browser's recogniser on desktop Chrome and Edge (live, phrase by phrase), the gateway
 everywhere else (`POST /v1/stt`, Whisper on Workers AI; `src/domain/stt.ts`): iPhone/iPad,
 Android, Firefox, and anywhere the recogniser failed or stayed wordless for 5 s of sound (a
 recorder runs beside it, so the gateway writes down what it missed). For the gateway a recording
 is cut into parts, at a 1.5 s breath or before 50 s / 1.5 MB (the gateway takes 2 MB), each part
-written down in the background and joined in order; a part that fails is said in words. Each
+written down in the background and joined in order; a part that fails is said in words. Speech is
+anything above 0.01 RMS, and a part in doubt is sent. A reason the gateway will keep giving
+(quota, password, cap) stops the recording and says why; so does a recorder that will not start
+the next part. Each
 piece is added to the field after what is there, so a correction is not overwritten. Leaving the page (Pavol, 20 Nov,
 Firefox on his phone: after switching apps "it doesn't work anymore. I then have to refresh"):
 every tap gets a new stream and an AudioContext that is running, or a new one made in that tap
@@ -156,7 +165,7 @@ every tap gets a new stream and an AudioContext that is running, or a new one ma
 the text stays, the stream is released, and it says "The microphone stopped when you left the
 page. Tap to carry on." The next tap records again and adds. No reload. A mic failure
 is logged as `key_action` `mic_failed` with `engine` (mic / meter / browser / server) and
-`reason` (`heard_nothing` for an open mic with no sound; `lost_ended` / `lost_muted` /
+`reason` (`heard_nothing` for an open mic with a flat signal for 3 s; `lost_ended` / `lost_muted` /
 `lost_pagehide` with `away`; `recovered: true` when the gateway took over). Voice out: the gateway's calm voices inside a v4
 session, the browser engine as fallback, natural pitch and speed; read-aloud (Listen) is off
 until she turns it on. Each control is absent only where neither path exists.

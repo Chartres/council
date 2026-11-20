@@ -14,7 +14,7 @@ vi.mock('@/domain/capture', async (orig) => ({ ...(await orig<object>()), openCa
 vi.mock('@/domain/stt', async (orig) => ({ ...(await orig<object>()), recordingSupported: () => true }))
 
 const { MicButton } = await import('./MicButton')
-const { captureStatus, DEAF_MS } = await import('./Capture')
+const { captureStatus } = await import('./Capture')
 const { FLAME_REST, flameStep, flameTransform } = await import('./Candle')
 
 function Field({ start = '' }: { start?: string }) {
@@ -52,7 +52,7 @@ describe('MicButton: the state in words, at once', () => {
     expect(mic()).toHaveTextContent('Finish')
 
     await act(async () => fake.state.release[0]!())
-    expect(status()).toHaveTextContent('Recording. Say something.')
+    expect(status()).toHaveTextContent('Recording. Say something when you are ready.')
     expect(screen.getByTestId('thread')).toBeInTheDocument()
     expect(screen.getByTestId('candle')).toBeInTheDocument()
   })
@@ -65,18 +65,31 @@ describe('MicButton: the state in words, at once', () => {
     expect(status()).toHaveTextContent('Recording. I can hear you.')
   })
 
-  it('no sound for 3 s: names the input, says what to do, and logs the reason', async () => {
+  // Review of PR #40: the warning used to show whenever he thought before speaking.
+  it('a quiet room while he thinks, however long, is not a fault: the plain sentence, and no event', async () => {
     render(<Field />)
     await open()
-    act(() => vi.advanceTimersByTime(DEAF_MS - 500))
-    expect(status()).toHaveTextContent('Recording. Say something.')
-    act(() => vi.advanceTimersByTime(1000))
+    act(() => vi.advanceTimersByTime(10_000))
+    expect(status()).toHaveTextContent('Recording. Say something when you are ready.')
+    expect(status()).not.toHaveClass('text-clay-400')
+    expect(analytics.keyAction).not.toHaveBeenCalled()
+  })
+
+  it('a flat input for 3 s: names the input, says what to do, and logs the reason once', async () => {
+    render(<Field />)
+    await open()
+    fake.last().flat = 2500
+    act(() => vi.advanceTimersByTime(300))
+    expect(status()).toHaveTextContent('Recording. Say something when you are ready.')
+    fake.last().flat = 3100
+    act(() => vi.advanceTimersByTime(300))
     expect(status()).toHaveTextContent('I can’t hear anything from “Desk microphone”. Check the input, or speak up.')
     act(() => vi.advanceTimersByTime(10_000))
     expect(analytics.keyAction.mock.calls.filter((c) => c[1]?.reason === 'heard_nothing')).toEqual([
       ['mic_failed', { engine: 'meter', reason: 'heard_nothing' }],
     ])
     // The moment sound arrives, the sentence changes.
+    fake.last().flat = 0
     act(() => fake.last().speak())
     act(() => vi.advanceTimersByTime(300))
     expect(status()).toHaveTextContent('Recording. I can hear you.')
@@ -88,8 +101,11 @@ describe('MicButton: the state in words, at once', () => {
     fake.last().running = false
     act(() => vi.advanceTimersByTime(300))
     expect(status()).toHaveTextContent('The browser has paused audio')
+    // A touch pointerdown is not a user activation (WebKit): only the click wakes it.
     fireEvent.pointerDown(document.body)
-    expect(fake.last().wake).toHaveBeenCalled()
+    expect(fake.last().wake).not.toHaveBeenCalled()
+    fireEvent.click(document.body)
+    expect(fake.last().wake).toHaveBeenCalledTimes(1)
   })
 
   it('a blocked mic and a missing one each get their sentence, and are logged', async () => {
@@ -181,6 +197,45 @@ describe('MicButton: the words are his to correct', () => {
     expect(analytics.keyAction).toHaveBeenCalledWith('mic_failed', { engine: 'server', reason: 'network' })
   })
 
+  it('the gateway refuses for the day: the recording stops and says so, not "I can hear you" beside an alert', async () => {
+    render(<Field start="kept" />)
+    await open()
+    act(() => fake.last().speak())
+    act(() => fake.last().ev.onProblem('server', 'quota', false))
+    expect(fake.last().cancel).toHaveBeenCalled()
+    expect(screen.getByRole('alert')).toHaveTextContent('Voice input has reached today’s limit.')
+    expect(screen.queryByTestId('capture-status')).toBeNull()
+    expect(mic()).toHaveTextContent('Tap and talk')
+    expect(field().value).toBe('kept')
+  })
+
+  it('a recorder that will not start again: the recording stops, earlier parts are written down, one tap carries on', async () => {
+    render(<Field />)
+    await open()
+    await act(async () => fake.last().ev.onProblem('server', 'recorder', false))
+    expect(fake.last().finish).toHaveBeenCalled()
+    expect(screen.getByRole('alert')).toHaveTextContent('The microphone stopped. Tap to carry on.')
+    expect(screen.queryByTestId('capture-status')).toBeNull()
+    expect(mic()).toHaveTextContent('Tap and talk')
+  })
+
+  it('tells its host while it records or writes down, so the host can hold its send button', async () => {
+    const onBusy = vi.fn()
+    const { unmount } = render(<MicButton value="" onChange={() => {}} label="x" onBusy={onBusy} />)
+    expect(onBusy).toHaveBeenLastCalledWith(false)
+    await open()
+    expect(onBusy).toHaveBeenLastCalledWith(true)
+    act(() => fake.last().ev.onPending(1))
+    await act(async () => fireEvent.click(mic()))
+    expect(onBusy).toHaveBeenLastCalledWith(true) // a part is still being written down
+    act(() => fake.all[0]!.ev.onPending(0))
+    expect(onBusy).toHaveBeenLastCalledWith(false)
+    await open()
+    unmount()
+    expect(onBusy).toHaveBeenLastCalledWith(false)
+    expect(fake.last().finish).toHaveBeenCalled() // gone from the screen: finished, not dropped
+  })
+
   it('sound but no words at all: says so after Finish', async () => {
     render(<Field />)
     await open()
@@ -219,16 +274,17 @@ describe('MicButton: the mic is taken away when he leaves the page', () => {
 })
 
 describe('captureStatus and the flame', () => {
-  const live = { state: 'live' as const, running: true, heard: true, liveMs: 9000, quietMs: 0, label: 'Desk microphone' }
+  const live = { state: 'live' as const, running: true, heard: true, flatMs: 0, quietMs: 0, label: 'Desk microphone' }
   it('one sentence per state', () => {
     expect(captureStatus({ ...live, state: 'asking' }).text).toBe('Waiting for the microphone. Nothing is recorded yet.')
     expect(captureStatus(live).text).toBe('Recording. I can hear you.')
-    expect(captureStatus({ ...live, heard: false })).toMatchObject({
+    expect(captureStatus({ ...live, heard: false, flatMs: 3001 })).toMatchObject({
       tone: 'bad',
       deaf: true,
       text: 'I can’t hear anything from “Desk microphone”. Check the input, or speak up.',
     })
-    expect(captureStatus({ ...live, heard: false, liveMs: 1000 }).text).toBe('Recording. Say something.')
+    expect(captureStatus({ ...live, heard: false }).text).toBe('Recording. Say something when you are ready.')
+    expect(captureStatus({ ...live, flatMs: 3001 }).deaf).toBe(true) // an input that goes dead after he spoke
     expect(captureStatus({ ...live, running: false }).tone).toBe('bad')
   })
 

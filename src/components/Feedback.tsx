@@ -14,6 +14,7 @@ export function FeedbackSheet() {
   const { conversation } = useMastermind()
   const [text, setText] = useState('')
   const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'quota' | 'failed'>('idle')
+  const [micBusy, setMicBusy] = useState(false) // recording, or a part still being written down
 
   if (state === 'sent' || state === 'quota')
     return (
@@ -50,10 +51,10 @@ export function FeedbackSheet() {
         onChange={(e) => setText(e.target.value)}
         className="field mt-1 resize-y"
       />
-      <MicButton value={text} onChange={(t) => setText(t.slice(0, MAX_FEEDBACK))} label="your feedback" className="mt-2" />
+      <MicButton value={text} onChange={(t) => setText(t.slice(0, MAX_FEEDBACK))} label="your feedback" onBusy={setMicBusy} className="mt-2" />
       <button
         type="submit"
-        disabled={state === 'sending' || !text.trim()}
+        disabled={state === 'sending' || !text.trim() || micBusy}
         className="text-btn mt-1 -ml-3 px-3"
       >
         {state === 'sending' ? 'Sending…' : 'Send'}

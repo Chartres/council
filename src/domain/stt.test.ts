@@ -81,10 +81,43 @@ describe('unlockAudioInput: every tap gets audio that is running', () => {
       const next = unlockAudioInput() as unknown as Ctx
       expect(next).not.toBe(old)
       expect(next.state).toBe('running')
-      expect(old.close).toHaveBeenCalled()
+      if (state !== 'closed') expect(old.close).toHaveBeenCalled()
       expect(next.resume).toHaveBeenCalled()
     }
     expect(Ctx.made).toHaveLength(4)
+    vi.unstubAllGlobals()
+    resetAudioInput()
+  })
+
+  // Review of PR #40: a context made outside a real tap stays suspended on WebKit, and closing
+  // the old one first leaves nothing that could come back.
+  it('outside a tap it keeps the suspended context and asks it to resume; in a tap the old one is closed only once the new one runs', () => {
+    Ctx.made = []
+    resetAudioInput()
+    vi.stubGlobal('AudioContext', Ctx)
+    const activation = { isActive: false }
+    vi.stubGlobal('navigator', { ...navigator, userActivation: activation })
+    const first = unlockAudioInput() as unknown as Ctx
+    first.state = 'suspended'
+    first.resume.mockClear()
+    expect(unlockAudioInput()).toBe(first) // Talk opening the mic without a tap
+    expect(first.resume).toHaveBeenCalled()
+    expect(first.close).not.toHaveBeenCalled()
+
+    activation.isActive = true
+    class Slow extends Ctx {
+      state = 'suspended'
+      listeners: (() => void)[] = []
+      addEventListener = (_: string, f: () => void) => void this.listeners.push(f)
+      removeEventListener = () => {}
+    }
+    vi.stubGlobal('AudioContext', Slow)
+    const next = unlockAudioInput() as unknown as Slow
+    expect(next).not.toBe(first)
+    expect(first.close).not.toHaveBeenCalled() // the new one is not confirmed running yet
+    next.state = 'running'
+    next.listeners.forEach((f) => f())
+    expect(first.close).toHaveBeenCalled()
     vi.unstubAllGlobals()
     resetAudioInput()
   })

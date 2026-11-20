@@ -67,7 +67,7 @@ describe('Talk: his turn is record → text → correct → send', () => {
     await settle()
     expect(status()).toHaveTextContent('Waiting for the microphone. Nothing is recorded yet.')
     await act(async () => fake.state.release[0]!())
-    expect(status()).toHaveTextContent('Recording. Say something.')
+    expect(status()).toHaveTextContent('Recording. Say something when you are ready.')
     expect(screen.getByTestId('thread')).toBeInTheDocument()
     expect(screen.getByTestId('voice-finish')).toHaveTextContent('Finish')
   })
@@ -190,7 +190,7 @@ describe('Talk: the room and he take turns', () => {
     fireEvent.click(screen.getByRole('button', { name: 'End voice' }))
     expect(onChange).toHaveBeenLastCalledWith(false)
     await set({ on: false })
-    expect(fake.last().cancel).toHaveBeenCalled()
+    expect(fake.last().finish).toHaveBeenCalled()
     expect(screen.queryByTestId('talk-status')).toBeNull()
   })
 
@@ -275,11 +275,22 @@ describe('Talk: what fails is said', () => {
     expect(analytics.keyAction).toHaveBeenCalledWith('mic_failed', { engine: 'mic', reason: 'denied', talk: true })
   })
 
-  it('no sound for 3 s is said in the status line, with the input’s name, and logged', async () => {
+  it('thinking before he speaks, turn after turn, shows no warning and logs nothing', async () => {
     vi.useFakeTimers()
     setup()
     await start()
-    act(() => vi.advanceTimersByTime(3500))
+    act(() => vi.advanceTimersByTime(20_000))
+    expect(status()).toHaveTextContent('Recording. Say something when you are ready.')
+    expect(analytics.keyAction).not.toHaveBeenCalled()
+    vi.useRealTimers()
+  })
+
+  it('a flat input for 3 s is said in the status line, with the input’s name, and logged', async () => {
+    vi.useFakeTimers()
+    setup()
+    await start()
+    fake.last().flat = 3100
+    act(() => vi.advanceTimersByTime(500))
     expect(status()).toHaveTextContent('I can’t hear anything from “Desk microphone”. Check the input, or speak up.')
     expect(analytics.keyAction).toHaveBeenCalledWith('mic_failed', { engine: 'meter', reason: 'heard_nothing', talk: true })
     vi.useRealTimers()
@@ -299,6 +310,33 @@ describe('Talk: what fails is said', () => {
     expect(draft().value).toBe('before I left after I came back')
   })
 
+  it('ending Talk while a part is still being written down hands the late words to the reply box too', async () => {
+    const { onLeft, set } = setup()
+    await start()
+    act(() => fake.last().say('the first part'))
+    fake.last().hold = true
+    await set({ on: false })
+    expect(fake.last().finish).toHaveBeenCalled() // finished, not thrown away
+    expect(fake.last().cancel).not.toHaveBeenCalled()
+    expect(onLeft).not.toHaveBeenCalled() // not before the last part is in
+    act(() => fake.last().say('and the part that came late'))
+    await act(async () => fake.last().land())
+    expect(onLeft).toHaveBeenCalledTimes(1)
+    expect(onLeft).toHaveBeenCalledWith('the first part and the part that came late')
+  })
+
+  it('Cut in with words already waiting stops the adviser and opens the mic to add to them', async () => {
+    const { set } = setup()
+    await start()
+    act(() => fake.last().say('half a thought'))
+    await set({ items: [{ kind: 'contribution', speaker: 'drucker', text: 'Who is the customer here, really?' } as Item] })
+    await act(async () => fireEvent.click(screen.getByTestId('cut-in')))
+    expect(tts.cancel).toHaveBeenCalled()
+    expect(fake.all).toHaveLength(2)
+    act(() => fake.last().say('and the rest'))
+    expect(draft().value).toBe('half a thought and the rest')
+  })
+
   it('ending Talk with words not sent hands them to the reply box', async () => {
     const { onLeft, onSay, set } = setup()
     await start()
@@ -313,7 +351,7 @@ describe('Talk: what fails is said', () => {
     await start()
     act(() => fake.last().say('too late'))
     unmount()
-    expect(fake.last().cancel).toHaveBeenCalled()
+    expect(fake.last().finish).toHaveBeenCalled()
     expect(onSay).not.toHaveBeenCalled()
   })
 })

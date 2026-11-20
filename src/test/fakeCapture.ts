@@ -17,10 +17,16 @@ export function fakeCaptures() {
       running: true,
       level: () => c.loud,
       heard: () => c.heardYet,
+      /** How long the input has been digitally flat (a dead input); 0 for a room, however quiet. */
+      flat: 0,
+      flatMs: () => c.flat,
+      /** Set before Finish: finish() then resolves only when the test calls land(). */
+      hold: false,
+      land: () => {},
       audioRunning: () => c.running,
       wake: vi.fn(),
       retarget: vi.fn((next: CaptureSink) => void (c.sink = next)),
-      finish: vi.fn(async () => {}),
+      finish: vi.fn(() => (c.hold ? new Promise<void>((resolve) => (c.land = resolve)) : Promise.resolve())),
       cancel: vi.fn(),
       /** He speaks: the meter moves. */
       speak() {

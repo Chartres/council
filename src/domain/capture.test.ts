@@ -18,13 +18,19 @@ const stt = vi.hoisted(() => {
     markBrowserEngineBroken: vi.fn(),
     unlockAudioInput: vi.fn(),
     mimeType: () => 'audio/webm',
+    isAppleMobile: vi.fn(() => false),
   }
 })
 vi.mock('./stt', () => stt)
 
-const { openCapture, primeMic, MAX_PART_MS, PAUSE_CUT_MS, WORDLESS_MS } = await import('./capture')
+const { openCapture, primeMic, MAX_PART_MS, PAUSE_CUT_MS, WORDLESS_MS, STOP_TIMEOUT_MS } = await import('./capture')
 
 let loud = false
+/** The room when nobody speaks: a little noise by default; 0 is a dead input (digitally flat). */
+let room = 0.002
+/** When set, the level of the signal instead of loud/room (RMS for the square wave the fake makes). */
+let amp: number | null = null
+let silentStop = false // a recorder that never reports its stop
 let ctxState = 'running'
 let stopped = 0
 let recorders: FakeRecorder[] = []
@@ -60,7 +66,7 @@ class FakeRecorder {
   stop() {
     this.state = 'inactive'
     this.ondataavailable?.({ data: new Blob([`clip${this.n}`]) })
-    this.onstop?.()
+    if (!silentStop) this.onstop?.()
   }
 }
 
@@ -94,8 +100,9 @@ const ctx = {
   createMediaStreamSource: () => ({ connect() {}, disconnect() {} }),
   createAnalyser: () => ({
     fftSize: 1024,
-    getByteTimeDomainData(buf: Uint8Array) {
-      for (let i = 0; i < buf.length; i++) buf[i] = loud ? (i % 2 ? 200 : 56) : 128
+    getFloatTimeDomainData(buf: Float32Array) {
+      const a = amp ?? (loud ? 0.56 : room)
+      for (let i = 0; i < buf.length; i++) buf[i] = i % 2 ? a : -a
     },
   }),
 }
@@ -114,6 +121,11 @@ const settle = async () => {
 beforeEach(() => {
   vi.useFakeTimers()
   loud = false
+  room = 0.002
+  amp = null
+  silentStop = false
+  stt.isAppleMobile.mockReturnValue(false)
+  ctx.resume.mockClear()
   ctxState = 'running'
   stopped = 0
   track.readyState = 'live'
@@ -155,7 +167,7 @@ describe('openCapture: the mic', () => {
   it('reports the input by name, its level, and whether the audio is running', async () => {
     const c = await openCapture(sink(), events())
     expect(c.label).toBe('Desk microphone')
-    expect(c.level()).toBe(0)
+    expect(c.level()).toBeLessThan(0.005)
     expect(c.heard()).toBe(false)
     loud = true
     vi.advanceTimersByTime(100)
@@ -164,6 +176,28 @@ describe('openCapture: the mic', () => {
     expect(c.audioRunning()).toBe(true)
     ctxState = 'suspended'
     expect(c.audioRunning()).toBe(false)
+    c.cancel()
+  })
+
+  it('asks the audio to resume once more after the permission prompt', async () => {
+    const pending = openCapture(sink(), events())
+    expect(ctx.resume).not.toHaveBeenCalled() // (the unlock is a fake here; this is the capture's own call)
+    const c = await pending
+    expect(ctx.resume).toHaveBeenCalledTimes(1)
+    c.cancel()
+  })
+
+  it('tells a dead input from a quiet room: only a flat signal counts as hearing nothing', async () => {
+    const c = await openCapture(sink(), events())
+    vi.advanceTimersByTime(10_000) // a quiet room for ten seconds while he thinks
+    expect(c.flatMs()).toBeLessThan(200)
+    expect(c.heard()).toBe(false)
+    room = 0 // the input goes dead: exactly flat
+    vi.advanceTimersByTime(3100)
+    expect(c.flatMs()).toBeGreaterThanOrEqual(3000)
+    room = 0.002
+    vi.advanceTimersByTime(100)
+    expect(c.flatMs()).toBeLessThan(200)
     c.cancel()
   })
 
@@ -286,6 +320,64 @@ describe('openCapture: parts', () => {
     expect(a.heard).toEqual(['the goal'])
     expect(b.heard).toEqual(['the situation'])
     expect(getUserMedia).toHaveBeenCalledTimes(1) // one mic, one permission
+  })
+
+  it('a quiet voice is kept: just above the room is enough for the part to be sent', async () => {
+    stt.transcribe.mockResolvedValue('said quietly')
+    const s = sink()
+    const c = await openCapture(s, events())
+    amp = 0.012
+    vi.advanceTimersByTime(10_000)
+    await c.finish()
+    expect(stt.transcribe).toHaveBeenCalled()
+    expect(s.heard).toEqual(['said quietly'])
+  })
+
+  it('a recorder that never reports its stop does not hold the mic or "Writing it down…"', async () => {
+    stt.transcribe.mockResolvedValue('still written down')
+    const s = sink()
+    const ev = events()
+    const c = await openCapture(s, ev)
+    loud = true
+    vi.advanceTimersByTime(1000)
+    silentStop = true
+    const done = c.finish()
+    expect(stopped).toBe(1) // the mic is let go with the tap, not after the recorder answers
+    await vi.advanceTimersByTimeAsync(STOP_TIMEOUT_MS + 10)
+    await done
+    expect(s.heard).toEqual(['still written down']) // what it had recorded is not thrown away
+    expect(ev.onPending).toHaveBeenLastCalledWith(0)
+  })
+
+  it('each part counts its own bytes: the old recorder’s last data does not weigh on the new part', async () => {
+    const big = { data: new Blob([new Uint8Array(2_000_000)]) }
+    const c = await openCapture(sink(), events())
+    loud = true
+    vi.advanceTimersByTime(MAX_PART_MS + 100)
+    await settle()
+    expect(recorders).toHaveLength(2)
+    recorders[0]!.ondataavailable?.(big) // late data from the part that was cut
+    vi.advanceTimersByTime(300)
+    expect(recorders).toHaveLength(2) // the new part was not cut for bytes that are not its own
+    recorders[1]!.ondataavailable?.(big)
+    vi.advanceTimersByTime(300)
+    expect(recorders).toHaveLength(3)
+    c.cancel()
+  })
+
+  it('on an iPhone the old recorder stops before the new one starts', async () => {
+    stt.isAppleMobile.mockReturnValue(true)
+    const order: string[] = []
+    const c = await openCapture(sink(), events())
+    const first = recorders[0]!
+    const stop = first.stop.bind(first)
+    first.stop = () => (order.push('stop old'), stop())
+    const Real = FakeRecorder
+    vi.stubGlobal('MediaRecorder', class extends Real { constructor() { super(); order.push('start new') } })
+    loud = true
+    vi.advanceTimersByTime(MAX_PART_MS + 100)
+    expect(order.slice(0, 2)).toEqual(['stop old', 'start new'])
+    c.cancel()
   })
 
   it('a recorder that will not start the next part is said, not swallowed', async () => {

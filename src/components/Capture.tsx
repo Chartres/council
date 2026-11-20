@@ -12,8 +12,11 @@ import { recordingSupported, SttError } from '@/domain/stt'
 /** A mic exists here: the browser recogniser, or a recorder for the gateway. */
 export const micAvailable = () => !!recognitionCtor() || recordingSupported()
 
-/** No sound above the room for this long after the mic opened: say so. */
+/** A flat input (no signal at all, not a quiet room) for this long: say so. Also how long a
+ *  pause is before the sentence turns to "Take your time". */
 export const DEAF_MS = 3000
+/** Reasons the gateway will keep giving: the recording stops and says why. */
+const FINAL = ['quota', 'password', 'cap']
 
 const KEYBOARD = 'Use the mic on your keyboard, or type.'
 /** What to tell him, by failure. */
@@ -31,8 +34,6 @@ export function micProblem(reason: string): string {
       return 'The beta password changed. Reload the page and enter the new one.'
     case 'nothing':
       return 'I heard sound but no words. Tap and talk again, a little closer.'
-    case 'recorder':
-      return 'The microphone stopped. Tap Finish; what you said so far is kept.'
     case 'left':
       return 'The microphone stopped when you left the page. Tap to carry on.'
     case 'lost':
@@ -52,18 +53,17 @@ export function captureStatus(s: {
   /** The browser's audio is running, so the level can be read. */
   running: boolean
   heard: boolean
-  /** Since the mic opened. */
-  liveMs: number
+  /** How long the input has been digitally flat: a dead or muted input, not a quiet room. */
+  flatMs: number
   /** Since the last sound above the room. */
   quietMs: number
   label: string
 }): { tone: Tone; text: string; deaf?: boolean } {
   if (s.state === 'asking') return { tone: 'plain', text: 'Waiting for the microphone. Nothing is recorded yet.' }
   if (!s.running) return { tone: 'bad', text: 'The browser has paused audio, so the line cannot move. Tap anywhere to wake it.' }
-  if (!s.heard)
-    return s.liveMs > DEAF_MS
-      ? { tone: 'bad', text: `I can’t hear anything from “${s.label}”. Check the input, or speak up.`, deaf: true }
-      : { tone: 'plain', text: 'Recording. Say something.' }
+  // Only a flat input is a fault. A quiet room while he thinks is not (Pavol: "thoughtful with my responses").
+  if (s.flatMs > DEAF_MS) return { tone: 'bad', text: `I can’t hear anything from “${s.label}”. Check the input, or speak up.`, deaf: true }
+  if (!s.heard) return { tone: 'plain', text: 'Recording. Say something when you are ready.' }
   if (s.quietMs > DEAF_MS) return { tone: 'plain', text: 'Recording. Take your time.' }
   return { tone: 'plain', text: 'Recording. I can hear you.' }
 }
@@ -94,17 +94,18 @@ export function useCapture(opts: { talk?: boolean; onFail?: (reason: string) => 
     return () => {
       mounted.current = false
       gen.current += 1
-      cap.current?.cancel()
+      // The screen goes away mid-recording (he turned Talk on, or left): the mic closes, and what
+      // was said is still written down for whoever holds the text.
+      void cap.current?.finish()
       cap.current = null
     }
   }, [])
 
   // The sentence follows the mic: asked four times a second while it is open.
   useEffect(() => {
-    if (state === 'asking') return setStatus(captureStatus({ state, running: true, heard: false, liveMs: 0, quietMs: 0, label: '' }))
+    if (state === 'asking') return setStatus(captureStatus({ state, running: true, heard: false, flatMs: 0, quietMs: 0, label: '' }))
     if (!meter) return setStatus(null)
-    const began = Date.now()
-    let lastLoud = began
+    let lastLoud = Date.now()
     let logged = false
     const read = () => {
       const now = Date.now()
@@ -113,25 +114,26 @@ export function useCapture(opts: { talk?: boolean; onFail?: (reason: string) => 
         state: 'live',
         running: meter.audioRunning(),
         heard: meter.heard(),
-        liveMs: now - began,
+        flatMs: meter.flatMs(),
         quietMs: now - lastLoud,
         label: meter.label,
       })
       if (next.deaf && !logged) {
         logged = true
-        // The path that was silent on 20 Nov: a lit mic, an open stream, and no sound in it.
+        // The path that was silent on 20 Nov: a lit mic, an open stream, and no signal in it.
         keyAction('mic_failed', { engine: 'meter', reason: 'heard_nothing', ...extra })
       }
       setStatus((s) => (s?.text === next.text ? s : next))
     }
     read()
     const t = setInterval(read, 250)
-    // A suspended context wakes on any tap.
+    // A suspended context wakes on any tap. A click, not a pointerdown: a touch pointerdown is
+    // not a user activation, and audio made or resumed there stays suspended on WebKit.
     const wake = () => meter.audioRunning() || meter.wake()
-    document.addEventListener('pointerdown', wake)
+    document.addEventListener('click', wake)
     return () => {
       clearInterval(t)
-      document.removeEventListener('pointerdown', wake)
+      document.removeEventListener('click', wake)
     }
   }, [state, meter])
 
@@ -157,7 +159,20 @@ export function useCapture(opts: { talk?: boolean; onFail?: (reason: string) => 
         onProblem: (engine, reason, recovered) => {
           keyAction('mic_failed', { engine, reason, ...(recovered ? { recovered: true } : {}), ...extra })
           if (recovered || !mounted.current) return
-          setProblem(micProblem(['network', 'unavailable', 'cap'].includes(reason) ? 'part' : reason))
+          if (g === gen.current && (FINAL.includes(reason) || reason === 'recorder')) {
+            // Nothing more can be written down: the recording stops, so the status cannot go on
+            // saying "I can hear you" beside the alert.
+            const c = cap.current
+            idle()
+            if (reason === 'recorder') {
+              void c?.finish() // the parts before it are still written down
+              setLost(true)
+              return setProblem(micProblem('lost'))
+            }
+            c?.cancel()
+            return setProblem(micProblem(reason))
+          }
+          setProblem(micProblem(['network', 'unavailable'].includes(reason) ? 'part' : reason))
         },
         onLost: (why, away) => {
           if (g !== gen.current) return
