@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="robots" content="noindex" />
+<title>Voice capture: three ways</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --ink-950: #100e0b; --ink-900: #171410; --ink-850: #1e1a15; --ink-700: #342d23; --ink-500: #5e5446;
+    --m-50: #f8f5ee; --m-100: #ece7db; --m-200: #d8d1c2; --m-300: #b9b1a0; --m-400: #968d7c; --m-500: #776f61;
+    --candle-200: #f7e3b8; --candle-300: #efce8d; --candle-400: #e0b263; --clay-400: #cf9179;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--ink-950); color: var(--m-100);
+    font: 400 19px/27px 'EB Garamond', 'Iowan Old Style', Georgia, serif;
+    display: flex; flex-direction: column; min-height: 100dvh;
+    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+  }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+  button:focus-visible, textarea:focus-visible { outline: 2px solid var(--candle-400); outline-offset: 3px; }
+  .sc { font-variant-caps: all-small-caps; letter-spacing: .08em; font-size: 17px; line-height: 22px; }
+  header { padding: 12px 16px 0; max-width: 36rem; width: 100%; margin: 0 auto; }
+  .head { display: flex; justify-content: space-between; color: var(--m-400); border-bottom: 3px double var(--m-500); padding-bottom: 6px; }
+  nav { display: flex; gap: 4px; margin-top: 8px; }
+  nav button { flex: 1; min-height: 44px; color: var(--m-400); border-bottom: 2px solid transparent; }
+  nav button[aria-selected="true"] { color: var(--m-50); border-color: var(--candle-400); }
+  main { flex: 1; display: flex; flex-direction: column; max-width: 36rem; width: 100%; margin: 0 auto; padding: 16px 16px 8px; min-height: 0; }
+  section { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .rubric { color: var(--clay-400); }
+  h1 { font: 500 28px/32px 'EB Garamond', Georgia, serif; margin: 6px 0 0; text-wrap: balance; }
+  .note { color: var(--m-400); font-size: 17px; line-height: 22px; margin: 6px 0 0; }
+  .words { min-height: 81px; margin: 16px 0 0; color: var(--m-50); overflow-wrap: anywhere; }
+  .words i { color: var(--m-400); }
+  .status { min-height: 44px; margin: 8px 0 0; display: flex; align-items: center; gap: 8px; }
+  .status.warn { color: var(--candle-300); }
+  .status.bad { color: var(--clay-400); }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--m-500); flex: none; }
+  .live .dot { background: #d9534a; animation: blink 1.2s infinite; }
+  @keyframes blink { 50% { opacity: .35; } }
+  .grow { flex: 1; min-height: 8px; }
+  canvas { display: block; width: 100%; }
+  .slab { display: block; width: 100%; min-height: 56px; border-radius: 4px; background: var(--candle-400); color: var(--ink-950); font-weight: 600; }
+  .textbtn { min-height: 44px; padding: 0 12px; color: var(--candle-300); }
+  textarea { width: 100%; background: transparent; color: var(--m-50); border: 0; border-bottom: 2px solid var(--m-500); font: inherit; padding: 0 0 8px; resize: none; }
+
+  /* 1 · voice memo */
+  .big { width: 76px; height: 76px; border-radius: 50%; border: 2px solid var(--m-300); display: grid; place-items: center; margin: 0 auto; }
+  .big span { display: block; width: 56px; height: 56px; border-radius: 50%; background: #d9534a; transition: all .18s; }
+  .live .big span { width: 26px; height: 26px; border-radius: 5px; }
+  .asking .big span { background: var(--m-500); }
+  .biglabel { text-align: center; margin: 6px 0 0; color: var(--m-200); }
+  .timer { font: 500 22px/28px 'EB Garamond', serif; font-variant-numeric: tabular-nums; text-align: center; color: var(--m-200); }
+
+  /* 2 · the candle */
+  #v2 { align-items: center; text-align: center; }
+  .flamebox { position: relative; width: 180px; height: 198px; margin: 28px auto 0; flex: none; }
+  #v2 .words { min-height: 54px; }
+  .halo { position: absolute; left: 50%; top: 66px; width: 20px; height: 20px; margin: -10px; border-radius: 50%; background: var(--candle-400); filter: blur(30px); opacity: .15; }
+  #v2 .dot { display: none; }
+  .pause { width: 160px; height: 3px; background: var(--ink-700); margin: 4px auto 0; }
+  .pause b { display: block; height: 100%; width: 0; background: var(--candle-400); }
+  .call { display: flex; justify-content: center; gap: 28px; margin-top: 8px; }
+  .call button { width: 76px; display: grid; justify-items: center; gap: 4px; color: var(--m-200); font-size: 17px; line-height: 22px; }
+  .call .ring { width: 56px; height: 56px; border-radius: 50%; border: 1.5px solid var(--m-400); display: grid; place-items: center; }
+  .call [aria-pressed="true"] .ring { background: var(--m-100); color: var(--ink-950); }
+  .call .end .ring { background: #b8433b; border-color: #b8433b; color: #fff; }
+  .call svg, .hold svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* 3 · hold to talk */
+  .line { margin-top: 2px; height: 40px; }
+  .hold { min-height: 88px; border-radius: 4px; border: 2px solid var(--m-300); width: 100%; display: flex; align-items: center; justify-content: center; gap: 12px; font-weight: 600; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: none; }
+  .live .hold { background: #b8433b; border-color: #b8433b; color: #fff; }
+
+  footer { max-width: 36rem; width: 100%; margin: 0 auto; padding: 8px 16px 12px; font: 400 13px/18px Inter, system-ui, sans-serif; color: var(--m-400); border-top: 1px solid var(--ink-700); overflow-wrap: anywhere; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<header>
+  <div class="head sc"><span>Mastermind Council</span><span>Sample · not the app</span></div>
+  <nav role="tablist" aria-label="Three ways">
+    <button role="tab" class="sc" data-v="v1" aria-selected="true">1 · Memo</button>
+    <button role="tab" class="sc" data-v="v2" aria-selected="false">2 · Candle</button>
+    <button role="tab" class="sc" data-v="v3" aria-selected="false">3 · Hold</button>
+  </nav>
+</header>
+
+<main>
+  <!-- 1 -->
+  <section id="v1">
+    <p class="rubric sc">Your question</p>
+    <h1>What would you like the group to help you achieve?</h1>
+    <p class="words" data-words></p>
+    <div class="grow"></div>
+    <div data-rec>
+      <canvas id="bars" height="72"></canvas>
+      <p class="timer" id="timer">0:00</p>
+      <p class="status" data-status role="status"></p>
+      <button class="big" id="b1" aria-label="Record"><span></span></button>
+      <p class="biglabel" id="l1">Tap and talk</p>
+    </div>
+    <div data-done hidden>
+      <textarea id="t1" rows="4" aria-label="Your answer"></textarea>
+      <p class="note">Yours to correct before it goes.</p>
+      <button class="slab" style="margin-top:12px" data-end>Bring it to the group</button>
+      <p style="text-align:center;margin:4px 0 0"><button class="textbtn" id="again1">Record again</button></p>
+    </div>
+  </section>
+
+  <!-- 2 -->
+  <section id="v2" hidden>
+    <p class="rubric sc" id="q2n">Question 1 of 3</p>
+    <h1 id="q2">What would you like the group to help you achieve?</h1>
+    <div class="flamebox">
+      <div class="halo" id="halo"></div>
+      <svg viewBox="0 0 100 110" width="180" height="198" fill="none" stroke="#b9b1a0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <g id="flame" style="transform-origin:50px 46px">
+          <path fill="#e0b263" stroke="none" d="M50 19c8 10 12 18 7.5 25-3 5-12 5-14.5 0-4-8 3-14 7-25z"/>
+          <path fill="#f7e3b8" stroke="none" opacity=".85" d="M50.5 30c3 5 4.2 8.5 2.2 11.5-1.2 2-4.2 2-5.2 0-1.2-4 1-6.5 3-11.500z"/>
+          <path stroke-width="1.3" d="M50 19c8 10 12 18 7.5 25-3 5-12 5-14.5 0-4-8 3-14 7-25z"/>
+        </g>
+        <path stroke-width="1.3" d="M50 50v-5"/>
+        <path stroke-width="1.7" d="M44.5 82V52c3.5-2 7.5-2 11 0v30M55.5 57c3 2 3.5 7 2 10-1 2-2-1-2-3"/>
+        <path stroke-width="1.7" d="M33 85c11 5.5 23 5.5 34 0M37 81.5c9 3 17 3 26 0"/>
+        <path stroke-width="1.7" d="M23 93c18-4.500 36-4.500 54 0v9.500c-18-4.500-36-4.500-54 0z"/>
+      </svg>
+    </div>
+    <div class="pause" title="A pause this long ends your answer"><b id="pausebar"></b></div>
+    <p class="status" data-status role="status" style="justify-content:center"></p>
+    <p class="words" data-words style="margin-top:0"></p>
+    <div class="grow"></div>
+    <button class="slab" id="begin2">Begin talking</button>
+    <div class="call" id="call2" hidden>
+      <button id="mute2" aria-pressed="false"><span class="ring"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.500 11a6.500 6.500 0 0 0 13 0M12 17.500V21M4 4l16 16"/></svg></span>Mute</button>
+      <button id="next2"><span class="ring"><svg viewBox="0 0 24 24"><path d="M6 5l9 7-9 7zM18 5v14"/></svg></span>Next</button>
+      <button id="end2" class="end"><span class="ring"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></span>End</button>
+    </div>
+  </section>
+
+  <!-- 3 -->
+  <section id="v3" hidden>
+    <p class="rubric sc">Your question</p>
+    <h1>What would you like the group to help you achieve?</h1>
+    <p class="words" data-words style="margin-bottom:0"></p>
+    <canvas id="inkline" class="line" height="40"></canvas>
+    <p class="status" data-status role="status"></p>
+    <div class="grow"></div>
+    <button class="hold" id="hold3"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.500 11a6.500 6.500 0 0 0 13 0M12 17.500V21"/></svg><span id="holdlabel">Hold to talk</span></button>
+    <p class="note" style="text-align:center">It records only while you hold. On a keyboard, hold the space bar.</p>
+    <button class="slab" style="margin-top:12px" data-end>Bring it to the group</button>
+  </section>
+</main>
+
+<footer id="diag">What this device reports will show here once the mic opens. This sample stores nothing.</footer>
+
+<script>
+const $ = (s, r = document) => r.querySelector(s)
+const AC = window.AudioContext || window.webkitAudioContext
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+const appleMobile = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+// Live words only where the browser's recogniser can share the mic with the meter.
+const liveWords = !!SR && !appleMobile && !/Android/.test(navigator.userAgent)
+const SPEECH = 0.02, SILENCE_MS = 2500, DEAF_MS = 3000
+
+const mic = { state: 'idle', level: 0, peak: 0, heard: false, began: 0, lastLoud: 0, final: '', interim: '', err: '', label: '' }
+let ctx, stream, source, analyser, buf, rec, raf, view = 'v1', wantOpen = false
+const hooks = { frame() {}, state() {} }
+
+function setState(s) { mic.state = s; render(); hooks.state(s) }
+
+async function openMic() {
+  if (mic.state !== 'idle' && mic.state !== 'blocked') return
+  wantOpen = true
+  Object.assign(mic, { level: 0, peak: 0, heard: false, final: view === 'v3' ? mic.final : '', interim: '', err: '' })
+  try { ctx ??= new AC(); ctx.resume() } catch {}
+  setState('asking')
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } })
+  } catch (e) {
+    mic.err = e.name
+    return setState('blocked')
+  }
+  mic.label = stream.getAudioTracks()[0]?.label || 'unnamed input'
+  source = ctx.createMediaStreamSource(stream)
+  analyser = ctx.createAnalyser(); analyser.fftSize = 1024
+  source.connect(analyser); buf = new Uint8Array(analyser.fftSize)
+  mic.began = mic.lastLoud = performance.now()
+  setState('live')
+  if (liveWords) startWords()
+  cancelAnimationFrame(raf); loop()
+  if (!wantOpen) closeMic() // released while the permission prompt was up
+}
+
+function startWords() {
+  rec = new SR(); rec.lang = 'en-US'; rec.continuous = true; rec.interimResults = true
+  const mine = rec, before = mic.final
+  rec.onresult = (e) => {
+    let f = '', i = ''
+    for (const r of e.results) (r.isFinal ? (f += r[0].transcript) : (i += r[0].transcript))
+    mic.final = (before + ' ' + f).trim(); mic.interim = i.trim(); render()
+  }
+  rec.onerror = (e) => { if (e.error !== 'no-speech' && e.error !== 'aborted') mic.err = 'words: ' + e.error }
+  rec.onend = () => { if (rec === mine && mic.state === 'live') startWords() }
+  try { rec.start() } catch (e) { mic.err = 'words: ' + e.name }
+}
+
+function closeMic() {
+  wantOpen = false
+  if (mic.state === 'asking') return
+  const r = rec; rec = null; try { r?.stop() } catch {}
+  stream?.getTracks().forEach((t) => t.stop()); source?.disconnect(); stream = null
+  cancelAnimationFrame(raf)
+  mic.level = 0
+  if (mic.state !== 'blocked') setState('idle')
+}
+
+function loop() {
+  raf = requestAnimationFrame(loop)
+  analyser.getByteTimeDomainData(buf)
+  let sum = 0
+  for (const v of buf) sum += ((v - 128) / 128) ** 2
+  const rms = Math.sqrt(sum / buf.length), now = performance.now()
+  mic.level += (rms - mic.level) * (rms > mic.level ? 0.6 : 0.15)
+  mic.peak = Math.max(mic.peak, rms)
+  if (rms > SPEECH) { mic.heard = true; mic.lastLoud = now }
+  hooks.frame(now)
+  if ((now | 0) % 12 === 0) render()
+}
+
+const said = () => (mic.final + ' ' + mic.interim).trim()
+function statusText() {
+  const now = performance.now()
+  if (mic.state === 'asking') return ['warn', 'Waiting for the microphone. Nothing is recorded yet.']
+  if (mic.state === 'blocked')
+    return ['bad', mic.err === 'NotFoundError' ? 'No microphone found on this device.' : 'The microphone is blocked for this site. Allow it in the address bar, then tap again.']
+  if (mic.state === 'live') {
+    if (ctx.state !== 'running') return ['bad', 'The browser has paused audio. Tap the button once more.']
+    if (!mic.heard && now - mic.began > DEAF_MS) return ['bad', `I can’t hear anything from “${mic.label}”. Check the input, or speak up.`]
+    if (!mic.heard) return ['', 'Recording. Say something.']
+    return ['', 'Recording. I can hear you.']
+  }
+  return ['', '']
+}
+
+function render() {
+  const sec = $('#' + view)
+  sec.classList.toggle('live', mic.state === 'live'); sec.classList.toggle('asking', mic.state === 'asking')
+  const [kind, text] = statusText()
+  const st = $('[data-status]', sec)
+  st.className = 'status ' + kind
+  st.innerHTML = text ? `<span class="dot"></span><span>${text}</span>` : ''
+  const w = $('[data-words]', sec)
+  if (mic.state === 'live' || said()) {
+    w.innerHTML = liveWords
+      ? `${esc(mic.final)} <i>${esc(mic.interim)}</i>`
+      : mic.state === 'live' ? '<i>In the app your words are set here each time you pause. This sample only proves the mic hears you.</i>' : ''
+  } else if (!w.dataset.keep) w.textContent = ''
+  $('#diag').textContent = mic.label
+    ? `Mic: ${mic.label} · audio ${ctx?.state} ${ctx?.sampleRate} Hz · loudest so far ${mic.peak.toFixed(3)} (speech is above ${SPEECH}) · words: ${liveWords ? 'live, by the browser' : 'after each pause, by the gateway'}${mic.err ? ' · error: ' + mic.err : ''}`
+    : mic.err ? `Error: ${mic.err}` : $('#diag').textContent
+}
+const esc = (s) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c])
+
+function fit(c) {
+  const d = devicePixelRatio || 1, w = c.clientWidth, h = +(c.dataset.h ??= c.getAttribute('height'))
+  if (c.width !== w * d) { c.width = w * d; c.height = h * d; c.style.height = h + 'px' }
+  const g = c.getContext('2d'); g.setTransform(d, 0, 0, d, 0, 0); g.clearRect(0, 0, w, h)
+  return [g, w, h]
+}
+
+// ---- 1 · voice memo: tap, bars scroll, tap to stop ----------------------------------
+const bars = []
+let lastBar = 0
+const v1 = {
+  frame(now) {
+    if (now - lastBar > 55) { bars.push(mic.level); lastBar = now; if (bars.length > 400) bars.shift() }
+    drawBars()
+    const s = ((now - mic.began) / 1000) | 0
+    $('#timer').textContent = `${(s / 60) | 0}:${String(s % 60).padStart(2, '0')}`
+  },
+  state(s) {
+    $('#l1').textContent = s === 'live' ? 'Tap to finish' : s === 'asking' ? 'Allow the microphone' : 'Tap and talk'
+    $('#b1').setAttribute('aria-label', s === 'live' ? 'Finish' : 'Record')
+  },
+}
+function drawBars() {
+  const [g, w, h] = fit($('#bars'))
+  const step = 5, n = Math.floor(w / step)
+  for (let i = 0; i < n; i++) {
+    const v = bars[bars.length - n + i]
+    const x = i * step, y = v === undefined ? 1 : Math.max(1.5, Math.min(h / 2, Math.sqrt(v) * h * 0.7))
+    g.fillStyle = v === undefined ? '#342d23' : v > SPEECH ? '#e0b263' : '#776f61'
+    g.fillRect(x, h / 2 - y, 3, y * 2)
+  }
+}
+$('#b1').onclick = () => {
+  if (mic.state === 'live') {
+    const text = said(); closeMic()
+    $('#v1 [data-rec]').hidden = true; $('#v1 [data-done]').hidden = false
+    $('#t1').value = text || (liveWords ? '' : 'Your words would be here.')
+    $('#v1 [data-words]').textContent = ''
+  } else { bars.length = 0; openMic() }
+}
+$('#again1').onclick = () => { $('#v1 [data-rec]').hidden = false; $('#v1 [data-done]').hidden = true; bars.length = 0; drawBars(); $('#timer').textContent = '0:00' }
+
+// ---- 2 · the candle: hands-free, a pause ends the answer ----------------------------
+const QS = ['What would you like the group to help you achieve?', 'What is your situation right now?', 'What would success look like?']
+let qi = 0, muted = false
+const v2 = {
+  frame(now) {
+    const l = muted ? 0 : Math.min(1, Math.sqrt(mic.level) * 1.6)
+    const flick = 1 + Math.sin(now / 90) * 0.02
+    $('#flame').style.transform = `scale(${(0.75 + l * 0.45) * flick}, ${(0.75 + l * 0.75) * flick})`
+    $('#flame').style.opacity = muted ? 0.3 : 1
+    $('#halo').style.transform = `scale(${1 + l * 6})`
+    $('#halo').style.opacity = 0.12 + l * 0.5
+    const quiet = mic.heard && !muted ? now - mic.lastLoud : 0
+    $('#pausebar').style.width = Math.min(100, (quiet / SILENCE_MS) * 100) + '%'
+    if (quiet > SILENCE_MS) nextQ()
+  },
+  state(s) { $('#begin2').hidden = s !== 'idle' && s !== 'blocked'; $('#call2').hidden = s !== 'live' },
+}
+function showQ() { $('#q2').textContent = QS[qi]; $('#q2n').textContent = `Question ${qi + 1} of ${QS.length}` }
+function nextQ() {
+  if (qi >= QS.length - 1) return endCall('That is the sample. In the app the group starts talking here.')
+  qi++; showQ()
+  mic.heard = false; mic.began = performance.now(); mic.final = ''; mic.interim = ''
+  if (rec) { const r = rec; rec = null; try { r.abort() } catch {} ; startWords() }
+}
+function endCall(msg) {
+  closeMic(); qi = 0; showQ(); muted = false; $('#mute2').setAttribute('aria-pressed', 'false')
+  $('#flame').style.transform = ''; $('#halo').style.transform = ''; $('#pausebar').style.width = 0
+  const w = $('#v2 [data-words]'); w.dataset.keep = msg ? '1' : ''; w.innerHTML = msg ? `<i>${msg}</i>` : ''
+}
+$('#begin2').onclick = () => { $('#v2 [data-words]').dataset.keep = ''; openMic() }
+$('#mute2').onclick = () => {
+  muted = !muted; stream?.getAudioTracks().forEach((t) => (t.enabled = !muted))
+  $('#mute2').setAttribute('aria-pressed', String(muted))
+}
+$('#next2').onclick = nextQ
+$('#end2').onclick = () => endCall('')
+
+// ---- 3 · hold to talk: records only while held --------------------------------------
+const v3 = {
+  frame(now) { drawInk(now) },
+  state(s) { $('#holdlabel').textContent = s === 'live' ? 'Recording. Let go to finish.' : s === 'asking' ? 'Allow the microphone, then hold again' : 'Hold to talk'; if (s !== 'live') drawInk(0) },
+}
+function drawInk(now) {
+  const [g, w, h] = fit($('#inkline'))
+  const live = mic.state === 'live', a = live ? Math.min(h / 2 - 2, Math.sqrt(mic.level) * h * 0.7) : 0
+  g.strokeStyle = live ? '#e0b263' : '#776f61'; g.lineWidth = 2; g.beginPath()
+  for (let x = 0; x <= w; x += 3) {
+    const env = Math.sin((x / w) * Math.PI)
+    const y = h / 2 + Math.sin(x / 9 + now / 60) * a * env * (0.6 + 0.4 * Math.sin(x / 31 - now / 140))
+    x ? g.lineTo(x, y) : g.moveTo(x, y)
+  }
+  g.stroke()
+}
+const hold = $('#hold3')
+const down = (e) => { e.preventDefault(); if (e.pointerId !== undefined) hold.setPointerCapture?.(e.pointerId); openMic() }
+const up = () => { if (view === 'v3') { const keep = mic.final; closeMic(); mic.final = keep } }
+hold.addEventListener('pointerdown', down); hold.addEventListener('pointerup', up); hold.addEventListener('pointercancel', up)
+hold.addEventListener('contextmenu', (e) => e.preventDefault())
+addEventListener('keydown', (e) => { if (view === 'v3' && e.code === 'Space' && !e.repeat && e.target.tagName !== 'TEXTAREA') down(e) })
+addEventListener('keyup', (e) => { if (view === 'v3' && e.code === 'Space') up() })
+
+// ---- tabs ---------------------------------------------------------------------------
+const VIEWS = { v1, v2, v3 }
+function show(v) {
+  if (view === 'v2') endCall(''); else closeMic()
+  mic.final = mic.interim = ''
+  view = v; Object.assign(hooks, VIEWS[v])
+  for (const b of document.querySelectorAll('nav button')) b.setAttribute('aria-selected', String(b.dataset.v === v))
+  for (const s of document.querySelectorAll('main section')) s.hidden = s.id !== v
+  render(); drawBars(); drawInk(0)
+}
+document.querySelectorAll('nav button').forEach((b) => (b.onclick = () => show(b.dataset.v)))
+document.querySelectorAll('[data-end]').forEach((b) => (b.onclick = () => { b.textContent = 'End of the sample' }))
+addEventListener('resize', () => { drawBars(); drawInk(0) })
+show('v1')
+</script>
+</body>
+</html>
