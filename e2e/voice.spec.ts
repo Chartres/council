@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { FAKE_EARS, FAKE_VOICE, fakeSynth, hear, speakInto } from './fakeVoice'
 
 // Voice in and voice out are browser features, so the journey is: present and working
 // where the Web Speech API exists, gone without a trace where it does not.
@@ -10,67 +11,13 @@ test.beforeEach(async ({ request }) => {
   await request.post('http://localhost:8787/__reset')
 })
 
-const FAKE_SPEECH = `
-  class FakeRecognition {
-    start() {
-      setTimeout(() => {
-        this.onresult?.({
-          results: [Object.assign([{ transcript: 'leaving my job for the parish tool' }], { isFinal: true })],
-        })
-        this.onend?.()
-      }, 10)
-    }
-    stop() { this.onend?.() }
-    abort() {}
-  }
-  // Chromium ships the standard global too, and the app prefers it — stub both.
-  Object.defineProperty(window, 'SpeechRecognition', { value: FakeRecognition })
-  Object.defineProperty(window, 'webkitSpeechRecognition', { value: FakeRecognition })
-  // The fake engine owns its utterance type too — a real one rejects a fake voice object.
-  Object.defineProperty(window, 'SpeechSynthesisUtterance', {
-    value: class { constructor(text) { this.text = text } },
-  })
-  Object.defineProperty(window, 'speechSynthesis', {
-    value: {
-      spoken: [],
-      // Ends each line soon after, like a real engine (the never-ends case is in tts.test.ts).
-      speak(u) { this.spoken.push(u.text); setTimeout(() => u.onend?.(), 50) },
-      cancel() {},
-      getVoices() { return [{ lang: 'en-GB' }] },
-    },
-  })
-`
+// A desktop Chrome: live words from the recogniser, a browser voice that ends each line soon after.
+const FAKE_SPEECH = FAKE_VOICE + fakeSynth(50)
 
 const NO_SPEECH = `
   for (const name of ['SpeechRecognition', 'webkitSpeechRecognition', 'speechSynthesis', 'MediaRecorder']) {
     Object.defineProperty(window, name, { value: undefined, configurable: true })
   }
-`
-
-// An iPhone-like browser for voice in: no recogniser worth using, but a mic that records.
-// The fake recorder "records" the text in window.__say, which the stub gateway reads back
-// as the transcript; there is no real stream, so a second tap ends the clip.
-const RECORDER_ONLY = `
-  for (const name of ['SpeechRecognition', 'webkitSpeechRecognition']) {
-    Object.defineProperty(window, name, { value: undefined, configurable: true })
-  }
-  window.__say = 'the constraint is engineering time'
-  const stream = { getTracks: () => [{ stop() {} }] }
-  Object.defineProperty(navigator, 'mediaDevices', {
-    value: { getUserMedia: async () => stream },
-    configurable: true,
-  })
-  class FakeRecorder {
-    static isTypeSupported(t) { return t === 'audio/mp4' }
-    constructor() { this.state = 'inactive'; this.mimeType = 'audio/mp4' }
-    start() { this.state = 'recording' }
-    stop() {
-      this.state = 'inactive'
-      this.ondataavailable?.({ data: new Blob([window.__say], { type: 'audio/mp4' }) })
-      setTimeout(() => this.onstop?.(), 0)
-    }
-  }
-  Object.defineProperty(window, 'MediaRecorder', { value: FakeRecorder, configurable: true })
 `
 
 test('she dictates her idea and listens to the debate', async ({ page }) => {
@@ -83,11 +30,16 @@ test('she dictates her idea and listens to the debate', async ({ page }) => {
   expect(box!.height).toBeGreaterThanOrEqual(44)
   expect(box!.width).toBeGreaterThanOrEqual(44)
 
+  // A word button, not a bare icon; one tap and she talks.
+  await expect(mic).toHaveText('Tap and talk')
   await mic.click()
-  await expect(page.getByLabel('What are you working on?')).toHaveValue(
-    'leaving my job for the parish tool',
-  )
+  await expect(page.getByTestId('capture-status')).toContainText('Recording.')
+  await hear(page, 'leaving my job for the parish tool')
+  await expect(page.getByLabel('What are you working on?')).toHaveValue('leaving my job for the parish tool')
   await page.screenshot({ path: 'e2e/shots/voice-dictation.png' })
+  await expect(mic).toHaveText('Finish')
+  await mic.click()
+  await expect(mic).toHaveText('Tap and talk')
 
   await page.getByRole('button', { name: 'Convene the council' }).click()
   // Listen is off until she asks for it (Eyal, 29 Oct); one tap and the room reads aloud.
@@ -130,7 +82,7 @@ test('no mic and no Listen toggle where the API is missing', async ({ page }) =>
 })
 
 test('without a working recogniser the mic records, and the gateway writes it down', async ({ page }) => {
-  await page.addInitScript(RECORDER_ONLY)
+  await page.addInitScript(FAKE_EARS)
   await page.goto('/quick')
   const field = page.getByLabel('What are you working on?')
   await field.fill('Pilot the premium tier.')
@@ -138,15 +90,18 @@ test('without a working recogniser the mic records, and the gateway writes it do
   const mic = page.getByTestId('mic')
   await mic.click()
   await expect(mic).toHaveAttribute('aria-pressed', 'true')
+  await speakInto(page, 'the constraint is engineering time')
+  // The words arrive after what she typed, while it is still recording: a pause sends the part
+  // to be written down and ends nothing.
+  await expect(field).toHaveValue('Pilot the premium tier. the constraint is engineering time', { timeout: 10_000 })
+  await expect(mic).toHaveAttribute('aria-pressed', 'true')
   await mic.click()
-  // The words arrive after what she typed, once the clip is transcribed.
-  await expect(field).toHaveValue('Pilot the premium tier. the constraint is engineering time')
   await expect(mic).toHaveAttribute('aria-pressed', 'false')
 
   // A refusal from the gateway is said in words, not swallowed.
-  await page.evaluate(() => ((window as unknown as { __say: string }).__say = 'QUOTA'))
   await mic.click()
+  await speakInto(page, 'QUOTA')
+  await expect(page.getByTestId('mic-problem')).toContainText('today’s limit', { timeout: 10_000 })
   await mic.click()
-  await expect(page.getByTestId('mic-problem')).toContainText('today’s limit')
   await page.screenshot({ path: 'e2e/shots/voice-mic-problem.png' })
 })

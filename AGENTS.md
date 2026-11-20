@@ -57,6 +57,15 @@ every journey goes through the real header path; `e2e/gate.spec.ts` clears it to
 `POST /v1/stt` (stub) reads the raw body back as the transcript (the e2e fake recorder
 "records" text); `QUOTA` in it → 429 `{reason:"stt"}`, a non-audio content-type → 415.
 
+The mic in e2e (`e2e/fakeVoice.ts`): real `getUserMedia` hangs in Playwright's Chromium, so it is
+replaced by an oscillator into a `MediaStreamDestination`. The app's own `AudioContext` and
+`AnalyserNode` read that stream, so the level the thread draws is real. The tone is off until the
+test turns it on (`tone(page, true)`): a silent stream is what a dead input looks like.
+`FAKE_VOICE` is a desktop Chrome (live words: `hear(page, text)`), `FAKE_EARS` an iPhone (the
+gateway's words: `speakInto(page, text)`). No test uses a real microphone.
+`VOICE_REVIEW=1 CI=1 npx playwright test e2e/voice-capture.spec.ts` re-shoots
+`docs/review/2026-11-20-voice/`.
+
 `POST /__tts {mode:"on"|"fail"|"off"}` makes the stub serve `/v1/tts` (a tiny WAV; a `speaker`
 needs a live v4 session, as on the gateway) or fail it; off by default, so the other journeys
 use the browser-voice fallback. `GET /__tts` lists what was asked (`e2e/talk-voice.spec.ts`).
@@ -99,7 +108,7 @@ VITE_GATEWAY_URL=http://localhost:8787 npm run dev   # terminal 2 — http://loc
 ```
 Run the dev gateway with `STUB_PASSWORD=tallow-candle npm run stub` to see the door.
 Primary journeys (v4, `/`): roster (Business/Classics) → pick ≤4 → Begin → one-screen intake
-(paste/drop/ask your AI/talk it through, review the seven fields; stable fields prefilled) → conversation (speaker
+(tap and talk/type/paste/drop/ask your AI, review the seven fields; stable fields prefilled) → conversation (speaker
 cards, floor question, reply box, control chips) → proposal → Accept → journal → commitment
 with a due date and an opt-in email reminder → Journal tab (outcomes, the evening examination from the hour she sets — default 17:30, `council:evening` — export). Returning: the
 "Last time" card on `/` and a "Last time…" opener. Past discussions: the Discussions sheet
@@ -107,22 +116,40 @@ with a due date and an opt-in email reminder → Journal tab (outcomes, the even
 `council:discussions` in this browser, the newest 20) and the quick verdicts; one opens
 read-only, and "Continue this discussion" starts a gateway session seeded with its record
 (`resume` on `/v1/council/start`) while the app keeps writing to the same discussion.
-Voice bar (Talk on, `src/components/Talk.tsx`, Pavol 8 Nov): a fixed bar at the bottom with
-"Question N" and the room's state (Listening / Sending in n s / Thinking… n s / X is talking / Paused);
-tap it for the list of questions so far (one tap goes back to one). Buttons: previous question,
-pause/resume (the unfinished line is spoken again on resume), the main button (Start / Done /
-Interrupt or Cut in / Resume), next question, end. Her turn ends on Done or after 4 s of quiet
-(the last 2 s counted down). Previous/next/the list are sent as her plain words to the facilitator.
-The line being spoken is marked on screen (`now-speaking`) and kept in view. `e2e/voice-bar.spec.ts`
-checks it at 390 and 1280 px.
+Voice bar (Talk on, `src/components/Talk.tsx`, Pavol 8 Nov and 20 Nov): a fixed bar at the bottom with
+"Question N" and the room's state (the recording sentence / Writing it down… / Yours to correct
+before it goes. / Thinking… n s / X is talking / Paused); tap it for the list of questions so far
+(one tap goes back to one). Every button is an icon with its word: Back, Pause, the main button,
+Next, End. The main button: Start / Finish / Send / Tap and talk / Cut in / Resume. A Talk turn is
+record → text → correct → send: the mic opens when the room goes quiet, her words are set in a
+field in the bar as they are written down, Finish ends the recording (the space bar on a
+keyboard), she corrects the text, Send sends it (⌘ or Ctrl with Enter). Nothing is sent by a pause.
+The mic is shut while an adviser speaks; Cut in stops the adviser and opens it. Back/Next/the list
+are sent as her plain words to the facilitator. The line being spoken is marked on screen
+(`now-speaking`) and kept in view. `e2e/voice-bar.spec.ts` checks it at 390 and 1280 px.
 Margin notes: Agree / Push back / Note under any contribution, sent with her next message. Reminder emails link to
 `/c/:commitmentId?outcome=done|later|drop`.
 v3 journeys (`/quick`): password → home → type (or dictate) an idea → convene → turns stream in →
 verdict card → reply box; today's question → convene → share the split; My ideas → reopen a
-past council. Voice in: the browser's recogniser where it works; on iPhone/iPad, where it
-has none, or after it failed once, the mic records (MediaRecorder) and the gateway transcribes
-(`POST /v1/stt`, Whisper on Workers AI; `src/domain/stt.ts`). A mic failure is said in words
-and logged as `key_action` `mic_failed`. Voice out: the gateway's calm voices inside a v4
+past council. Voice in (`src/domain/capture.ts`, `src/components/Capture.tsx`; Pavol, 20 Nov):
+one capture path for every recording surface (quick idea, intake, reply box, feedback, Talk).
+"Tap and talk" opens the mic with `getUserMedia` inside the tap; an `AnalyserNode` gives the real
+input level for the thread (a thin line) and the candle (the flame flickers and leans a little;
+still under reduced motion). One sentence says the state: "Waiting for the microphone. Nothing is
+recorded yet." / "Recording. Say something." / "Recording. I can hear you." / "Recording. Take
+your time." / "I can’t hear anything from “<input>”. Check the input, or speak up." (after 3 s
+with no sound) / paused audio / blocked / no microphone. A recording ends on Finish (or Next
+question in the intake), not on a pause: there is no silence endpoint and no idle cancel. Words:
+the browser's recogniser on desktop Chrome and Edge (live, phrase by phrase), the gateway
+everywhere else (`POST /v1/stt`, Whisper on Workers AI; `src/domain/stt.ts`): iPhone/iPad,
+Android, Firefox, and anywhere the recogniser failed or stayed wordless for 5 s of sound (a
+recorder runs beside it, so the gateway writes down what it missed). For the gateway a recording
+is cut into parts, at a 1.5 s breath or before 50 s / 1.5 MB (the gateway takes 2 MB), each part
+written down in the background and joined in order; a part that fails is said in words. Each
+piece is added to the field after what is there, so a correction is not overwritten. A mic failure
+is logged as `key_action` `mic_failed` with `engine` (mic / meter / browser / server) and
+`reason` (`heard_nothing` for an open mic with no sound; `recovered: true` when the gateway took
+over). Voice out: the gateway's calm voices inside a v4
 session, the browser engine as fallback, natural pitch and speed; read-aloud (Listen) is off
 until she turns it on. Each control is absent only where neither path exists.
 Phone first: check at 390 px. The fold gate (`e2e/fold.spec.ts`) asserts the idea field sits in
@@ -160,7 +187,7 @@ Vendored client: `src/platform/flywheel-client.ts`, wrapped by `src/analytics.ts
 cookieless, fire-and-forget. Only shared-taxonomy names reach the events table (its insert
 policy drops anything else); `src/analytics.contract.test.ts` fails CI otherwise. Steps:
 `page_view`, `key_action` with `action` = convened / replied / talk_on / blocked (with the
-gateway's reason) / captured / committed / noted (margin notes sent, with `count` and `push`) / voice_turn (one per Talk turn: `silence_ms`, `stt_ms`, `think_ms`, `voice_ms`, `total_ms` from her last word to the first adviser audio, `ears`, `out`; `src/domain/voiceTiming.ts`, shown to admins under the Talk status)
+gateway's reason) / captured / committed / noted (margin notes sent, with `count` and `push`) / voice_turn (one per Talk turn: `think_ms`, `voice_ms`, `total_ms` from her Send to the first adviser audio; `silence_ms` and `stt_ms` are 0 since 20 Nov, when Send replaced the pause, `ears`, `out`; `src/domain/voiceTiming.ts`, shown to admins under the Talk status)
 (`keyAction()` in `src/analytics.ts`),
 `signup_started` (email submitted), `signup_completed` (first real sign-in per user per
 browser), and `conversion` when a proposal is accepted into the journal (v3: a completed verdict) — the aha moment, and `activation_event` in the portfolio record.

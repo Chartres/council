@@ -42,17 +42,15 @@ export function FeedbackSheet() {
       <label htmlFor="feedback" className="t-label block">
         What worked, what didn’t?
       </label>
-      <div className="mt-1 flex items-end gap-2">
-        <textarea
-          id="feedback"
-          rows={3}
-          maxLength={MAX_FEEDBACK}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          className="field min-w-0 flex-1 resize-y"
-        />
-        <MicButton value={text} onChange={setText} label="your feedback" />
-      </div>
+      <textarea
+        id="feedback"
+        rows={3}
+        maxLength={MAX_FEEDBACK}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        className="field mt-1 resize-y"
+      />
+      <MicButton value={text} onChange={(t) => setText(t.slice(0, MAX_FEEDBACK))} label="your feedback" className="mt-2" />
       <button
         type="submit"
         disabled={state === 'sending' || !text.trim()}

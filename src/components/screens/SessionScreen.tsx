@@ -170,17 +170,15 @@ export function SessionScreen() {
           <label htmlFor="reply" className="sr-only">
             Answer the council
           </label>
-          <div className="flex items-end gap-2">
-            <textarea
-              id="reply"
-              rows={3}
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="Push back, add a constraint, ask them to go further."
-              className="field min-w-0 flex-1 resize-y"
-            />
-            <MicButton value={message} onChange={setMessage} label="your reply" />
-          </div>
+          <textarea
+            id="reply"
+            rows={3}
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Push back, add a constraint, ask them to go further."
+            className="field resize-y"
+          />
+          <MicButton value={message} onChange={setMessage} label="your reply" primary={!message.trim()} className="mt-2" />
           <button
             type="submit"
             disabled={!message.trim()}

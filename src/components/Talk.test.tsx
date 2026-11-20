@@ -1,369 +1,368 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import type { Item } from '@/domain/mastermind'
+import { SttError } from '@/domain/stt'
 import * as tts from '@/domain/tts'
-import { ECHO_GRACE_MS, isEcho, RETRY_MS, Talk, TALK_SILENCE_MS } from './Talk'
+
+// A Talk turn (Pavol, 20 Nov): record → text → correct → send. "I did not like this stressful
+// thing that waits for silence … That's against the idea of me being thoughtful with my
+// responses." And: "The functionality of seeing the text and correcting it is super important."
 
 const analytics = vi.hoisted(() => ({ keyAction: vi.fn() }))
 vi.mock('@/analytics', () => analytics)
 vi.mock('@/domain/tts', () => ({ speak: vi.fn(), cancel: vi.fn(), setFallback: vi.fn(), setSession: vi.fn(), unlock: vi.fn() }))
+const fake = await vi.hoisted(async () => (await import('@/test/fakeCapture')).fakeCaptures())
+vi.mock('@/domain/capture', async (orig) => ({ ...(await orig<object>()), openCapture: fake.openCapture, primeMic: fake.primeMic }))
+vi.mock('@/domain/stt', async (orig) => ({ ...(await orig<object>()), recordingSupported: () => true }))
 
-// A recogniser the test drives: each `say` is a new result, `more` grows the last one (interim).
-class Fake {
-  static all: Fake[] = []
-  continuous = false
-  interimResults = false
-  results: { transcript: string }[][] = []
-  onresult: ((e: { results: unknown[] }) => void) | null = null
-  onend: (() => void) | null = null
-  onerror: ((e?: { error?: string }) => void) | null = null
-  start = vi.fn()
-  stop = vi.fn()
-  abort = vi.fn()
-  constructor() {
-    Fake.all.push(this)
-  }
-  emit() {
-    this.onresult?.({ results: this.results.map((r) => Object.assign([...r], { isFinal: false })) })
-  }
-  say(text: string) {
-    this.results.push([{ transcript: text }])
-    this.emit()
-  }
-  more(text: string) {
-    this.results[this.results.length - 1] = [{ transcript: text }]
-    this.emit()
-  }
-}
+const { Talk } = await import('./Talk')
 
 beforeEach(() => {
-  vi.useFakeTimers()
-  Fake.all = []
+  fake.reset()
+  fake.primeMic.mockClear()
+  analytics.keyAction.mockClear()
   vi.mocked(tts.speak).mockReset()
   vi.mocked(tts.cancel).mockReset()
   vi.mocked(tts.unlock).mockReset()
-  Object.defineProperty(window, 'SpeechRecognition', { value: Fake, configurable: true })
-})
-afterEach(() => {
-  vi.useRealTimers()
-  vi.unstubAllGlobals()
-  delete (window as unknown as Record<string, unknown>).SpeechRecognition
 })
 
 const spoken = () => vi.mocked(tts.speak).mock.calls.map(([text, , , speaker]) => [text, speaker])
+const status = () => screen.getByTestId('talk-status')
+const draft = () => screen.getByTestId('voice-draft') as HTMLTextAreaElement
+const settle = () => act(async () => {})
+/** Every line handed to the speaker finishes playing. */
+const roomFinishes = async () => {
+  for (const call of vi.mocked(tts.speak).mock.calls) await act(async () => (call[2] as () => void)?.())
+}
 
-describe('Talk mode: the wait to the first word', () => {
-  it('times one turn from her last word to the first adviser audio, reports it once, and shows it to an admin', () => {
-    analytics.keyAction.mockClear()
-    const onSay = vi.fn()
-    let items: Item[] = [{ kind: 'floor', question: 'Where do you start?' }]
-    let streaming = false
-    const view = () => <Talk on onChange={vi.fn()} items={items} streaming={streaming} onSay={onSay} timing />
-    const { rerender } = render(view())
-    fireEvent.click(screen.getByRole('button', { name: 'Start' }))
-    const r = Fake.all[0]!
+function setup(start: Item[] = [], opts: { streaming?: boolean; on?: boolean; timing?: boolean } = {}) {
+  const onSay = vi.fn()
+  const onChange = vi.fn()
+  const onLeft = vi.fn()
+  let items = start
+  let streaming = opts.streaming ?? false
+  let on = opts.on ?? true
+  const view = () => <Talk on={on} onChange={onChange} items={items} streaming={streaming} onSay={onSay} onLeft={onLeft} timing={opts.timing} />
+  const r = render(view())
+  const set = async (next: { items?: Item[]; streaming?: boolean; on?: boolean }) => {
+    if (next.items) items = next.items
+    if (next.streaming !== undefined) streaming = next.streaming
+    if (next.on !== undefined) on = next.on
+    await act(async () => r.rerender(view()))
+  }
+  return { onSay, onChange, onLeft, set, unmount: r.unmount }
+}
+const start = async () => {
+  fireEvent.click(screen.getByTestId('voice-start'))
+  await settle()
+}
 
-    act(() => r.say('we have no engineers'))
-    act(() => vi.advanceTimersByTime(TALK_SILENCE_MS))
-    expect(onSay).toHaveBeenCalled()
-    items = [...items, { kind: 'user', text: 'we have no engineers' }]
-    streaming = true
-    rerender(view())
+describe('Talk: his turn is record → text → correct → send', () => {
+  it('opens the mic inside the Start tap, and says in words what the mic is doing', async () => {
+    fake.state.hold = true
+    setup([{ kind: 'floor', question: 'Where do you start?' }])
+    fireEvent.click(screen.getByTestId('voice-start'))
+    expect(tts.unlock).toHaveBeenCalled()
+    expect(fake.openCapture).toHaveBeenCalledTimes(1) // before the click returned
+    await settle()
+    expect(status()).toHaveTextContent('Waiting for the microphone. Nothing is recorded yet.')
+    await act(async () => fake.state.release[0]!())
+    expect(status()).toHaveTextContent('Recording. Say something.')
+    expect(screen.getByTestId('thread')).toBeInTheDocument()
+    expect(screen.getByTestId('voice-finish')).toHaveTextContent('Finish')
+  })
+
+  it('a pause, however long, sends nothing; his words are text he corrects, and only Send sends them', async () => {
+    vi.useFakeTimers()
+    const { onSay } = setup([{ kind: 'floor', question: 'Where do you start?' }])
+    await start()
+    act(() => fake.last().say('we have no engineers'))
+    expect(draft().value).toBe('we have no engineers') // on screen while he is still talking
+    act(() => vi.advanceTimersByTime(10 * 60_000)) // he thinks for ten minutes
+    expect(onSay).not.toHaveBeenCalled()
+    expect(fake.last().finish).not.toHaveBeenCalled()
+    vi.useRealTimers()
+
+    act(() => fake.last().say('and no money'))
+    await act(async () => fireEvent.click(screen.getByTestId('voice-finish')))
+    expect(fake.last().finish).toHaveBeenCalledTimes(1)
+    expect(onSay).not.toHaveBeenCalled() // Finish ends the recording, not the turn
+    expect(status()).toHaveTextContent('Yours to correct before it goes.')
+
+    fireEvent.change(draft(), { target: { value: 'We have two engineers and no money.' } })
+    fireEvent.click(screen.getByTestId('voice-send'))
+    expect(onSay).toHaveBeenCalledTimes(1)
+    expect(onSay).toHaveBeenCalledWith('We have two engineers and no money.')
+    expect(draft().value).toBe('')
+  })
+
+  it('recording again adds to the text he corrected', async () => {
+    setup()
+    await start()
+    act(() => fake.last().say('first thought'))
+    await act(async () => fireEvent.click(screen.getByTestId('voice-finish')))
+    fireEvent.change(draft(), { target: { value: 'First thought, fixed.' } })
+    fireEvent.click(screen.getByTestId('voice-more'))
+    await settle()
+    expect(fake.all).toHaveLength(2)
+    act(() => fake.last().say('second thought'))
+    expect(draft().value).toBe('First thought, fixed. second thought')
+  })
+
+  it('while a part is still being written down, Send waits for it', async () => {
+    const { onSay } = setup()
+    await start()
+    act(() => fake.last().ev.onPending(1))
+    await act(async () => fireEvent.click(screen.getByTestId('voice-finish')))
+    expect(status()).toHaveTextContent('Writing it down…')
+    expect(screen.getByTestId('voice-wait')).toBeDisabled()
+    act(() => fake.all[0]!.say('the last part'))
+    act(() => fake.all[0]!.ev.onPending(0))
+    fireEvent.click(screen.getByTestId('voice-send'))
+    expect(onSay).toHaveBeenCalledWith('the last part')
+  })
+
+  it('he can type his turn instead: the same field, the same Send', async () => {
+    const { onSay } = setup()
+    await start()
+    await act(async () => fireEvent.click(screen.getByTestId('voice-finish')))
+    expect(screen.getByTestId('voice-talk')).toHaveTextContent('Tap and talk') // nothing said: the mic is offered again
+    fireEvent.change(draft(), { target: { value: 'typed instead' } })
+    fireEvent.click(screen.getByTestId('voice-send'))
+    expect(onSay).toHaveBeenCalledWith('typed instead')
+  })
+
+  it('on a keyboard the space bar finishes the recording; it does not send, and it types in the field', async () => {
+    const { onSay } = setup()
+    await start()
+    act(() => fake.last().say('one thing'))
+    await act(async () => fireEvent.keyDown(document.body, { code: 'Space' }))
+    expect(fake.last().finish).toHaveBeenCalledTimes(1)
+    fireEvent.keyDown(document.body, { code: 'Space' })
+    expect(onSay).not.toHaveBeenCalled()
+    fireEvent.keyDown(draft(), { code: 'Space' })
+    expect(fake.all).toHaveLength(1)
+    fireEvent.keyDown(document.body, { key: 'Enter', metaKey: true })
+    expect(onSay).toHaveBeenCalledWith('one thing')
+  })
+})
+
+describe('Talk: the room and he take turns', () => {
+  it('sends, the mic stays shut while an adviser speaks, and opens again when the room is quiet', async () => {
+    const { onSay, onChange, set } = setup([{ kind: 'floor', question: 'Where do you start?' }], { on: false })
+    fireEvent.click(screen.getByRole('button', { name: 'Talk' }))
+    expect(onChange).toHaveBeenCalledWith(true)
+    await set({ on: true })
+    expect(fake.all).toHaveLength(1)
+    expect(tts.speak).not.toHaveBeenCalled() // what was on screen before Talk is not read
+
+    act(() => fake.last().say('we have no engineers'))
+    await act(async () => fireEvent.click(screen.getByTestId('voice-finish')))
+    fireEvent.click(screen.getByTestId('voice-send'))
+    expect(onSay).toHaveBeenCalledWith('we have no engineers')
+
+    const said: Item[] = [{ kind: 'floor', question: 'Where do you start?' }, { kind: 'user', text: 'we have no engineers' }]
+    await set({ items: said, streaming: true })
+    expect(status()).toHaveTextContent('Thinking…')
+    expect(screen.getByTestId('voice-wait')).toBeDisabled()
+
+    // Deltas: each completed sentence goes to the adviser's voice, in order.
+    await set({ items: [...said, { kind: 'contribution', speaker: 'drucker', text: 'Start with the customer. Who', streaming: true }] })
+    expect(spoken()).toEqual([['Start with the customer.', 'drucker']])
+    expect(status()).toHaveTextContent('Drucker is talking…')
+    expect(screen.getByTestId('cut-in')).toHaveTextContent('Cut in')
+    await set({
+      items: [...said, { kind: 'contribution', speaker: 'drucker', text: 'Start with the customer. Who benefits?' }, { kind: 'floor', question: 'Who is the customer?' }],
+      streaming: false,
+    })
+    expect(spoken()).toEqual([
+      ['Start with the customer.', 'drucker'],
+      ['Who benefits?', 'drucker'],
+      ['Who is the customer?', 'facilitator'],
+    ])
+    expect(fake.all).toHaveLength(1) // shut while the room speaks
+
+    await roomFinishes()
+    expect(fake.all).toHaveLength(2) // the room went quiet: his turn
+    expect(status()).toHaveTextContent('Recording.')
+
+    // Off: the mic closes.
+    fireEvent.click(screen.getByRole('button', { name: 'End voice' }))
+    expect(onChange).toHaveBeenLastCalledWith(false)
+    await set({ on: false })
+    expect(fake.last().cancel).toHaveBeenCalled()
+    expect(screen.queryByTestId('talk-status')).toBeNull()
+  })
+
+  it('Cut in stops the adviser and opens the mic at once', async () => {
+    const { set } = setup([], { streaming: true })
+    await start()
+    expect(fake.all).toHaveLength(0) // the group is answering: not his turn
+    expect(fake.primeMic).toHaveBeenCalledTimes(1) // but the permission was asked inside the tap
+    await set({ items: [{ kind: 'contribution', speaker: 'drucker', text: 'Who is the customer here, really?' } as Item], streaming: false })
+    await act(async () => fireEvent.click(screen.getByTestId('cut-in')))
+    expect(tts.cancel).toHaveBeenCalled()
+    expect(fake.all).toHaveLength(1)
+    expect(screen.getByTestId('voice-finish')).toBeInTheDocument()
+  })
+
+  it('Cut in while the answer is still streaming: what he sends waits for the answer to end, and the rest of it is not spoken', async () => {
+    const growing = { kind: 'contribution', speaker: 'grove', text: 'First, cut the scope. Then', streaming: true } as Item
+    const { onSay, set } = setup([], { streaming: true })
+    await start()
+    await set({ items: [growing] })
+    await act(async () => fireEvent.click(screen.getByTestId('cut-in')))
+    act(() => fake.last().say('wait, no'))
+    await act(async () => fireEvent.click(screen.getByTestId('voice-finish')))
+    fireEvent.click(screen.getByTestId('voice-send'))
+    expect(onSay).not.toHaveBeenCalled()
+    vi.mocked(tts.speak).mockClear()
+    await set({ items: [{ ...growing, text: 'First, cut the scope. Then hire.', streaming: false } as Item], streaming: false })
+    expect(tts.speak).not.toHaveBeenCalled()
+    expect(onSay).toHaveBeenCalledWith('wait, no')
+  })
+
+  it('a typed reply or a chip while the mic is open shuts it; what he had said stays as text', async () => {
+    const { onSay, set } = setup()
+    await start()
+    act(() => fake.last().say('half a thought'))
+    await set({ streaming: true }) // he typed and sent; the group answers
+    expect(fake.last().finish).toHaveBeenCalled()
+    expect(onSay).not.toHaveBeenCalled()
+    expect(draft().value).toBe('half a thought')
+  })
+
+  it('the last question and the end of the stream in one render: the mic waits for the question to be read', async () => {
+    const { set } = setup([], { streaming: true })
+    await start()
+    await set({ items: [{ kind: 'floor', question: 'Which first?' }], streaming: false })
+    expect(fake.all).toHaveLength(0)
+    await roomFinishes()
+    expect(fake.all).toHaveLength(1)
+  })
+
+  it('remembered as on, it waits for a tap: no mic, no audio until then', async () => {
+    const { onChange, set } = setup()
+    expect(screen.getByRole('button', { name: 'End voice' })).toHaveAttribute('aria-pressed', 'true')
+    expect(status()).toHaveTextContent('Tap to resume')
+    await set({ items: [{ kind: 'floor', question: 'Still there?' }] })
+    expect(tts.speak).not.toHaveBeenCalled()
+    expect(fake.openCapture).not.toHaveBeenCalled()
+    await start()
+    expect(tts.unlock).toHaveBeenCalled()
+    expect(onChange).not.toHaveBeenCalled()
+    expect(fake.all).toHaveLength(1)
+  })
+
+  it('a final text that rewrote the stream is not spoken from the middle of a word', async () => {
+    const { set } = setup([], { streaming: true })
+    await start()
+    await set({ items: [{ kind: 'contribution', speaker: 'grove', text: 'Who owns th', streaming: true }] })
+    await set({ items: [{ kind: 'contribution', speaker: 'grove', text: 'Name the owner first.' }, { kind: 'floor', question: 'Who?' }] })
+    expect(spoken()).toEqual([['Who?', 'facilitator']])
+  })
+})
+
+describe('Talk: what fails is said', () => {
+  it('a blocked mic is said in words, logged, and Talk switches off', async () => {
+    fake.state.reject = new SttError('denied')
+    const { onChange, set } = setup([], { on: false })
+    fireEvent.click(screen.getByRole('button', { name: 'Talk' }))
+    await set({ on: true })
+    expect(onChange).toHaveBeenLastCalledWith(false)
+    await set({ on: false })
+    expect(screen.getByTestId('talk-problem')).toHaveTextContent(/blocked/i)
+    expect(analytics.keyAction).toHaveBeenCalledWith('mic_failed', { engine: 'mic', reason: 'denied', talk: true })
+  })
+
+  it('no sound for 3 s is said in the status line, with the input’s name, and logged', async () => {
+    vi.useFakeTimers()
+    setup()
+    await start()
+    act(() => vi.advanceTimersByTime(3500))
+    expect(status()).toHaveTextContent('I can’t hear anything from “Desk microphone”. Check the input, or speak up.')
+    expect(analytics.keyAction).toHaveBeenCalledWith('mic_failed', { engine: 'meter', reason: 'heard_nothing', talk: true })
+    vi.useRealTimers()
+  })
+
+  it('ending Talk with words not sent hands them to the reply box', async () => {
+    const { onLeft, onSay, set } = setup()
+    await start()
+    act(() => fake.last().say('not sent yet'))
+    await set({ on: false })
+    expect(onLeft).toHaveBeenCalledWith('not sent yet')
+    expect(onSay).not.toHaveBeenCalled()
+  })
+
+  it('leaving the screen closes the mic and sends nothing', async () => {
+    const { onSay, unmount } = setup()
+    await start()
+    act(() => fake.last().say('too late'))
+    unmount()
+    expect(fake.last().cancel).toHaveBeenCalled()
+    expect(onSay).not.toHaveBeenCalled()
+  })
+})
+
+describe('Talk: the wait to the first word', () => {
+  it('times one turn from Send to the first adviser audio, reports it once, and shows it to an admin', async () => {
+    vi.useFakeTimers()
+    const { set } = setup([{ kind: 'floor', question: 'Where do you start?' }], { timing: true })
+    await start()
+    act(() => fake.last().say('we have no engineers'))
+    await act(async () => fireEvent.click(screen.getByTestId('voice-finish')))
+    fireEvent.click(screen.getByTestId('voice-send'))
+    const said: Item[] = [{ kind: 'floor', question: 'Where do you start?' }, { kind: 'user', text: 'we have no engineers' }]
+    await set({ items: said, streaming: true })
     act(() => vi.advanceTimersByTime(1500)) // the group thinks
-    items = [...items, { kind: 'contribution', speaker: 'drucker', text: 'Start with the customer. Who', streaming: true }]
-    rerender(view())
+    await set({ items: [...said, { kind: 'contribution', speaker: 'drucker', text: 'Start with the customer. Who', streaming: true }] })
     const started = vi.mocked(tts.speak).mock.calls[0]![4]!
     act(() => vi.advanceTimersByTime(600)) // the voice arrives
     act(() => started('gateway'))
-
     const turns = analytics.keyAction.mock.calls.filter(([a]) => a === 'voice_turn')
-    expect(turns).toEqual([
-      ['voice_turn', { ears: 'browser', out: 'gateway', silence_ms: TALK_SILENCE_MS, stt_ms: 0, think_ms: 1500, voice_ms: 600, total_ms: TALK_SILENCE_MS + 2100 }],
-    ])
+    expect(turns).toEqual([['voice_turn', { ears: 'browser', out: 'gateway', silence_ms: 0, stt_ms: 0, think_ms: 1500, voice_ms: 600, total_ms: 2100 }]])
     expect(screen.getByTestId('voice-timing')).toHaveTextContent('to first word')
 
     // The next sentence of the same answer is not a new turn.
-    items = [...items.slice(0, -1), { kind: 'contribution', speaker: 'drucker', text: 'Start with the customer. Who benefits? Then', streaming: true }]
-    rerender(view())
+    await set({ items: [...said, { kind: 'contribution', speaker: 'drucker', text: 'Start with the customer. Who benefits? Then', streaming: true }] })
     act(() => vi.mocked(tts.speak).mock.calls[1]![4]!('gateway'))
     expect(analytics.keyAction.mock.calls.filter(([a]) => a === 'voice_turn')).toHaveLength(1)
-  })
-
-  it('a stray word while the group thinks does not void the turn', () => {
-    analytics.keyAction.mockClear()
-    let items: Item[] = []
-    let streaming = false
-    const view = () => <Talk on onChange={vi.fn()} items={items} streaming={streaming} onSay={vi.fn()} />
-    const { rerender } = render(view())
-    fireEvent.click(screen.getByRole('button', { name: 'Start' }))
-    const r = Fake.all[0]!
-    act(() => r.say('we have no engineers'))
-    act(() => vi.advanceTimersByTime(TALK_SILENCE_MS))
-    streaming = true
-    rerender(view())
-    act(() => r.say('um')) // a cough, mid-thought
-    act(() => vi.advanceTimersByTime(1000))
-    items = [{ kind: 'contribution', speaker: 'drucker', text: 'Start with the customer. Who', streaming: true }]
-    rerender(view())
-    act(() => vi.mocked(tts.speak).mock.calls[0]![4]!('gateway'))
-    const turns = analytics.keyAction.mock.calls.filter(([a]) => a === 'voice_turn')
-    expect(turns).toHaveLength(1)
-    expect(turns[0]![1]).toMatchObject({ silence_ms: TALK_SILENCE_MS, think_ms: 1000 })
+    vi.useRealTimers()
   })
 
   it('shows no timing line to anyone else', () => {
-    render(<Talk on onChange={vi.fn()} items={[]} streaming={false} onSay={vi.fn()} />)
+    setup()
     expect(screen.queryByTestId('voice-timing')).toBeNull()
   })
 })
 
-describe('Talk mode', () => {
-  it('hears, sends a voice turn, speaks it sentence by sentence, and stops when talked over', () => {
-    const onSay = vi.fn()
-    const onChange = vi.fn()
-    let items: Item[] = [{ kind: 'floor', question: 'Where do you start?' }]
-    let streaming = false
-    const view = (on: boolean) => (
-      <Talk on={on} onChange={onChange} items={items} streaming={streaming} onSay={onSay} />
-    )
-    const { rerender } = render(view(false))
+// Review 15 Nov: Tap to hear must not throw away a recording he is already speaking into.
+describe('Tap to hear', () => {
+  async function missedFloor() {
+    const { set } = setup([], { streaming: true })
+    await start()
+    await set({ items: [{ kind: 'floor', question: 'Who pays for it?' }], streaming: false })
+    const call = vi.mocked(tts.speak).mock.calls[0]!
+    await act(async () => {
+      ;(call[5] as () => void)() // the gateway missed it (iPhone)
+      ;(call[2] as () => void)() // and the queue moved on: his turn, the mic opens
+    })
+    expect(fake.all).toHaveLength(1)
+    vi.mocked(tts.speak).mockClear()
+  }
 
-    // Talk on: the shared player is unlocked inside the tap, the mic opens in continuous mode.
-    fireEvent.click(screen.getByRole('button', { name: 'Talk' }))
-    expect(tts.unlock).toHaveBeenCalled()
-    expect(onChange).toHaveBeenCalledWith(true)
-    rerender(view(true))
-    const r = Fake.all[0]!
-    expect(r.continuous).toBe(true)
-    expect(r.start).toHaveBeenCalledTimes(1)
-    expect(screen.getByRole('status')).toHaveTextContent('Listening…')
-    expect(tts.speak).not.toHaveBeenCalled() // what was on screen before Talk is not read
-
-    // 1,200 ms of silence after the words sends them as a voice turn; the mic stays open.
-    act(() => r.say('we have no engineers'))
-    act(() => vi.advanceTimersByTime(TALK_SILENCE_MS - 1))
-    expect(onSay).not.toHaveBeenCalled()
-    act(() => vi.advanceTimersByTime(1))
-    expect(onSay).toHaveBeenCalledWith('we have no engineers')
-    expect(r.stop).not.toHaveBeenCalled()
-
-    items = [...items, { kind: 'user', text: 'we have no engineers' }]
-    streaming = true
-    rerender(view(true))
-    expect(screen.getByRole('status')).toHaveTextContent('Thinking…')
-
-    // Deltas: each completed sentence goes to the adviser's voice, in order.
-    items = [...items, { kind: 'contribution', speaker: 'drucker', text: 'Start with the customer. Who', streaming: true }]
-    rerender(view(true))
-    expect(spoken()).toEqual([['Start with the customer.', 'drucker']])
-    expect(screen.getByRole('status')).toHaveTextContent('Drucker is talking…')
-    items = [...items.slice(0, -1), { kind: 'contribution', speaker: 'drucker', text: 'Start with the customer. Who benefits? Then', streaming: true }]
-    rerender(view(true))
-    items = [
-      ...items.slice(0, -1),
-      { kind: 'contribution', speaker: 'drucker', text: 'Start with the customer. Who benefits? Then act.' },
-      { kind: 'floor', question: 'Who is the customer?' },
-    ]
-    streaming = false
-    rerender(view(true))
-    expect(spoken()).toEqual([
-      ['Start with the customer.', 'drucker'],
-      ['Who benefits?', 'drucker'],
-      ['Then act.', 'drucker'],
-      ['Who is the customer?', 'facilitator'],
-    ])
-
-    // Barge-in: one word (a cough) neither stops the audio nor goes as a message.
-    act(() => r.say('wait'))
-    act(() => vi.advanceTimersByTime(TALK_SILENCE_MS))
-    expect(tts.cancel).not.toHaveBeenCalled()
-    expect(onSay).toHaveBeenCalledTimes(1)
-    // Two words cancel the audio and start the next message.
-    act(() => r.say('wait'))
-    act(() => r.more('wait actually'))
-    expect(tts.cancel).toHaveBeenCalled()
-    expect(screen.getByRole('status')).toHaveTextContent('Listening…')
-    act(() => vi.advanceTimersByTime(TALK_SILENCE_MS))
-    expect(onSay).toHaveBeenLastCalledWith('wait actually')
-
-    // Off: the mic closes and the audio stops.
-    fireEvent.click(screen.getByRole('button', { name: 'End voice' }))
-    expect(onChange).toHaveBeenLastCalledWith(false)
-    rerender(view(false))
-    expect(r.abort).toHaveBeenCalled()
-    expect(screen.queryByRole('status')).toBeNull()
-  })
-
-  it('drops the rest of a turn it was talked over in, and holds the new words until the stream ends', () => {
-    const onSay = vi.fn()
-    let items: Item[] = []
-    let streaming = true
-    const view = () => <Talk on onChange={() => {}} items={items} streaming={streaming} onSay={onSay} />
-    const { rerender } = render(view())
-    fireEvent.click(screen.getByRole('button', { name: 'Start' }))
-    const r = Fake.all[0]!
-    items = [{ kind: 'contribution', speaker: 'jobs', text: 'Show me day one. ', streaming: true }]
-    rerender(view())
-    expect(spoken()).toEqual([['Show me day one.', 'jobs']])
-
-    act(() => r.say('no stop'))
-    expect(tts.cancel).toHaveBeenCalled()
-    items = [{ kind: 'contribution', speaker: 'jobs', text: 'Show me day one. Cut the rest.', streaming: true }]
-    rerender(view())
-    expect(spoken()).toHaveLength(1) // the contribution keeps its text on screen, unspoken
-    act(() => vi.advanceTimersByTime(TALK_SILENCE_MS))
-    expect(onSay).not.toHaveBeenCalled()
-
-    streaming = false
-    rerender(view())
-    expect(onSay).toHaveBeenCalledWith('no stop')
-  })
-
-  it('on speakerphone, the room hearing its own voice is neither a barge-in nor a message', () => {
-    const onSay = vi.fn()
-    let items: Item[] = []
-    const view = () => <Talk on onChange={() => {}} items={items} streaming={false} onSay={onSay} />
-    const { rerender } = render(view())
-    fireEvent.click(screen.getByRole('button', { name: 'Start' }))
-    const r = Fake.all[0]!
-    items = [
-      { kind: 'contribution', speaker: 'drucker', text: 'Start with the customer. Who benefits? Then act.' },
-      { kind: 'floor', question: 'Who is the customer?' },
-    ]
-    rerender(view())
-    expect(spoken()).toHaveLength(4)
-
-    // The mic transcribes the adviser, as recognisers do: lower case, a word misheard.
-    act(() => r.say('start with'))
-    act(() => r.more('start with a customer who benefits'))
-    expect(tts.cancel).not.toHaveBeenCalled()
-    act(() => vi.advanceTimersByTime(TALK_SILENCE_MS))
-    expect(onSay).not.toHaveBeenCalled()
-
-    // The lines finish; the tail of the question still comes back a moment later.
-    for (const [, , onEnd] of vi.mocked(tts.speak).mock.calls) act(() => onEnd?.())
-    act(() => r.say('who is the customer'))
-    act(() => vi.advanceTimersByTime(TALK_SILENCE_MS))
-    expect(onSay).not.toHaveBeenCalled()
-    // Once that moment has passed, a short answer is hers, even when it reuses the question's words.
-    act(() => vi.advanceTimersByTime(ECHO_GRACE_MS))
-    act(() => r.say('the customer'))
-    act(() => vi.advanceTimersByTime(TALK_SILENCE_MS))
-    expect(onSay).toHaveBeenCalledWith('the customer')
-
-    // She cuts in while the mic has been hearing the room with no pause between: her words stop
-    // the audio and go alone; the room's words around them are dropped.
-    items = [...items, { kind: 'contribution', speaker: 'grove', text: 'Only the paranoid survive. Measure it weekly.' }]
-    rerender(view())
-    act(() => r.say('only the paranoid survive'))
-    expect(tts.cancel).not.toHaveBeenCalled()
-    act(() => r.say('hold on that is wrong'))
-    expect(tts.cancel).toHaveBeenCalled()
-    act(() => vi.advanceTimersByTime(TALK_SILENCE_MS))
-    expect(onSay).toHaveBeenLastCalledWith('hold on that is wrong')
-
-    // A one-word tail of the last line, just after the room stopped, is not a message either.
-    items = [...items, { kind: 'contribution', speaker: 'grove', text: 'Measure it weekly.' }]
-    rerender(view())
-    for (const [, , onEnd] of vi.mocked(tts.speak).mock.calls) act(() => onEnd?.())
-    act(() => r.say('weekly'))
-    act(() => vi.advanceTimersByTime(TALK_SILENCE_MS))
-    expect(onSay).toHaveBeenCalledTimes(2)
-
-    // Long after the room went quiet, her own words are hers, even if they echo an adviser.
-    act(() => vi.advanceTimersByTime(ECHO_GRACE_MS))
-    act(() => r.say('who is the customer'))
-    act(() => vi.advanceTimersByTime(TALK_SILENCE_MS))
-    expect(onSay).toHaveBeenLastCalledWith('who is the customer')
-  })
-
-  it('isEcho: a near-contiguous run of the room’s own words, not scattered ones', () => {
-    const lines = ['Start with the customer.', 'Who benefits?']
-    expect(isEcho('start with a customer who benefits', lines)).toBe(true) // one word misheard
-    expect(isEcho('Who benefits', lines)).toBe(true)
-    expect(isEcho('customer who', lines)).toBe(true) // across the line boundary
-    expect(isEcho('wait no', lines)).toBe(false)
-    expect(isEcho('the customer is wrong here', lines)).toBe(false)
-    expect(isEcho('benefits who', lines)).toBe(false)
-    expect(isEcho('', lines)).toBe(false)
-    // Answers that reuse common words from a long line are hers.
-    const long = ['It matters what is said in the room, and the working hours count for the first of them.']
-    expect(isEcho('it is working', long)).toBe(false)
-    expect(isEcho('the first month', long)).toBe(false)
-    expect(isEcho('I can not afford to wait', ['You cannot afford to wait for certainty.'])).toBe(false)
-  })
-
-  it('remembered as on, it waits for a tap: no mic, no audio until then', () => {
-    const onChange = vi.fn()
-    let items: Item[] = []
-    const view = () => <Talk on onChange={onChange} items={items} streaming={false} onSay={() => {}} />
-    const { rerender } = render(view())
-    // The bar is up and says so plainly: voice is on but waits for her tap (Pavol, 8 Nov: a
-    // council that went quiet after a reload looked like nothing was happening).
-    expect(screen.getByRole('button', { name: 'End voice' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('status')).toHaveTextContent('Tap to resume')
-    expect(screen.getByTestId('voice-start')).toBeEnabled()
-    expect(Fake.all).toHaveLength(0)
-    items = [{ kind: 'floor', question: 'Still there?' }]
-    rerender(view())
+  it('while he is speaking, the tap leaves his recording alone', async () => {
+    await missedFloor()
+    fake.last().speak()
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Tap to hear' })))
+    expect(fake.last().finish).not.toHaveBeenCalled()
     expect(tts.speak).not.toHaveBeenCalled()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Start' }))
-    expect(tts.unlock).toHaveBeenCalled()
-    expect(onChange).not.toHaveBeenCalled()
-    expect(Fake.all[0]!.start).toHaveBeenCalled()
-    expect(screen.getByRole('status')).toHaveTextContent('Listening…')
   })
 
-  it('words still waiting for the pause are dropped when Talk goes off or the screen is left', () => {
-    const onSay = vi.fn()
-    const view = (on: boolean) => <Talk on={on} onChange={() => {}} items={[]} streaming={false} onSay={onSay} />
-    const { rerender, unmount } = render(view(true))
-    fireEvent.click(screen.getByRole('button', { name: 'Start' }))
-    act(() => Fake.all[0]!.say('hello there'))
-    rerender(view(false))
-    act(() => vi.advanceTimersByTime(TALK_SILENCE_MS * 2))
-    expect(onSay).not.toHaveBeenCalled()
-
-    rerender(view(true)) // back on in the same screen: already armed, it listens again
-    act(() => Fake.all[Fake.all.length - 1]!.say('hello again'))
-    unmount()
-    act(() => vi.advanceTimersByTime(TALK_SILENCE_MS * 2))
-    expect(onSay).not.toHaveBeenCalled()
-  })
-
-  it('after an engine error it waits before listening again; a refused mic turns Talk off', () => {
-    const onChange = vi.fn()
-    render(<Talk on onChange={onChange} items={[]} streaming={false} onSay={() => {}} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Start' }))
-    act(() => {
-      Fake.all[0]!.onerror?.({ error: 'network' })
-      Fake.all[0]!.onend?.()
-    })
-    expect(Fake.all).toHaveLength(1)
-    act(() => vi.advanceTimersByTime(RETRY_MS))
-    expect(Fake.all).toHaveLength(2)
-    // An engine that just ends (Chrome after a quiet spell) is reopened at once.
-    act(() => Fake.all[1]!.onend?.())
-    expect(Fake.all).toHaveLength(3)
-    act(() => {
-      Fake.all[2]!.onerror?.({ error: 'not-allowed' })
-      Fake.all[2]!.onend?.()
-    })
-    expect(onChange).toHaveBeenCalledWith(false)
-    act(() => vi.advanceTimersByTime(RETRY_MS))
-    expect(Fake.all).toHaveLength(3)
-  })
-
-  it('a final text that rewrote the stream is not spoken from the middle of a word', () => {
-    let items: Item[] = []
-    const view = () => <Talk on onChange={() => {}} items={items} streaming onSay={() => {}} />
-    const { rerender } = render(view())
-    fireEvent.click(screen.getByRole('button', { name: 'Start' }))
-    items = [{ kind: 'contribution', speaker: 'grove', text: 'Who owns th', streaming: true }]
-    rerender(view())
-    items = [{ kind: 'contribution', speaker: 'grove', text: 'Name the owner first.' }, { kind: 'floor', question: 'Who?' }]
-    rerender(view())
-    expect(spoken()).toEqual([['Who?', 'facilitator']])
+  it('with the mic open and nothing said yet, the line is asked for again', async () => {
+    await missedFloor()
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Tap to hear' })))
+    expect(tts.speak).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(tts.speak).mock.calls[0]![0]).toBe('Who pays for it?')
   })
 })

@@ -35,12 +35,17 @@ describe('serverEars: which ears a mic tap uses', () => {
     expect(serverEars(true, { userAgent: IPHONE, maxTouchPoints: 5, platform: 'iPhone' })).toBe(true)
   })
 
-  it('keeps the browser recogniser where it works, until it fails once this visit', () => {
+  it('keeps the browser recogniser on a desktop, where it shares the mic with the meter, until it fails once this visit', () => {
     canRecord()
-    const pixel = { userAgent: PIXEL, maxTouchPoints: 5, platform: 'Linux' }
-    expect(serverEars(true, pixel)).toBe(false)
+    const desk = { userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/142.0 Safari/537.36', maxTouchPoints: 0, platform: 'MacIntel' }
+    expect(serverEars(true, desk)).toBe(false)
     markBrowserEngineBroken()
-    expect(serverEars(true, pixel)).toBe(true)
+    expect(serverEars(true, desk)).toBe(true)
+  })
+
+  it('records for the gateway on Android, whose recogniser takes the mic away from the meter', () => {
+    canRecord()
+    expect(serverEars(true, { userAgent: PIXEL, maxTouchPoints: 5, platform: 'Linux' })).toBe(true)
   })
 
   it('records where there is no recogniser at all, and has no ears without MediaRecorder', () => {

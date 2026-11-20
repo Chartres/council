@@ -2,34 +2,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import type { Item } from '@/domain/mastermind'
 import { cancel } from '@/domain/tts'
-import { Talk } from './Talk'
 
 let ios = false
 const analytics = vi.hoisted(() => ({ keyAction: vi.fn() }))
 vi.mock('@/analytics', () => analytics)
-vi.mock('@/domain/stt', async (orig) => ({ ...(await orig<object>()), isAppleMobile: () => ios }))
+vi.mock('@/domain/stt', async (orig) => ({ ...(await orig<object>()), isAppleMobile: () => ios, recordingSupported: () => true }))
+const fake = await vi.hoisted(async () => (await import('@/test/fakeCapture')).fakeCaptures())
+vi.mock('@/domain/capture', async (orig) => ({ ...(await orig<object>()), openCapture: fake.openCapture, primeMic: fake.primeMic }))
 
-// Talk against the real tts queue: only the network, the player and the recogniser are fakes.
+const { Talk } = await import('./Talk')
 
-class Rec {
-  static all: Rec[] = []
-  continuous = false
-  interimResults = false
-  results: { transcript: string }[][] = []
-  onresult: ((e: { results: unknown[] }) => void) | null = null
-  onend: (() => void) | null = null
-  onerror: (() => void) | null = null
-  start = vi.fn()
-  stop = vi.fn()
-  abort = vi.fn()
-  constructor() {
-    Rec.all.push(this)
-  }
-  say(text: string) {
-    this.results.push([{ transcript: text }])
-    this.onresult?.({ results: this.results.map((r) => Object.assign([...r], { isFinal: true })) })
-  }
-}
+// Talk against the real tts queue: only the network, the player and the mic are fakes.
 
 class Player {
   static all: Player[] = []
@@ -57,9 +40,8 @@ const audio = () => ({ ok: true, headers: { get: () => 'audio/mpeg' }, blob: () 
 let n = 0
 let pending: ((v: unknown) => void)[] = []
 beforeEach(() => {
-  Rec.all = []
+  fake.reset()
   pending = []
-  Object.defineProperty(window, 'SpeechRecognition', { value: Rec, configurable: true })
   vi.stubGlobal('Audio', Player)
   vi.stubGlobal('URL', { ...URL, createObjectURL: () => `blob:${++n}`, revokeObjectURL: () => {} })
   vi.stubEnv('VITE_GATEWAY_URL', 'https://gw.test')
@@ -70,14 +52,13 @@ afterEach(() => {
   cancel()
   vi.unstubAllGlobals()
   vi.unstubAllEnvs()
-  delete (window as unknown as Record<string, unknown>).SpeechRecognition
 })
 
 const player = () => Player.all[0]!
 const lines = () => player().srcs.filter((s) => s.startsWith('blob:'))
 
 describe('Talk with the real speaker queue', () => {
-  it('unlocks the shared player in the tap, and barge-in silences the line still downloading', async () => {
+  it('unlocks the shared player in the tap, and Cut in silences the line still downloading', async () => {
     let items: Item[] = []
     const view = () => <Talk on onChange={() => {}} items={items} streaming onSay={() => {}} />
     const { rerender } = render(view())
@@ -92,13 +73,13 @@ describe('Talk with the real speaker queue', () => {
     expect(pending).toHaveLength(2) // both sentences downloading, nothing playing yet
     expect(screen.getByRole('status')).toHaveTextContent('Drucker is talking…')
 
-    act(() => Rec.all[0]!.say('hold on'))
+    fireEvent.click(screen.getByTestId('cut-in'))
     pending.forEach((release) => release(undefined)) // the downloads land after the cut
     await flush()
     await flush()
     expect(lines()).toHaveLength(0)
     expect(Player.all).toHaveLength(1)
-    expect(screen.getByRole('status')).toHaveTextContent('Thinking…')
+    expect(screen.getByTestId('voice-finish')).toBeInTheDocument() // the mic is open: his turn
   })
 })
 
@@ -132,7 +113,7 @@ describe('Talk on iPhone when the gateway cannot speak a line', () => {
     await flush()
     await flush()
     expect(synth.speak).not.toHaveBeenCalled()
-    expect(screen.getByRole('status')).toHaveTextContent('Listening…')
+    expect(screen.getByRole('status')).toHaveTextContent('Recording.')
     expect(screen.getByTestId('voice-missed')).toHaveTextContent('Voice did not load. The text is above.')
 
     // One tap tries the gateway once more, and this time it plays.
@@ -191,8 +172,10 @@ describe('Talk on iPhone, review 15 Nov', () => {
     const view = (it: Item[]) => <Talk on onChange={() => {}} items={it} streaming={false} onSay={onSay} />
     const r = render(view([]))
     fireEvent.click(screen.getByRole('button', { name: 'Start' }))
-    act(() => Rec.all[0]!.say('we have no engineers'))
-    fireEvent.click(screen.getByTestId('voice-done'))
+    await flush()
+    act(() => fake.last().say('we have no engineers'))
+    await act(async () => fireEvent.click(screen.getByTestId('voice-finish')))
+    fireEvent.click(screen.getByTestId('voice-send'))
     expect(onSay).toHaveBeenCalledWith('we have no engineers')
     r.rerender(view([{ kind: 'user', text: 'we have no engineers' }, { kind: 'floor', question: 'Who pays for it?' }]))
     await flush()

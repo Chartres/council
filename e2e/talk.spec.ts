@@ -1,8 +1,9 @@
 import { expect, test } from '@playwright/test'
-import { FAKE_VOICE } from './fakeVoice'
+import { FAKE_VOICE, hear } from './fakeVoice'
 
-// Talk mode (flywheel/docs/expansion/council-v4.3.md). Lenka puts the phone down and talks:
-// she speaks, the adviser answers aloud sentence by sentence, she cuts in, and nothing is typed.
+// Talk mode (flywheel/docs/expansion/council-v4.3.md). Lenka talks with the group: she speaks,
+// her words are set as text she can correct, she sends them, the adviser answers aloud sentence
+// by sentence, and she cuts in. Nothing is sent by a pause (Pavol, 20 Nov).
 // The recogniser and the speech engine are fakes the test drives; the stub cannot speak,
 // so every line goes through the browser-engine fallback, which is what the fake records.
 
@@ -16,7 +17,7 @@ type Synth = { spoken: string[]; cancels: number }
 const synth = (page: import('@playwright/test').Page) =>
   page.evaluate(() => window.speechSynthesis as unknown as Synth)
 
-test('she talks with the group hands-free and cuts in', async ({ page }) => {
+test('she talks with the group, turn by turn, and cuts in', async ({ page }) => {
   await page.addInitScript(FAKE_VOICE)
   await page.goto('/')
   await page.getByRole('button', { name: 'Begin' }).click()
@@ -30,12 +31,17 @@ test('she talks with the group hands-free and cuts in', async ({ page }) => {
   await expect(talk).toHaveAttribute('aria-pressed', 'false')
   await talk.click()
   await expect(talk).toHaveAttribute('aria-pressed', 'true')
-  await expect(page.getByTestId('talk-status')).toHaveText('Listening…')
-  expect(await page.evaluate(() => (window as unknown as { __started: number }).__started)).toBe(1)
+  await expect(page.getByTestId('talk-status')).toContainText('Recording.')
+  expect(await page.evaluate(() => (window as unknown as { __mics: number }).__mics)).toBe(1)
 
-  // She speaks; after the pause it goes as her message, and an adviser answers as it streams.
+  // She speaks: her words are on screen at once. A pause sends nothing; Finish, then Send does.
   const before = (await synth(page)).spoken.length
-  await page.evaluate(() => (window as unknown as { __hear: (t: string) => void }).__hear('the constraint is engineering time'))
+  await hear(page, 'the constraint is engineering time')
+  await expect(page.getByTestId('voice-draft')).toHaveValue('the constraint is engineering time')
+  await page.waitForTimeout(4500) // longer than the old 4 s pause that used to send it
+  await expect(page.getByTestId('user')).toHaveCount(0)
+  await page.getByTestId('voice-finish').click()
+  await page.getByTestId('voice-send').click()
   await expect(page.getByTestId('user')).toContainText('the constraint is engineering time')
   const growing = page.locator('[data-testid="contribution"][data-streaming]')
   await expect(growing).toBeVisible({ timeout: 10_000 })
@@ -54,10 +60,14 @@ test('she talks with the group hands-free and cuts in', async ({ page }) => {
   const answer = (await page.getByTestId('contribution').last().locator('.t-body').textContent())!
   expect(said).toEqual([...answer.match(/[^.!?]+[.!?]+/g)!.map((s) => s.trim()), floor])
 
-  // Barge-in: two words over the audio stop it.
+  // Cut in: one tap stops the audio and opens the mic.
   const cancels = (await synth(page)).cancels
-  await page.evaluate(() => (window as unknown as { __hear: (t: string) => void }).__hear('wait no'))
+  await page.getByTestId('cut-in').click()
   await expect.poll(async () => (await synth(page)).cancels).toBeGreaterThan(cancels)
+  await expect(page.getByTestId('talk-status')).toContainText('Recording.')
+  await hear(page, 'wait no')
+  await page.getByTestId('voice-finish').click()
+  await page.getByTestId('voice-send').click()
   await expect(page.getByTestId('user')).toHaveCount(2, { timeout: 10_000 })
   await expect(page.getByTestId('user').last()).toContainText('wait no')
 

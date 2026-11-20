@@ -1,160 +1,215 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, render } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
+import { useState } from 'react'
+import { SttError } from '@/domain/stt'
+
+// Pavol, 20 Nov: "the microphone lit up, but nothing happened … I need a really live feedback
+// where I see, yes, what I'm talking is being captured. And if it is not, then I need to know
+// that immediately." And: "I did not like this stressful thing that waits for silence."
 
 const analytics = vi.hoisted(() => ({ keyAction: vi.fn() }))
 vi.mock('@/analytics', () => analytics)
-// The gateway ears are a seam: record() and transcribe() are faked, serverEars() decides the mode.
-const stt = vi.hoisted(() => {
-  class SttError extends Error {
-    constructor(readonly reason: string) {
-      super(reason)
-    }
-  }
-  return { serverEars: vi.fn(() => false), recordingSupported: vi.fn(() => true), record: vi.fn(), transcribe: vi.fn(), markBrowserEngineBroken: vi.fn(), unlockAudioInput: vi.fn(), SttError }
-})
-vi.mock('@/domain/stt', () => stt)
+const fake = await vi.hoisted(async () => (await import('@/test/fakeCapture')).fakeCaptures())
+vi.mock('@/domain/capture', async (orig) => ({ ...(await orig<object>()), openCapture: fake.openCapture }))
+vi.mock('@/domain/stt', async (orig) => ({ ...(await orig<object>()), recordingSupported: () => true }))
 
-const { MicButton, SILENCE_MS } = await import('./MicButton')
+const { MicButton } = await import('./MicButton')
+const { captureStatus, flameTransform, DEAF_MS } = await import('./Capture')
 
-// A recognition engine that only does what it is told: results and ends come from the test.
-class Fake {
-  static all: Fake[] = []
-  continuous = false
-  interimResults = false
-  onresult: ((e: { results: unknown[] }) => void) | null = null
-  onend: (() => void) | null = null
-  onerror: (() => void) | null = null
-  stop = vi.fn(() => this.onend?.())
-  abort = vi.fn()
-  start = vi.fn()
-  constructor() {
-    Fake.all.push(this)
-  }
-  hear(text: string) {
-    this.onresult?.({ results: [Object.assign([{ transcript: text }], { isFinal: false })] })
-  }
+function Field({ start = '' }: { start?: string }) {
+  const [value, setValue] = useState(start)
+  return (
+    <>
+      <textarea aria-label="idea" value={value} onChange={(e) => setValue(e.target.value)} />
+      <MicButton value={value} onChange={setValue} label="your idea" />
+    </>
+  )
+}
+const field = () => screen.getByLabelText('idea') as HTMLTextAreaElement
+const mic = () => screen.getByTestId('mic')
+const status = () => screen.getByTestId('capture-status')
+const open = async () => {
+  fireEvent.click(mic())
+  await act(async () => {})
 }
 
 beforeEach(() => {
+  vi.useFakeTimers()
+  fake.reset()
   analytics.keyAction.mockClear()
-  stt.record.mockReset()
-  stt.transcribe.mockReset()
-  vi.useFakeTimers({ shouldAdvanceTime: true })
-  Fake.all = []
-  Object.defineProperty(window, 'SpeechRecognition', { value: Fake, configurable: true })
 })
-afterEach(() => {
-  vi.useRealTimers()
-  delete (window as unknown as Record<string, unknown>).SpeechRecognition
-})
+afterEach(() => vi.useRealTimers())
 
-describe('MicButton endpointing', () => {
-  it('keeps listening through pauses and ends after a real silence', () => {
-    const onChange = vi.fn()
-    const onDone = vi.fn()
-    render(<MicButton value="" onChange={onChange} label="Goal" autoStart onDone={onDone} />)
-    const r = Fake.all[0]!
-    expect(r.continuous).toBe(true)
+describe('MicButton: the state in words, at once', () => {
+  it('opens the mic inside the tap and says it is waiting while the permission prompt is up', async () => {
+    fake.state.hold = true
+    render(<Field />)
+    expect(mic()).toHaveTextContent('Tap and talk')
+    fireEvent.click(mic())
+    expect(fake.openCapture).toHaveBeenCalledTimes(1) // before the click returned
+    expect(status()).toHaveTextContent('Waiting for the microphone. Nothing is recorded yet.')
+    expect(mic()).toHaveTextContent('Finish')
 
-    act(() => r.hear('I want to'))
-    act(() => vi.advanceTimersByTime(SILENCE_MS - 500))
-    expect(r.stop).not.toHaveBeenCalled()
-    act(() => r.hear('I want to leave my job'))
-    act(() => vi.advanceTimersByTime(SILENCE_MS - 500))
-    expect(r.stop).not.toHaveBeenCalled()
-    act(() => vi.advanceTimersByTime(600))
-    expect(r.stop).toHaveBeenCalledTimes(1)
-    expect(onDone).toHaveBeenCalledWith('I want to leave my job')
-    expect(onChange).toHaveBeenLastCalledWith('I want to leave my job')
+    await act(async () => fake.state.release[0]!())
+    expect(status()).toHaveTextContent('Recording. Say something.')
+    expect(screen.getByTestId('thread')).toBeInTheDocument()
+    expect(screen.getByTestId('device')).toBeInTheDocument()
   })
 
-  it('listens again when the engine gives up before anything was said', () => {
-    const onDone = vi.fn()
-    render(<MicButton value="" onChange={() => {}} label="Goal" autoStart onDone={onDone} />)
-    act(() => Fake.all[0]!.onend?.())
-    expect(Fake.all).toHaveLength(2)
-    expect(onDone).not.toHaveBeenCalled()
-    act(() => Fake.all[1]!.onend?.())
-    act(() => Fake.all[2]!.onend?.())
-    act(() => Fake.all[3]!.onend?.())
-    expect(Fake.all).toHaveLength(4)
-    expect(onDone).toHaveBeenCalledWith('')
+  it('says it can hear him once sound comes in', async () => {
+    render(<Field />)
+    await open()
+    act(() => fake.last().speak())
+    act(() => vi.advanceTimersByTime(300))
+    expect(status()).toHaveTextContent('Recording. I can hear you.')
+  })
+
+  it('no sound for 3 s: names the input, says what to do, and logs the reason', async () => {
+    render(<Field />)
+    await open()
+    act(() => vi.advanceTimersByTime(DEAF_MS - 500))
+    expect(status()).toHaveTextContent('Recording. Say something.')
+    act(() => vi.advanceTimersByTime(1000))
+    expect(status()).toHaveTextContent('I can’t hear anything from “Desk microphone”. Check the input, or speak up.')
+    act(() => vi.advanceTimersByTime(10_000))
+    expect(analytics.keyAction.mock.calls.filter((c) => c[1]?.reason === 'heard_nothing')).toEqual([
+      ['mic_failed', { engine: 'meter', reason: 'heard_nothing' }],
+    ])
+    // The moment sound arrives, the sentence changes.
+    act(() => fake.last().speak())
+    act(() => vi.advanceTimersByTime(300))
+    expect(status()).toHaveTextContent('Recording. I can hear you.')
+  })
+
+  it('paused audio has its own sentence, and a tap wakes it', async () => {
+    render(<Field />)
+    await open()
+    fake.last().running = false
+    act(() => vi.advanceTimersByTime(300))
+    expect(status()).toHaveTextContent('The browser has paused audio')
+    fireEvent.pointerDown(document.body)
+    expect(fake.last().wake).toHaveBeenCalled()
+  })
+
+  it('a blocked mic and a missing one each get their sentence, and are logged', async () => {
+    fake.state.reject = new SttError('denied')
+    render(<Field />)
+    await open()
+    expect(screen.getByRole('alert')).toHaveTextContent('The microphone is blocked for this site.')
+    expect(analytics.keyAction).toHaveBeenCalledWith('mic_failed', { engine: 'mic', reason: 'denied' })
+    expect(mic()).toHaveTextContent('Tap and talk')
+
+    fake.state.reject = new SttError('no_mic')
+    await open()
+    expect(screen.getByRole('alert')).toHaveTextContent('No microphone found on this device.')
   })
 })
 
-describe('MicButton says what went wrong instead of failing silently (Eyal, 11 and 29 Oct)', () => {
-  it('names a blocked mic and keeps the keyboard mic as the way out', async () => {
-    const { getByTestId, findByRole } = render(<MicButton value="" onChange={() => {}} label="Goal" />)
-    act(() => getByTestId('mic').click())
-    const r = Fake.all[0]!
-    act(() => {
-      ;(r.onerror as unknown as (e: { error: string }) => void)({ error: 'not-allowed' })
-      r.onend?.()
+describe('MicButton: no waiting for silence', () => {
+  it('a long pause ends nothing: it records until he taps Finish', async () => {
+    render(<Field />)
+    await open()
+    act(() => fake.last().speak())
+    act(() => vi.advanceTimersByTime(300))
+    fake.last().loud = 0
+    act(() => vi.advanceTimersByTime(5 * 60_000)) // five minutes of thinking
+    expect(fake.last().finish).not.toHaveBeenCalled()
+    expect(fake.last().cancel).not.toHaveBeenCalled()
+    expect(mic()).toHaveTextContent('Finish')
+    expect(status()).toHaveTextContent('Recording. Take your time.')
+
+    await act(async () => fireEvent.click(mic()))
+    expect(fake.last().finish).toHaveBeenCalledTimes(1)
+    expect(mic()).toHaveTextContent('Tap and talk')
+  })
+})
+
+describe('MicButton: the words are his to correct', () => {
+  it('each piece is added after what he typed, as it arrives', async () => {
+    render(<Field start="Pilot the tier" />)
+    await open()
+    act(() => fake.last().say('with ten customers'))
+    expect(field().value).toBe('Pilot the tier with ten customers')
+    act(() => fake.last().say('before the summer'))
+    expect(field().value).toBe('Pilot the tier with ten customers before the summer')
+  })
+
+  it('a second recording adds to the text he corrected by hand', async () => {
+    render(<Field />)
+    await open()
+    act(() => fake.last().say('we have no engineers'))
+    await act(async () => fireEvent.click(mic()))
+    fireEvent.change(field(), { target: { value: 'We have two engineers.' } })
+
+    await open()
+    expect(fake.all).toHaveLength(2)
+    act(() => fake.last().say('and no designer'))
+    expect(field().value).toBe('We have two engineers. and no designer')
+  })
+
+  it('what he types while it records is kept: a later piece lands after it', async () => {
+    render(<Field />)
+    await open()
+    act(() => fake.last().say('first'))
+    fireEvent.change(field(), { target: { value: 'First, corrected.' } })
+    act(() => fake.last().say('second'))
+    expect(field().value).toBe('First, corrected. second')
+  })
+
+  it('shows the words still forming and "Writing it down…" while a part is with the gateway', async () => {
+    render(<Field />)
+    await open()
+    act(() => fake.last().sink.onInterim?.('we have no'))
+    expect(screen.getByTestId('capture-interim')).toHaveTextContent('we have no')
+    act(() => fake.last().ev.onPending(1))
+    expect(screen.getByTestId('capture-writing')).toHaveTextContent('Writing it down…')
+    await act(async () => fireEvent.click(mic()))
+    expect(mic()).toBeDisabled() // the last part is still being written down
+    act(() => fake.all[0]!.ev.onPending(0))
+    expect(mic()).toHaveTextContent('Tap and talk')
+  })
+
+  it('a part that failed is said in words and logged; a recovered engine is only logged', async () => {
+    render(<Field />)
+    await open()
+    act(() => fake.last().ev.onProblem('browser', 'network', true))
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(analytics.keyAction).toHaveBeenCalledWith('mic_failed', { engine: 'browser', reason: 'network', recovered: true })
+    act(() => fake.last().ev.onProblem('server', 'network', false))
+    expect(screen.getByRole('alert')).toHaveTextContent('Part of what you said could not be written down.')
+    expect(analytics.keyAction).toHaveBeenCalledWith('mic_failed', { engine: 'server', reason: 'network' })
+  })
+
+  it('sound but no words at all: says so after Finish', async () => {
+    render(<Field />)
+    await open()
+    act(() => fake.last().speak())
+    await act(async () => fireEvent.click(mic()))
+    expect(screen.getByRole('alert')).toHaveTextContent('I heard sound but no words.')
+  })
+})
+
+describe('captureStatus and the flame', () => {
+  const live = { state: 'live' as const, running: true, heard: true, liveMs: 9000, quietMs: 0, label: 'Desk microphone' }
+  it('one sentence per state', () => {
+    expect(captureStatus({ ...live, state: 'asking' }).text).toBe('Waiting for the microphone. Nothing is recorded yet.')
+    expect(captureStatus(live).text).toBe('Recording. I can hear you.')
+    expect(captureStatus({ ...live, heard: false })).toMatchObject({
+      tone: 'bad',
+      deaf: true,
+      text: 'I can’t hear anything from “Desk microphone”. Check the input, or speak up.',
     })
-    expect((await findByRole('alert')).textContent).toMatch(/blocked.*keyboard/i)
-    expect(analytics.keyAction).toHaveBeenCalledWith('mic_failed', { engine: 'browser', reason: 'not-allowed' })
-  })
-})
-
-describe('MicButton records for the gateway where the browser cannot hear (iPhone)', () => {
-  beforeEach(() => {
-    stt.serverEars.mockReturnValue(true)
-  })
-  afterEach(() => {
-    stt.serverEars.mockReturnValue(false)
+    expect(captureStatus({ ...live, heard: false, liveMs: 1000 }).text).toBe('Recording. Say something.')
+    expect(captureStatus({ ...live, running: false }).tone).toBe('bad')
   })
 
-  it('records, stops after a real pause, and puts the words after what she typed', async () => {
-    let silence: (() => void) | undefined
-    stt.record.mockImplementation(async (o: { onSilence?: () => void }) => {
-      silence = o.onSilence
-      return { stop: vi.fn(async () => ({ clip: new Blob(['a'], { type: 'audio/mp4' }), heard: true })), cancel: vi.fn() }
-    })
-    stt.transcribe.mockResolvedValue('and ship it by Friday')
-    const onChange = vi.fn()
-    const onDone = vi.fn()
-    const { getByTestId } = render(<MicButton value="Pilot the tier" onChange={onChange} label="Goal" onDone={onDone} />)
-    await act(async () => getByTestId('mic').click())
-    expect(getByTestId('mic').getAttribute('aria-pressed')).toBe('true')
-    expect(Fake.all).toHaveLength(0)
-    await act(async () => silence?.())
-    expect(stt.transcribe).toHaveBeenCalledTimes(1)
-    expect(onChange).toHaveBeenLastCalledWith('Pilot the tier and ship it by Friday')
-    expect(onDone).toHaveBeenCalledWith('and ship it by Friday')
-    expect(getByTestId('mic').getAttribute('aria-pressed')).toBe('false')
-  })
-
-  it('a tap stops it early and still sends what was said', async () => {
-    const stop = vi.fn(async () => ({ clip: new Blob(['a']), heard: false }))
-    stt.record.mockResolvedValue({ stop, cancel: vi.fn() })
-    stt.transcribe.mockResolvedValue('quietly said')
-    const onChange = vi.fn()
-    const { getByTestId } = render(<MicButton value="" onChange={onChange} label="Goal" />)
-    await act(async () => getByTestId('mic').click())
-    await act(async () => getByTestId('mic').click())
-    expect(stop).toHaveBeenCalledTimes(1)
-    expect(onChange).toHaveBeenLastCalledWith('quietly said')
-  })
-
-  it('tells her when the gateway could not transcribe, and logs why', async () => {
-    let silence: (() => void) | undefined
-    stt.record.mockImplementation(async (o: { onSilence?: () => void }) => {
-      silence = o.onSilence
-      return { stop: vi.fn(async () => ({ clip: new Blob(['a']), heard: true })), cancel: vi.fn() }
-    })
-    stt.transcribe.mockRejectedValue(new stt.SttError('quota'))
-    const { getByTestId, findByRole } = render(<MicButton value="" onChange={() => {}} label="Goal" />)
-    await act(async () => getByTestId('mic').click())
-    await act(async () => silence?.())
-    expect((await findByRole('alert')).textContent).toMatch(/today.*limit/i)
-    expect(analytics.keyAction).toHaveBeenCalledWith('mic_failed', { engine: 'server', reason: 'quota' })
-  })
-
-  it('a denied mic permission is named before anything is sent', async () => {
-    stt.record.mockRejectedValue(new stt.SttError('denied'))
-    const { getByTestId, findByRole } = render(<MicButton value="" onChange={() => {}} label="Goal" />)
-    await act(async () => getByTestId('mic').click())
-    expect((await findByRole('alert')).textContent).toMatch(/blocked/i)
-    expect(stt.transcribe).not.toHaveBeenCalled()
+  it('the flame does not grow with volume: a few percent and a few degrees at the loudest, still when quiet', () => {
+    expect(flameTransform(0, 1234)).toBe('')
+    for (let t = 0; t < 2000; t += 37) {
+      const [, skew, sx, sy] = /skewX\((-?[\d.]+)deg\) scale\((-?[\d.]+), (-?[\d.]+)\)/.exec(flameTransform(1, t))!.map(Number)
+      expect(Math.abs(skew!)).toBeLessThanOrEqual(5)
+      expect(Math.abs(sx! - 1)).toBeLessThanOrEqual(0.0301)
+      expect(Math.abs(sy! - 1)).toBeLessThanOrEqual(0.0501)
+    }
   })
 })

@@ -1,37 +1,30 @@
-// "Talk it through": the facilitator asks each still-empty intake question aloud, the mic
-// listens, the answer fills the field, and it moves on. The screen owns speech and
-// recognition; this reducer owns only the order. ask → (spoken) listen → advance → ask …
+// The intake's voice walk: he taps "Tap and talk" at the goal and starts speaking. "Next
+// question" moves the same open recording to the next still-empty field; "Finish" ends it.
+// Nothing moves on by itself (Pavol, 20 Nov: no waiting for silence). The screen owns the mic;
+// this reducer owns only the order.
 
-import type { IntakeId } from './mastermind'
+import { voiceOrder, type Intake, type IntakeId } from './mastermind'
 
 export interface VoiceState {
   queue: IntakeId[]
   at: number
-  phase: 'idle' | 'ask' | 'listen'
 }
 
-export type VoiceAction =
-  | { type: 'start'; empty: IntakeId[] }
-  | { type: 'asked' }
-  | { type: 'advance' }
-  | { type: 'stop' }
+export type VoiceAction = { type: 'start'; queue: IntakeId[] } | { type: 'next' }
 
-export const VOICE_IDLE: VoiceState = { queue: [], at: 0, phase: 'idle' }
+export const VOICE_IDLE: VoiceState = { queue: [], at: 0 }
+
+/** The goal first, filled or not (a second recording adds to it), then the still-empty fields. */
+export const walkQueue = (answers: Intake): IntakeId[] => ['goal', ...voiceOrder(answers).filter((id) => id !== 'goal')]
 
 export function voiceReducer(state: VoiceState, action: VoiceAction): VoiceState {
   switch (action.type) {
     case 'start':
-      return action.empty.length ? { queue: action.empty, at: 0, phase: 'ask' } : VOICE_IDLE
-    case 'stop':
-      return { ...state, phase: 'idle' }
-    case 'asked':
-      return state.phase === 'ask' ? { ...state, phase: 'listen' } : state
-    case 'advance': {
-      if (state.phase === 'idle') return state
-      const at = state.at + 1
-      return { ...state, at, phase: at < state.queue.length ? 'ask' : 'idle' }
-    }
+      return { queue: action.queue, at: 0 }
+    case 'next':
+      return state.at + 1 < state.queue.length ? { ...state, at: state.at + 1 } : state
   }
 }
 
-export const currentField = (s: VoiceState): IntakeId | null => (s.phase === 'idle' ? null : s.queue[s.at])
+export const currentField = (s: VoiceState): IntakeId | null => s.queue[s.at] ?? null
+export const nextField = (s: VoiceState): IntakeId | null => s.queue[s.at + 1] ?? null

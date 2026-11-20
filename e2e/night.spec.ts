@@ -256,7 +256,8 @@ for (const [label, viewport] of [
     // Talk mode: the voice bar, an adviser speaking, the gloss in the margin.
     await page.getByTestId('talk').click()
     await page.evaluate(() => (window as unknown as { __hear: (t: string) => void }).__hear('the constraint is engineering time'))
-    await page.getByTestId('voice-done').click()
+    await page.getByTestId('voice-finish').click()
+    await page.getByTestId('voice-send').click()
     await expect(page.getByTestId('now-speaking')).toBeVisible({ timeout: 10_000 })
     await shot(page, '10-talk-voice-bar')
     await expect(page.getByTestId('floor')).toHaveCount(2, { timeout: 30_000 })

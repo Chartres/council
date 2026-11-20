@@ -90,6 +90,37 @@ Pavol picked option 2 of three ("Option 2 is good, with a bit more graphics, i l
   catalogue voice (blank leaf, colophon). Hints and notes are upright.
 - **Motion**: the device's flame leans while the group thinks (`.device-flicker`, 1.8 s); under
   `prefers-reduced-motion` it stands still (`e2e/night.spec.ts`).
+
+## The thread and the candle (20 Nov 2026)
+
+Pavol tried three recording samples (`lab/voice-capture`) and kept two things: "the wave from
+option 3 … let's just keep the thread-like line", and the candle, with a correction: "it's strange
+that the flame grows rather than flickers when you speak. It should be like catching your breath a
+little bit." He refused the silence endpoint: "against the idea of me being thoughtful with my
+responses." Everything here is `src/components/Capture.tsx`.
+
+- **The thread**: one line, 1.5 px, candle-400 on a 40 px canvas, drawn from the real input level
+  (an `AnalyserNode` on the open mic). Flat means no sound is arriving. It is the recording
+  surface's live line in the accent budget.
+- **The candle**: the device (`Device`, 64 px; 60 px in the voice bar) stands left of the thread.
+  The flame does not grow with volume. With the voice it flickers by at most 5 % and leans by at
+  most 5°, about its foot, and settles when he is quiet (`flameTransform`). Under
+  `prefers-reduced-motion` the flame is still; the thread still moves, because it is information.
+- **The sentence**: one line under the thread says the state in words (Body size, marble-200;
+  clay-400 when something is wrong). The sentences are listed in AGENTS.md, "Voice in".
+- **Controls**: in a recording journey every control is a labelled button: an icon with its word
+  ("Tap and talk", "Back", "Pause") or a word alone ("Finish", "Send", "Next question"). One filled
+  action per state: "Tap and talk" while the field is empty, "Finish" while it records, then the
+  screen's own action ("Bring it to the group", "Send"). The others are outlines (`.slab-off`).
+  The reply box's send is a word button, "Say it", in marble.
+- **The words**: his words are set in the ordinary field as they are written down, added after
+  what is there. Words the browser has not settled on yet show in italic under the thread;
+  "Writing it down…" shows while the gateway has a part. Nothing is sent until he presses the
+  screen's action himself.
+- **The voice bar** (what changed on 20 Nov): the four round icons became icons with words (Back,
+  Pause, Next, End); his turn adds a text field, and under it the candle and the thread while it
+  records; the countdown ("Sending in n s") is gone. The bar is taller during his turn (about
+  250 px at 390 px wide, was about 110).
 - **Fonts**: `index.html` asks for EB Garamond 400/500/600 and italic 400/500 with
   `display=swap`; `EB Garamond Fallback` (Georgia with `size-adjust: 86%`) holds the line
   breaks until it arrives.
@@ -121,8 +152,8 @@ Pavol picked option 2 of three ("Option 2 is good, with a bit more graphics, i l
   the tab bar — an app greyed out behind a dialog is worse than no app.
 - **Which council sat, never which model.** One quiet marble-400 line under the verdict:
   "Free council" or "Premium council". Model names are the gateway's business.
-- **Voice is a button, not a mode.** The mic sits beside the field it fills; "Listen" sits
-  beside "← New idea". Both vanish where the Web Speech API is missing — no explanation, no
+- **Voice is a button, not a mode.** "Tap and talk" sits under the field it fills; "Listen" sits
+  beside "← New idea". Each is absent where the browser has no path for it: no explanation, no
   disabled control. One voice per persona, derived from the id so it never changes.
 
 - **v4: the conversation is the content.** Facilitator lines are small italic marble; an
@@ -138,5 +169,5 @@ Pavol picked option 2 of three ("Option 2 is good, with a bit more graphics, i l
 
 `e2e/shots/` — `home`, `session-streaming`, `verdict`, `daily-card`, `daily-share`,
 `sign-in-gate`, `password-gate`, `password-rejected`, `voice-dictation`, `voice-listening`,
-`fold-phone`, `night-*` (the book page: start, colophon, empty journal, 404, door, gloss), and v4's `v4-start`, `v4-intake`, `v4-conversation`, `v4-commit`, `v4-journal`,
+`fold-phone`, the recording states in `docs/review/2026-11-20-voice/`, `night-*` (the book page: start, colophon, empty journal, 404, door, gloss), and v4's `v4-start`, `v4-intake`, `v4-conversation`, `v4-commit`, `v4-journal`,
 `v4-last-time`, `v4-last-time-opener`, all at 390 px, committed and meant to be looked at.

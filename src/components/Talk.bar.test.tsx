@@ -1,46 +1,29 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { Item } from '@/domain/mastermind'
 import * as tts from '@/domain/tts'
-import { COUNTDOWN_MS, Talk, TALK_SILENCE_MS } from './Talk'
 
 // The voice player bar (Pavol, 8 Nov): "a really nice, very easy-to-control interface, maybe a
 // bottom bar where I can clearly pause the flow, go on to the next question, or go to the
-// previous one … I don't know where we are on the list of questions."
+// previous one … I don't know where we are on the list of questions." And 20 Nov: "the controls
+// are also very unintuitive. It's like some text, some icons."
 
 vi.mock('@/domain/tts', () => ({ speak: vi.fn(), cancel: vi.fn(), setFallback: vi.fn(), setSession: vi.fn(), unlock: vi.fn() }))
 vi.mock('@/analytics', () => ({ keyAction: vi.fn() }))
+const fake = await vi.hoisted(async () => (await import('@/test/fakeCapture')).fakeCaptures())
+vi.mock('@/domain/capture', async (orig) => ({ ...(await orig<object>()), openCapture: fake.openCapture, primeMic: fake.primeMic }))
+vi.mock('@/domain/stt', async (orig) => ({ ...(await orig<object>()), recordingSupported: () => true }))
 
-class Fake {
-  static all: Fake[] = []
-  continuous = false
-  interimResults = false
-  results: { transcript: string }[][] = []
-  onresult: ((e: { results: unknown[] }) => void) | null = null
-  onend: (() => void) | null = null
-  onerror: ((e?: { error?: string }) => void) | null = null
-  start = vi.fn()
-  stop = vi.fn()
-  abort = vi.fn()
-  constructor() {
-    Fake.all.push(this)
-  }
-  say(text: string) {
-    this.results.push([{ transcript: text }])
-    this.onresult?.({ results: this.results.map((r) => Object.assign([...r], { isFinal: false })) })
-  }
-}
+const { Talk } = await import('./Talk')
 
 beforeEach(() => {
   vi.useFakeTimers()
-  Fake.all = []
+  fake.reset()
   vi.mocked(tts.speak).mockReset()
   vi.mocked(tts.cancel).mockReset()
-  Object.defineProperty(window, 'SpeechRecognition', { value: Fake, configurable: true })
 })
 afterEach(() => {
   vi.useRealTimers()
-  delete (window as unknown as Record<string, unknown>).SpeechRecognition
 })
 
 const floors: Item[] = [
@@ -62,7 +45,7 @@ function setup(start: Item[] = floors, opts: { streaming?: boolean } = {}) {
     if (next.streaming !== undefined) streaming = next.streaming
     r.rerender(view())
   }
-  return { onSay, onNow, set, rec: () => Fake.all[Fake.all.length - 1]! }
+  return { onSay, onNow, set }
 }
 
 describe('Voice bar', () => {
@@ -79,27 +62,31 @@ describe('Voice bar', () => {
 
   it('previous and next ask the facilitator in plain words', () => {
     const { onSay } = setup()
-    fireEvent.click(screen.getByRole('button', { name: 'Previous question' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Back to the previous question' }))
     expect(onSay).toHaveBeenLastCalledWith(`Let's go back to the previous question: "What is the goal?"`)
     fireEvent.click(screen.getByRole('button', { name: 'Next question' }))
     expect(onSay).toHaveBeenLastCalledWith("Let's move on to the next question.")
   })
 
-  it('a thinking pause does not send: it waits, counts the last seconds down, and Done sends at once', () => {
-    const { onSay, rec } = setup()
-    act(() => rec().say('we have no engineers'))
-    act(() => vi.advanceTimersByTime(1500)) // a thinking pause: nothing sent, no countdown yet
-    expect(onSay).not.toHaveBeenCalled()
-    expect(screen.getByRole('status')).toHaveTextContent('Listening…')
-    act(() => vi.advanceTimersByTime(TALK_SILENCE_MS - COUNTDOWN_MS - 1500 + 500))
-    expect(screen.getByRole('status')).toHaveTextContent(/Sending in \d s/)
+  it('every control is an icon with its word, or a word button: no bare icons', () => {
+    setup()
+    const bar = screen.getByTestId('voice-bar')
+    const words = within(bar)
+      .getAllByRole('button')
+      .map((b) => b.textContent?.trim())
+    expect(words.slice(1)).toEqual(['Back', 'Pause', 'Finish', 'Next', 'End'])
+    for (const w of words) expect(w).toBeTruthy()
+  })
 
-    act(() => rec().say('and no money'))
-    expect(screen.getByRole('status')).toHaveTextContent('Listening…') // she went on: the clock starts over
-    fireEvent.click(screen.getByTestId('voice-done'))
-    expect(onSay).toHaveBeenCalledWith('we have no engineers and no money') // both segments, one message
-    act(() => vi.advanceTimersByTime(TALK_SILENCE_MS * 2))
-    expect(onSay).toHaveBeenCalledTimes(1)
+  it('a thinking pause does not send and nothing counts down: the turn waits for Finish', async () => {
+    const { onSay } = setup()
+    await act(async () => {})
+    act(() => fake.last().say('we have no engineers'))
+    act(() => vi.advanceTimersByTime(60_000))
+    expect(onSay).not.toHaveBeenCalled()
+    expect(screen.getByRole('status')).not.toHaveTextContent(/Sending in/)
+    expect(fake.last().finish).not.toHaveBeenCalled()
+    expect(screen.getByTestId('voice-finish')).toBeEnabled()
   })
 
   it('pause holds the room: the line stops, what arrives waits, and resume speaks from the unfinished line', () => {
@@ -128,11 +115,11 @@ describe('Voice bar', () => {
     expect(onNow).toHaveBeenLastCalledWith(null)
   })
 
-  it('while an adviser speaks, the main button interrupts', () => {
+  it('while an adviser speaks, the main button cuts in', () => {
     const { set } = setup([], { streaming: true })
     set({ items: [{ kind: 'contribution', speaker: 'seneca', text: 'First point. Then', streaming: true }] })
     expect(screen.getByRole('status')).toHaveTextContent('Seneca is talking…')
-    fireEvent.click(screen.getByTestId('voice-interrupt'))
+    fireEvent.click(screen.getByTestId('cut-in'))
     expect(tts.cancel).toHaveBeenCalled()
   })
 
@@ -144,14 +131,16 @@ describe('Voice bar', () => {
   })
 
   // Review fixes.
-  it('resume with lines waiting listens again on browser ears (barge-in and Done still work)', () => {
-    const { set } = setup([], { streaming: true })
-    set({ items: [{ kind: 'contribution', speaker: 'seneca', text: 'First point. Then', streaming: true }] })
-    const before = Fake.all.length
+  it('pause shuts the mic and keeps what he said; resume with nothing left to speak opens it again', async () => {
+    setup()
+    await act(async () => {})
+    act(() => fake.last().say('half a thought'))
     fireEvent.click(screen.getByRole('button', { name: 'Pause' }))
+    expect(fake.last().finish).toHaveBeenCalled()
+    expect(screen.getByRole('status')).toHaveTextContent('Paused')
     fireEvent.click(screen.getByTestId('voice-resume'))
-    expect(Fake.all.length).toBe(before + 1)
-    expect(Fake.all[Fake.all.length - 1]!.start).toHaveBeenCalled()
+    expect(screen.getByTestId('voice-draft')).toHaveValue('half a thought')
+    expect(screen.getByTestId('voice-send')).toBeEnabled() // his words wait for him, the mic does not reopen over them
   })
 
   it('Talk off while paused lets the pause go: back on, it listens and old lines are not spoken', () => {
@@ -170,16 +159,6 @@ describe('Voice bar', () => {
     r.rerender(view())
     expect(screen.getByRole('status')).not.toHaveTextContent('Paused')
     expect(screen.queryByTestId('voice-resume')).toBeNull()
-  })
-
-  it('Done between engines (the retry after an error) listens again instead of doing nothing', () => {
-    const { rec } = setup()
-    const r = rec()
-    act(() => r.onerror?.({ error: 'no-speech' }))
-    act(() => r.onend?.())
-    const before = Fake.all.length
-    fireEvent.click(screen.getByTestId('voice-done'))
-    expect(Fake.all.length).toBe(before + 1)
   })
 
   it('after next question, the rest of the old answer is not spoken; the new one is', () => {

@@ -32,6 +32,9 @@ if (typeof globalThis.localStorage === 'undefined' || globalThis.localStorage ==
   })
 }
 
+// jsdom has no canvas: the thread draws nothing here (its level is read from data-level).
+if (typeof HTMLCanvasElement !== 'undefined') HTMLCanvasElement.prototype.getContext = (() => null) as typeof HTMLCanvasElement.prototype.getContext
+
 afterEach(() => {
   cleanup()
   localStorage.clear()
