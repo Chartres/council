@@ -1,0 +1,11 @@
+{
+  "question": "I run a small bakery and I am thinking about opening on Sundays. My regulars ask for it, but my team is already tired and I am not sure the numbers work.",
+  "turns": [
+    { "say": "The Sunday morning trade would be mostly families and walkers. I would need two people for six hours." },
+    { "reply": 0, "say": "That is a fair point. What would you look at first, the cost of the staff or the extra sales?" },
+    { "say": "My best baker has said she would leave if she had to work weekends." },
+    { "steer": "Next question" },
+    { "say": "I think I would try it for one month with a shorter day. Can you help me decide?" },
+    { "tap": "Wrap up" }
+  ]
+}

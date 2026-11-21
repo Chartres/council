@@ -3,6 +3,7 @@ import {
   CouncilError,
   FAILURE_COPY,
   callJson,
+  failureOf,
   gatewayHeaders,
   openSession,
   parseSse,
@@ -143,5 +144,15 @@ describe('voteSplit', () => {
     expect(
       voteSplit({ socrates: 'for', seneca: 'against', 'marcus-aurelius': 'mixed', buddha: 'for' }),
     ).toEqual({ for: 2, against: 1, mixed: 1 })
+  })
+})
+
+describe('failureOf (walkthrough, 21 Nov)', () => {
+  it('keeps a known reason and turns the gateway-only ones into words the app has', () => {
+    expect(failureOf('quota')).toBe('quota')
+    expect(failureOf('upstream')).toBe('gateway')
+    expect(failureOf('bad_turn')).toBe('gateway')
+    expect(failureOf(undefined)).toBe('gateway')
+    expect(FAILURE_COPY[failureOf('upstream')]).toMatch(/could not be reached/)
   })
 })

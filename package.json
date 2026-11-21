@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "e2e": "playwright test",
     "typecheck": "tsc -b --noEmit",
-    "stub": "node scripts/stub-gateway.mjs"
+    "stub": "node scripts/stub-gateway.mjs",
+    "walk": "node scripts/walkthrough.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.107.0",

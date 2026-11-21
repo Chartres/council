@@ -12,7 +12,7 @@ import { conversion, keyAction, logError } from '@/analytics'
 import { useAuth } from '@/auth/AuthContext'
 import { supabase } from '@/auth/supabase'
 import { defaultAdvisers, nextPicked, type RosterId } from '@/content/personas'
-import { CouncilError, type FailureReason, type StreamOptions, type Tier } from '@/domain/council'
+import { CouncilError, failureOf, type FailureReason, type StreamOptions, type Tier } from '@/domain/council'
 import {
   loadLocalJournal,
   loadRemoteJournal,
@@ -261,7 +261,7 @@ export function MastermindProvider({ children }: { children: ReactNode }) {
               break
             }
             case 'error':
-              throw new CouncilError((ev.reason as FailureReason) ?? 'gateway')
+              throw new CouncilError(failureOf(ev.reason))
             default:
               update((c) => ({ items: itemsReducer(c.items, ev) }))
           }

@@ -1,4 +1,4 @@
-// Voice out through the gateway: an adviser's Aura-2 voice when a speaker is named, MeloTTS otherwise,
+// Voice out through the gateway: an adviser's Aura-2 voice when a speaker is named, the facilitator's Aura-2 voice otherwise (MeloTTS until it was retired, 20 Nov),
 // on Workers AI (free inside the daily allowance),
 // one MP3 per utterance, played in order on one shared element. Where the gateway cannot speak — no key, offline,
 // the stub in e2e — the browser's own engine takes the utterance instead, so nothing is
@@ -27,6 +27,8 @@ type Item = {
   group?: string
   audio: Promise<Blob | null>
   abort: AbortController
+  /** Aborted when the line is due and still not here after TTS_TIMEOUT_MS. */
+  late: AbortController
 }
 
 // The voice the latest message began in. Messages are read one after another, so the latest is
@@ -58,11 +60,16 @@ export function setFallback(f: Fallback): void {
   fallback = f
 }
 
-/** How long one line may take to arrive (headers and audio) before the browser voice speaks
- *  it instead. A hung gateway used to hold this line and every line behind it silent. */
+/** How long one line may take to arrive (headers and audio), counted from when it is due to
+ *  play, before it is given up. A hung gateway used to hold this line and every line behind it
+ *  silent. Counted from the request instead (before 21 Nov), a message's later lines, all
+ *  requested at once and slower together, were cut while the first still played: one sentence
+ *  read, then "voice did not load" (Pavol, 20 Nov; found again by the walkthrough). */
 export const TTS_TIMEOUT_MS = 6_000
 
-async function fetchAudio(text: string, speaker: string | undefined, signal: AbortSignal): Promise<Blob | null> {
+/** `due` given: the clock is the caller's (the line is fetched ahead and timed once due).
+ *  Without it the fetch is due now and times itself. */
+async function fetchAudio(text: string, speaker: string | undefined, signal: AbortSignal, due?: AbortSignal): Promise<Blob | null> {
   const base = gatewayUrl()
   if (!base) return null
   // Our own controller: cancel() aborts it through `signal`, the clock aborts it on timeout.
@@ -70,7 +77,8 @@ async function fetchAudio(text: string, speaker: string | undefined, signal: Abo
   const ctl = new AbortController()
   const stop = () => ctl.abort()
   signal.addEventListener('abort', stop)
-  const timer = setTimeout(stop, TTS_TIMEOUT_MS)
+  due?.addEventListener('abort', stop)
+  const timer = due ? undefined : setTimeout(stop, TTS_TIMEOUT_MS)
   try {
     const res = await fetch(`${base}/v1/tts`, {
       method: 'POST',
@@ -92,6 +100,7 @@ async function fetchAudio(text: string, speaker: string | undefined, signal: Abo
   } finally {
     clearTimeout(timer)
     signal.removeEventListener('abort', stop)
+    due?.removeEventListener('abort', stop)
   }
 }
 
@@ -110,7 +119,8 @@ export function speak(
   group?: string,
 ): void {
   const abort = new AbortController()
-  queue.push({ text, voice, onEnd, onStart, onMiss, speaker, group, abort, audio: fetchAudio(text, speaker, abort.signal) })
+  const late = new AbortController()
+  queue.push({ text, voice, onEnd, onStart, onMiss, speaker, group, abort, late, audio: fetchAudio(text, speaker, abort.signal, late.signal) })
   if (!busy) void next()
 }
 
@@ -157,13 +167,16 @@ async function next(): Promise<void> {
     return
   }
   busy = true
+  const deadline = setTimeout(() => item.late.abort(), TTS_TIMEOUT_MS)
   let blob = await item.audio
+  clearTimeout(deadline)
   // Cancelled while downloading: cancel() already reset the queue; a later speak() runs its own loop.
   if (item.abort.signal.aborted) return
   // The message began in the browser voice: it ends in it.
   if (beganIn(item) === 'browser') return viaFallback(item)
-  // Mid-message in the adviser's voice: once more before giving up on this line.
-  if (!blob && beganIn(item) === 'gateway') {
+  // Mid-message in the adviser's voice: once more before giving up on this line, unless it
+  // already had its seconds once due (a second try would double the silence; review of #43).
+  if (!blob && beganIn(item) === 'gateway' && !item.late.signal.aborted) {
     blob = await fetchAudio(item.text, item.speaker, item.abort.signal)
     if (item.abort.signal.aborted) return
   }

@@ -21,6 +21,7 @@ import {
   type Tier,
   type Turn,
   type Verdict,
+  failureOf,
 } from '@/domain/council'
 import { loadLocal, loadRemote, saveLocal, saveRemote, type SavedIdea } from '@/domain/ideas'
 import { checkAccess, checkKey, gateState, loadKey, saveKey, type Access, type GateState } from '@/domain/key'
@@ -227,7 +228,7 @@ export function CouncilProvider({ children }: { children: ReactNode }) {
               refreshUsage()
               break
             case 'error':
-              commit({ failure: (event.reason as FailureReason) ?? 'gateway' })
+              commit({ failure: failureOf(event.reason) })
               break
           }
         }
