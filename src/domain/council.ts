@@ -202,3 +202,9 @@ export const FAILURE_COPY: Record<FailureReason, string> = {
   cap: 'The council is closed for this month — the running budget is spent. It reopens on the 1st.',
   gateway: 'The council could not be reached. Try again in a moment.',
 }
+
+/** A stream's error reason as one the app has words for. The gateway also sends `upstream` and
+ *  `bad_turn`; cast as they were, they showed an empty alert and the room carried on silent
+ *  (walkthrough, 21 Nov). */
+export const failureOf = (reason?: string): FailureReason =>
+  reason && Object.hasOwn(FAILURE_COPY, reason) ? (reason as FailureReason) : 'gateway'

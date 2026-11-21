@@ -353,8 +353,33 @@ describe('speak through the gateway', () => {
       await vi.advanceTimersByTimeAsync(TTS_TIMEOUT_MS - 1)
       expect(spoken).not.toHaveBeenCalled()
       await vi.advanceTimersByTimeAsync(1)
+      expect(spoken.mock.calls.map((c) => c[0])).toEqual(['first'])
+      // The second line's seconds start when it is due, after the first.
+      await vi.advanceTimersByTimeAsync(TTS_TIMEOUT_MS)
       expect(spoken.mock.calls.map((c) => c[0])).toEqual(['first', 'second'])
       expect(lines()).toHaveLength(0)
+    })
+
+    it('a later line that is slow while the first still plays is not cut (walkthrough, 21 Nov)', async () => {
+      // Both requested at once; the first arrives in 1 s and plays 4 s, the second takes 7 s.
+      const after = (ms: number, signal?: AbortSignal | null) =>
+        new Promise((resolve, reject) => {
+          setTimeout(resolve, ms)
+          signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
+        }).then(audioResponse)
+      let call = 0
+      vi.stubGlobal('fetch', vi.fn((_u: string, init: RequestInit) => after(++call === 1 ? 1_000 : 7_000, init.signal)))
+      const spoken = vi.fn()
+      setFallback(spoken)
+      speak('one', { pitch: 1, rate: 1 }, undefined, 'drucker', undefined, undefined, 'm1')
+      speak('two', { pitch: 1, rate: 1 }, undefined, 'drucker', undefined, undefined, 'm1')
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(lines()).toHaveLength(1)
+      await vi.advanceTimersByTimeAsync(3_000)
+      player().end() // the first line ends at 4 s
+      await vi.advanceTimersByTimeAsync(3_000) // the second arrives at 7 s, 3 s after it was due
+      expect(lines()).toHaveLength(2)
+      expect(spoken).not.toHaveBeenCalled()
     })
 
     it('a body that stalls after the headers falls back the same way', async () => {
