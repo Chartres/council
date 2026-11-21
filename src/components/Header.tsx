@@ -77,7 +77,7 @@ export function Header() {
               type="button"
               onClick={() => toggle('feedback')}
               aria-expanded={open === 'feedback'}
-              className="sc min-h-11 px-3 text-[17px] text-marble-400 hover:text-marble-100"
+              className="head-link sc min-h-11 px-3 text-[17px] text-marble-400 hover:text-marble-100"
             >
               Feedback
             </button>

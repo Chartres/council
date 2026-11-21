@@ -128,7 +128,6 @@ export function StartScreen() {
     <div className="mx-auto max-w-xl px-4 pb-12">
       <h1 className="sr-only">Mastermind Council</h1>
       <Headpiece className="mt-3" />
-      <p className="t-body mt-4 text-marble-200" data-testid="what-it-is">{WHAT_IT_IS}</p>
       {linkNeedsSignIn && (
         <div className="pt-3">
           <SignInPanel reason="Sign in to record how it went. The group picks up where you left off." />
@@ -154,6 +153,8 @@ export function StartScreen() {
 
       {/* Who she is carries over (role, organization, working style); the question is today's goal. */}
       <Today onOpen={(goal) => begin({ ...stableIntake(lastIntake), goal })} />
+      {/* What the app is, under the first control: the fold rule keeps today's question in the top 120 px. */}
+      <p className="t-note mt-4 text-marble-300" data-testid="what-it-is">{WHAT_IT_IS}</p>
 
       <div className="dbl mt-6" />
       <div role="group" aria-label="Roster" className="mt-2 flex items-baseline gap-6">
