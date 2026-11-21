@@ -38,15 +38,14 @@ const JOURNAL = {
   lastIntake: null,
 }
 
-test('the start screen is a book page: running head, headpiece, versal, a contents list of the dead, colophon', async ({ page }) => {
+test('the start screen is a book page: running head, headpiece, a contents list of the dead, colophon', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByTestId('running-head')).toHaveText('Mastermind Council')
   await expect(page.getByTestId('headpiece')).toBeVisible()
-  // Today's question opens on a versal; the question itself stays whole.
+  // Today's question is set whole, with no versal (Pavol, 21 Nov 2026: the boxed H read as a cropped headline).
   const today = page.getByTestId('today')
-  await expect(today.getByTestId('versal')).toBeVisible()
-  const letter = await today.getByTestId('versal').getAttribute('data-letter')
-  expect(await today.locator('.versal-boxed').textContent()).toMatch(new RegExp(`^${letter}`))
+  await expect(today.getByTestId('versal')).toHaveCount(0)
+  await expect(today.locator('.t-display')).toHaveText(/^[A-Z]/)
 
   // The catalogue note beside the roster's facts, and the roster as a contents list.
   // The catalogue note is on the Classics shelf only; Business keeps the neutral line.
@@ -345,42 +344,6 @@ test('the other rooms are the same book: intake, quick verdict, my ideas, privac
   await expect(page.getByTestId('running-head')).toHaveText('Privacy')
   await expect(page.locator('h2.rubric')).toHaveText(['Your content', 'Using this for work?', 'Who is responsible'])
   await expect(page.getByTestId('colophon')).toBeVisible()
-})
-
-test('the versal box follows the question: 58 px round a wrapped one, 40 px beside a single line', async ({ page }) => {
-  await page.goto('/')
-  const box = page.getByTestId('today').getByTestId('versal')
-  const text = page.getByTestId('today').locator('.versal-boxed')
-  const lines = async () => {
-    const m = await text.evaluate((el) => [el.getBoundingClientRect().height, parseFloat(getComputedStyle(el).lineHeight)])
-    return Math.round(m[0] / m[1])
-  }
-  // Phone: the question wraps; every line has the same leading (the hidden letter adds none).
-  expect(await lines()).toBeGreaterThanOrEqual(2)
-  expect((await box.boundingBox())!.width).toBe(58)
-  const m = await text.evaluate((el) => [el.getBoundingClientRect().height, parseFloat(getComputedStyle(el).lineHeight)])
-  expect(m[0] % m[1]).toBe(0)
-  // The letter sits in the middle of its box.
-  const offset = await box.evaluate((el) => {
-    const r = document.createRange()
-    const probe = document.createElement('span')
-    probe.textContent = el.getAttribute('data-letter')
-    Object.assign(probe.style, { font: getComputedStyle(el, '::after').font, position: 'absolute', lineHeight: '1' })
-    el.append(probe)
-    r.selectNodeContents(probe)
-    const h = probe.getBoundingClientRect().height
-    probe.remove()
-    return (el.clientHeight - h) / 2
-  })
-  expect(offset).toBeGreaterThanOrEqual(0)
-  // Wide: it fits one line, and the box shrinks to the line.
-  await page.setViewportSize({ width: 2400, height: 900 })
-  await page.addStyleTag({ content: '.max-w-xl{max-width:2000px!important}' })
-  await expect.poll(lines).toBe(1)
-  await expect.poll(async () => (await box.boundingBox())!.width).toBe(40)
-  const b = (await box.boundingBox())!
-  const t = (await text.boundingBox())!
-  expect(Math.abs(b.y + b.height / 2 - (t.y + t.height / 2))).toBeLessThanOrEqual(1)
 })
 
 test('disclosure text is unchanged on the classics roster', async ({ page }) => {

@@ -2,7 +2,7 @@
 // way a bookseller's catalogue describes a copy: flat, exact, defects included. The lines sit
 // beside the facts and the disclosure; they do not replace either.
 import whatsNew from '../../whats-new.json'
-import { ROSTERS } from './personas'
+import { MAX_PERSONAS, ROSTERS } from './personas'
 
 const WORDS = ['No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve']
 
@@ -19,8 +19,7 @@ export const NOT_SOUGHT = 'Authors’ approval: not sought. None of them has rea
 export const PRIVATELY_PRINTED = 'Privately printed'
 
 /** What the app is, in two sentences: on the home page and at the door (Pavol, 21 Nov 2026). */
-export const WHAT_IT_IS =
-  'Bring a question or a decision. Up to four thinkers from history, simulated by AI, talk it through with you and end with one decision and one next step.'
+export const WHAT_IT_IS = `Bring a question or a decision. Up to ${(WORDS[MAX_PERSONAS] ?? String(MAX_PERSONAS)).toLowerCase()} thinkers from history, simulated by AI, talk it through with you and end with one decision and one next step.`
 
 export const EDITION: string = whatsNew.version
 

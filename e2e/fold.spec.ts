@@ -59,7 +59,7 @@ test('phone header: the title fits whole beside Feedback and the account mark', 
     await page.goto('/')
     // The e2e build has no auth configured; a 44 px stand-in takes the account mark's place.
     const [scroll, client] = await page.evaluate(() => {
-      const group = document.querySelector('header .flex.items-center.gap-1')!
+      const group = document.querySelector('[data-testid=header-actions]')!
       const mark = document.createElement('span')
       mark.style.cssText = 'display:inline-block;width:44px;height:44px'
       group.appendChild(mark)
