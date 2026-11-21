@@ -19,10 +19,11 @@ import { chromium, devices } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, writeFileSync, appendFileSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 
 const APP = process.env.APP ?? 'http://localhost:5199'
 const PW = process.env.PW ?? ''
-const OUT = process.env.OUT ?? `walk-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '')}`
+const OUT = process.env.OUT ?? join(tmpdir(), `walk-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '')}`)
 const SCRIPT = JSON.parse(readFileSync(process.env.SCRIPT ?? new URL('./walkthrough.json', import.meta.url), 'utf8'))
 mkdirSync(join(OUT, 'shots'), { recursive: true })
 mkdirSync(join(OUT, 'audio'), { recursive: true })
@@ -107,7 +108,7 @@ const context = await browser.newContext({
   permissions: ['microphone'],
   storageState: {
     cookies: [],
-    origins: [{ origin: APP, localStorage: [{ name: 'council:key', value: PW }, { name: 'council:talk', value: process.env.READ_ALOUD === '0' ? '0' : '1' }, { name: 'fw:whats-new', value: JSON.parse(readFileSync('whats-new.json', 'utf8')).version }] }],
+    origins: [{ origin: APP, localStorage: [{ name: 'council:key', value: PW }, { name: 'council:talk', value: process.env.READ_ALOUD === '0' ? '0' : '1' }, { name: 'fw:whats-new', value: JSON.parse(readFileSync(new URL('../whats-new.json', import.meta.url), 'utf8')).version }] }],
   },
 })
 const videoT0 = now()

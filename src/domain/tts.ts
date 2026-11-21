@@ -174,8 +174,9 @@ async function next(): Promise<void> {
   if (item.abort.signal.aborted) return
   // The message began in the browser voice: it ends in it.
   if (beganIn(item) === 'browser') return viaFallback(item)
-  // Mid-message in the adviser's voice: once more before giving up on this line.
-  if (!blob && beganIn(item) === 'gateway') {
+  // Mid-message in the adviser's voice: once more before giving up on this line, unless it
+  // already had its seconds once due (a second try would double the silence; review of #43).
+  if (!blob && beganIn(item) === 'gateway' && !item.late.signal.aborted) {
     blob = await fetchAudio(item.text, item.speaker, item.abort.signal)
     if (item.abort.signal.aborted) return
   }
