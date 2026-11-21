@@ -72,3 +72,14 @@ describe('StartScreen connect panel', () => {
     expect(await screen.findByRole('button', { name: 'Copied' })).toBeInTheDocument()
   })
 })
+
+describe('home page basics (Pavol, 21 Nov 2026: "the headline is cropped and I am missing a concise explanation")', () => {
+  it('says what the app is, and shows today’s question whole, with no drop cap splitting its first letter', async () => {
+    const { WHAT_IT_IS } = await import('@/content/catalogue')
+    render(<StartScreen />)
+    expect(screen.getByTestId('what-it-is')).toHaveTextContent(WHAT_IT_IS)
+    const q = dailyQuestion(todayKey())
+    const card = screen.getByTestId('today')
+    expect(card.querySelector('.t-display')?.textContent).toBe(q)
+  })
+})

@@ -51,3 +51,21 @@ test('bottom nav targets clear 44 px', async ({ page }) => {
     expect(box!.height).toBeGreaterThanOrEqual(44)
   }
 })
+
+// Pavol's iPhone, 21 Nov 2026: with the account mark shown the running head read "MASTERMIND COUN…".
+test('phone header: the title fits whole beside Feedback and the account mark', async ({ page }) => {
+  for (const width of [360, 393]) {
+    await page.setViewportSize({ width, height: 800 })
+    await page.goto('/')
+    // The e2e build has no auth configured; a 44 px stand-in takes the account mark's place.
+    const [scroll, client] = await page.evaluate(() => {
+      const group = document.querySelector('[data-testid=header-actions]')!
+      const mark = document.createElement('span')
+      mark.style.cssText = 'display:inline-block;width:44px;height:44px'
+      group.appendChild(mark)
+      const head = document.querySelector('[data-testid=running-head]') as HTMLElement
+      return [head.scrollWidth, head.clientWidth]
+    })
+    expect(scroll, `width ${width}`).toBeLessThanOrEqual(client)
+  }
+})

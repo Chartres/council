@@ -71,13 +71,13 @@ export function Header() {
             {runningHead(gate === 'ready' ? view : 'start', conversation?.items)}
           </span>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1" data-testid="header-actions">
           {gate === 'ready' && (
             <button
               type="button"
               onClick={() => toggle('feedback')}
               aria-expanded={open === 'feedback'}
-              className="sc min-h-11 px-3 text-[17px] text-marble-400 hover:text-marble-100"
+              className="head-link sc min-h-11 px-3 text-[17px] text-marble-400 hover:text-marble-100 max-[440px]:px-1.5 max-[440px]:text-[15px]"
             >
               Feedback
             </button>

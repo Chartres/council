@@ -4,7 +4,7 @@ import { FAILURE_COPY } from '@/domain/council'
 import { useAuth } from '@/auth/AuthContext'
 import { SignInPanel } from '@/components/SignInPanel'
 import { Device } from '@/components/Furniture'
-import { PRIVATELY_PRINTED } from '@/content/catalogue'
+import { PRIVATELY_PRINTED, WHAT_IT_IS } from '@/content/catalogue'
 
 /**
  * The private-beta door. One field, no account — the gateway checks the password
@@ -30,6 +30,7 @@ export function PasswordPanel() {
         className="pt-3"
       >
         <Device size={92} label="Mastermind Council" className="mx-auto mt-3" />
+        <p className="t-body mt-4 text-center text-marble-200" data-testid="what-it-is">{WHAT_IT_IS}</p>
         <p className="rubric mt-4 text-center">{PRIVATELY_PRINTED}</p>
         {waiting ? (
           <>
