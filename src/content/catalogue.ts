@@ -18,6 +18,10 @@ export const LEAF_WANTING = 'Leaf wanting. This page is not in our copy.'
 export const NOT_SOUGHT = 'Authors’ approval: not sought. None of them has read this.'
 export const PRIVATELY_PRINTED = 'Privately printed'
 
+/** What the app is, in two sentences: on the home page and at the door (Pavol, 21 Nov 2026). */
+export const WHAT_IT_IS =
+  'Bring a question or a decision. Up to four thinkers from history, simulated by AI, talk it through with you and end with one decision and one next step.'
+
 export const EDITION: string = whatsNew.version
 
 /** The painted candle on the recording surface (src/components/Candle.tsx). */

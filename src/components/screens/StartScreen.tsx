@@ -2,8 +2,8 @@ import { useState } from 'react'
 import { useCouncil } from '@/app/CouncilContext'
 import { useMastermind } from '@/app/MastermindContext'
 import { Monogram } from '@/components/Monogram'
-import { Headpiece, Versal } from '@/components/Furniture'
-import { NONE_LIVING, NOT_SOUGHT } from '@/content/catalogue'
+import { Headpiece } from '@/components/Furniture'
+import { NONE_LIVING, NOT_SOUGHT, WHAT_IT_IS } from '@/content/catalogue'
 import { SignInPanel } from '@/components/SignInPanel'
 import { OutcomeButtons } from '@/components/OutcomeButtons'
 import { PrivacyLink } from '@/components/screens/PrivacyScreen'
@@ -81,7 +81,7 @@ function Today({ onOpen }: { onOpen: (question: string) => void }) {
       >
         <span className="rubric block pr-14">Today’s question</span>
         <span className="mt-2 block">
-          <Versal className="t-display">{question}</Versal>
+          <span className="t-display text-balance">{question}</span>
         </span>
         <span className="t-body mt-2 block font-semibold text-candle-300">Take it to the council ›</span>
       </button>
@@ -128,6 +128,7 @@ export function StartScreen() {
     <div className="mx-auto max-w-xl px-4 pb-12">
       <h1 className="sr-only">Mastermind Council</h1>
       <Headpiece className="mt-3" />
+      <p className="t-body mt-4 text-marble-200" data-testid="what-it-is">{WHAT_IT_IS}</p>
       {linkNeedsSignIn && (
         <div className="pt-3">
           <SignInPanel reason="Sign in to record how it went. The group picks up where you left off." />

@@ -416,8 +416,8 @@ body {
   .slab-off:hover::before {
     background: none;
     box-shadow: none;
-    border: 1.6px solid var(--color-marble-300);
-    filter: url(#rough-line); /* wavers, stays whole */
+    border: 2px solid var(--color-marble-300);
+    filter: url(#rough-line); /* wavers, stays whole: 2 px survives the displacement at DPR 2-3, 1.6 px tore */
     border-radius: 12px 7px 13px 8px / 7px 13px 8px 12px;
   }
   .slab-off:active::before {
