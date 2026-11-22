@@ -31,6 +31,7 @@ Mastermind Council at https://council.dravec.org, in private beta behind a passw
 - The opening question is still its own screen (the intake); making it the conversation's first turn needs a new start protocol in the gateway.
 - Replies to one adviser go at once; Agree and Push back marks wait for the next message. Push back no longer takes words of its own (Answer does that).
 - Read aloud is the one read-aloud switch while a discussion is open; Listen reads only an ended one.
+- The opening round (welcome and the advisers' first statements) is not read aloud, even with Read aloud on; reading starts with the first answer after his first turn (Pavol, 22 Nov 2026).
 - Earlier threads still open: voice latency and accuracy not measured; voice bar step 2 (gateway next/back commands); directory listings wait for sign-in without the password; Night edition follow-ups; unpicked proposals.
 
 ## What's next
